@@ -1,28 +1,38 @@
-// Gate de autenticação (HTTP Basic Auth) para todo o app.
-// Credenciais em APP_USER / APP_PASSWORD. Sem elas configuradas, não bloqueia.
+// Gate de sessão: exige login (cookie assinado) para tudo, exceto /login e assets.
+// Rotas de master (/configuracoes, /api/usuarios) exigem role 'master'.
 import { NextRequest, NextResponse } from 'next/server';
+import { lerSessao, COOKIE_SESSAO } from '@/lib/auth';
 
-export function proxy(req: NextRequest) {
-  const user = process.env.APP_USER;
-  const pass = process.env.APP_PASSWORD;
-  if (!user || !pass) return NextResponse.next();
+const PUBLICO = ['/login', '/api/login', '/api/logout'];
+const SOMENTE_MASTER = ['/configuracoes', '/api/usuarios'];
 
-  const auth = req.headers.get('authorization');
-  if (auth?.startsWith('Basic ')) {
-    const decoded = atob(auth.slice(6));
-    const i = decoded.indexOf(':');
-    const u = decoded.slice(0, i);
-    const p = decoded.slice(i + 1);
-    if (u === user && p === pass) return NextResponse.next();
+export async function proxy(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  if (PUBLICO.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+    return NextResponse.next();
   }
 
-  return new NextResponse('Autenticação necessária.', {
-    status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="Banco de Horas", charset="UTF-8"' },
-  });
+  const sessao = await lerSessao(req.cookies.get(COOKIE_SESSAO)?.value);
+  const ehApi = pathname.startsWith('/api/');
+
+  if (!sessao) {
+    if (ehApi) return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 });
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('next', pathname);
+    return NextResponse.redirect(url);
+  }
+
+  if (SOMENTE_MASTER.some((p) => pathname === p || pathname.startsWith(p + '/')) && sessao.role !== 'master') {
+    if (ehApi) return NextResponse.json({ erro: 'Acesso restrito ao administrador.' }, { status: 403 });
+    const url = req.nextUrl.clone();
+    url.pathname = '/';
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-  // protege tudo, menos assets estáticos do Next
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

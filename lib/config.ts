@@ -22,6 +22,13 @@ export function getSpreadsheetId(): string | null {
   return process.env.GOOGLE_SHEETS_ID?.trim() || null;
 }
 
+export function getMaster(): { email: string; senha: string } {
+  return {
+    email: (process.env.MASTER_EMAIL || 'joaoromaodev@gmail.com').trim().toLowerCase(),
+    senha: process.env.MASTER_PASSWORD || 'admin1234',
+  };
+}
+
 export interface ContaServico {
   client_email: string;
   private_key: string;

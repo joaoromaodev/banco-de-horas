@@ -17,10 +17,20 @@ const ABA_FER = 'Feriados';
 const HEADER_FER = ['data', 'descricao'];
 const ABA_CFG = 'Config';
 const HEADER_CFG = ['chave', 'valor'];
+const ABA_USERS = 'Usuarios';
+const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash'];
 
 export interface Feriado {
   data: string; // AAAA-MM-DD
   descricao: string;
+}
+
+export interface UsuarioRec {
+  email: string;
+  nome: string;
+  role: 'master' | 'usuario';
+  salt: string;
+  hash: string;
 }
 
 export interface SheetsCtx {
@@ -230,6 +240,44 @@ export async function salvarConfig(entradas: Record<string, string>): Promise<vo
   const merge = { ...atual, ...entradas };
   const linhas = Object.entries(merge).map(([k, v]) => [k, v]);
   await reescreverCorpo(ctx, ABA_CFG, HEADER_CFG.length, linhas);
+}
+
+// ---- Usuários ----
+export async function lerUsuarios(): Promise<UsuarioRec[]> {
+  const ctx = getSheets();
+  await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
+  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:E` });
+  return (res.data.values ?? []).map((r) => ({
+    email: String(r[0] ?? '').toLowerCase(),
+    nome: String(r[1] ?? ''),
+    role: (r[2] === 'master' ? 'master' : 'usuario') as 'master' | 'usuario',
+    salt: String(r[3] ?? ''),
+    hash: String(r[4] ?? ''),
+  })).filter((u) => u.email);
+}
+
+export async function buscarUsuario(email: string): Promise<UsuarioRec | null> {
+  const alvo = email.trim().toLowerCase();
+  return (await lerUsuarios()).find((u) => u.email === alvo) ?? null;
+}
+
+/** Adiciona/atualiza um usuário (upsert por email). */
+export async function salvarUsuario(u: UsuarioRec): Promise<void> {
+  const ctx = getSheets();
+  await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
+  const atuais = await lerUsuarios();
+  const email = u.email.trim().toLowerCase();
+  const mantidos = atuais.filter((x) => x.email !== email);
+  const linhas = [...mantidos, { ...u, email }].map((x) => [x.email, x.nome, x.role, x.salt, x.hash]);
+  await reescreverCorpo(ctx, ABA_USERS, HEADER_USERS.length, linhas);
+}
+
+export async function removerUsuario(email: string): Promise<void> {
+  const ctx = getSheets();
+  await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
+  const alvo = email.trim().toLowerCase();
+  const linhas = (await lerUsuarios()).filter((x) => x.email !== alvo).map((x) => [x.email, x.nome, x.role, x.salt, x.hash]);
+  await reescreverCorpo(ctx, ABA_USERS, HEADER_USERS.length, linhas);
 }
 
 /** Lê a chave do Gemini da aba Config (se houver planilha configurada). */

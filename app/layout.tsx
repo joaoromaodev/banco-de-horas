@@ -27,17 +27,7 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <nav className="border-b bg-white">
-          <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-3 text-sm">
-            <span className="font-bold">⏱️ Banco de Horas</span>
-            <a href="/" className="text-blue-600 hover:underline">Início</a>
-            <a href="/cadastros" className="text-blue-600 hover:underline">Cadastros</a>
-            <a href="/configuracoes" className="text-blue-600 hover:underline">Configurações</a>
-          </div>
-        </nav>
-        {children}
-      </body>
+      <body className="min-h-full bg-slate-50 text-slate-800">{children}</body>
     </html>
   );
 }
