@@ -44,3 +44,5 @@ next-env.d.ts
 service-account.json
 *-service-account.json
 !.env.example
+
+.vercel
