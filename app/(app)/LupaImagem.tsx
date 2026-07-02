@@ -8,8 +8,8 @@ import { useRef, useState } from 'react';
  */
 export default function LupaImagem({
   src,
-  zoom = 2.6,
-  tam = 220,
+  zoom = 1.9,
+  tam = 300,
 }: {
   src: string;
   zoom?: number;
