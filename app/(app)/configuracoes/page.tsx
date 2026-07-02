@@ -9,7 +9,6 @@ export default function Configuracoes() {
   const [temChave, setTemChave] = useState(false);
   const [chave, setChave] = useState('');
   const [modelo, setModelo] = useState('gemini-2.5-flash');
-  const [trabalhaSabado, setTrabalhaSabado] = useState(false);
   const [savingCfg, setSavingCfg] = useState(false);
   const [msgCfg, setMsgCfg] = useState<string | null>(null);
 
@@ -24,7 +23,7 @@ export default function Configuracoes() {
   async function carregarCfg() {
     const res = await fetch('/api/config');
     const d = await res.json();
-    if (res.ok) { setTemChave(d.temChave); setModelo(d.gemini_modelo || 'gemini-2.5-flash'); setTrabalhaSabado(Boolean(d.trabalha_sabado)); }
+    if (res.ok) { setTemChave(d.temChave); setModelo(d.gemini_modelo || 'gemini-2.5-flash'); }
   }
   async function carregarUsuarios() {
     const res = await fetch('/api/usuarios');
@@ -36,7 +35,7 @@ export default function Configuracoes() {
   async function salvarCfg() {
     setErro(null); setMsgCfg(null); setSavingCfg(true);
     try {
-      const body: Record<string, string | boolean> = { gemini_modelo: modelo, trabalha_sabado: trabalhaSabado };
+      const body: Record<string, string> = { gemini_modelo: modelo };
       if (chave.trim()) body.gemini_api_key = chave.trim();
       const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await res.json();
@@ -109,32 +108,6 @@ export default function Configuracoes() {
               </button>
               {msgCfg && <span className="text-green-700">{msgCfg}</span>}
             </div>
-          </div>
-        </section>
-
-        {/* Jornada */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="font-semibold text-slate-900">Jornada da empresa</h2>
-          <p className="mt-1 text-xs text-slate-500">Define como o sábado é tratado no cálculo e nos alertas.</p>
-
-          <label className="mt-4 flex items-start gap-3">
-            <input type="checkbox" checked={trabalhaSabado} onChange={(e) => setTrabalhaSabado(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300" />
-            <span>
-              <span className="font-medium text-slate-700">A empresa trabalha aos sábados</span>
-              <span className="block text-xs text-slate-500">
-                Desmarcado (padrão): sábado vira folga — 0h a cumprir e sem alerta de dia vazio.
-                Marcado: sábado conta como dia de trabalho (4h).
-              </span>
-            </span>
-          </label>
-
-          <div className="mt-4 flex items-center gap-3">
-            <button onClick={salvarCfg} disabled={savingCfg}
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
-              {savingCfg ? 'Salvando…' : 'Salvar'}
-            </button>
-            {msgCfg && <span className="text-green-700">{msgCfg}</span>}
           </div>
         </section>
 

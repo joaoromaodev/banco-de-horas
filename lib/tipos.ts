@@ -29,6 +29,7 @@ export interface DiaFreq {
 
 /** Frequência de um funcionário num mês. */
 export interface Frequencia {
+  empresa: string; // razão social da empresa-cliente
   funcionario: string;
   cargo?: string | null;
   ano: number;
@@ -37,10 +38,23 @@ export interface Frequencia {
 }
 
 export interface Funcionario {
+  empresa: string; // a qual empresa-cliente pertence
   nome: string;
   cargo?: string | null;
   ordem?: number | null;
   // jornada em minutos; padrão 8h dia útil, 4h sábado
   jornadaUtilMin?: number;
   jornadaSabadoMin?: number;
+}
+
+/** Empresa-cliente da contadora. O `nome` (razão social) vai no cabeçalho da planilha. */
+export interface Empresa {
+  nome: string;
+  cnpj?: string | null;
+  /** A empresa trabalha aos sábados? Quando false, sábado vira folga. */
+  trabalhaSabado: boolean;
+  // jornada padrão da empresa em minutos (funcionário pode sobrescrever)
+  jornadaUtilMin?: number;
+  jornadaSabadoMin?: number;
+  ordem?: number | null;
 }

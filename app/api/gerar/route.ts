@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { gerarPlanilha } from '@/lib/planilha';
 import { Frequencia } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
-import { lerJornada } from '@/lib/sheets';
+import { lerJornadaEmpresa } from '@/lib/sheets';
 
 export const runtime = 'nodejs';
 
@@ -26,17 +26,17 @@ export async function POST(req: NextRequest) {
   }
 
   const freq = body.frequencia;
-  if (!freq || !freq.funcionario || !freq.ano || !freq.mes) {
-    return Response.json({ erro: 'Frequência incompleta (funcionário, mês e ano são obrigatórios).' }, { status: 400 });
+  if (!freq || !freq.empresa || !freq.funcionario || !freq.ano || !freq.mes) {
+    return Response.json({ erro: 'Frequência incompleta (empresa, funcionário, mês e ano são obrigatórios).' }, { status: 400 });
   }
 
   const feriados = new Set(body.feriados ?? []);
-  // A jornada (inclui "trabalha aos sábados") vem da config da empresa; o body
+  // A jornada (inclui "trabalha aos sábados") vem do cadastro da empresa; o body
   // pode sobrescrever só os minutos por dia (jornada por funcionário).
-  const cfg = await lerJornada();
+  const base = await lerJornadaEmpresa(freq.empresa);
   const jornada = body.jornada
-    ? { ...cfg, utilMin: body.jornada.utilMin, sabadoMin: body.jornada.sabadoMin }
-    : cfg;
+    ? { ...base, utilMin: body.jornada.utilMin, sabadoMin: body.jornada.sabadoMin }
+    : base;
   const wb = gerarPlanilha(freq, feriados, jornada);
   const buffer = await wb.xlsx.writeBuffer();
 

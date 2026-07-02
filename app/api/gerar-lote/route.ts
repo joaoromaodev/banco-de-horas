@@ -3,7 +3,7 @@
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
 import { gerarPlanilha } from '@/lib/planilha';
-import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios, lerJornada } from '@/lib/sheets';
+import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios, lerJornadaEmpresa } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
 
 export const runtime = 'nodejs';
@@ -15,21 +15,25 @@ function slug(s: string): string {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const empresa = (searchParams.get('empresa') || '').trim();
   const ano = Number(searchParams.get('ano'));
   const mes = Number(searchParams.get('mes'));
+  if (!empresa) {
+    return Response.json({ erro: 'Informe a empresa.' }, { status: 400 });
+  }
   if (!ano || !mes || mes < 1 || mes > 12) {
     return Response.json({ erro: 'Parâmetros ano/mes inválidos.' }, { status: 400 });
   }
 
   try {
     const [freqs, feriadosArr, funcs, jornadaEmpresa] = await Promise.all([
-      lerFrequenciasDoMes(ano, mes),
+      lerFrequenciasDoMes(empresa, ano, mes),
       lerFeriados(),
-      lerFuncionarios(),
-      lerJornada(),
+      lerFuncionarios(empresa),
+      lerJornadaEmpresa(empresa),
     ]);
     if (!freqs.length) {
-      return Response.json({ erro: `Nenhuma frequência salva para ${MESES[mes]}/${ano}.` }, { status: 404 });
+      return Response.json({ erro: `Nenhuma frequência salva para ${empresa} em ${MESES[mes]}/${ano}.` }, { status: 404 });
     }
 
     const feriados = new Set(feriadosArr.map((f) => f.data));
@@ -54,7 +58,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="planilhas_${MESES[mes]}_${ano}.zip"`,
+        'Content-Disposition': `attachment; filename="${slug(empresa)}_${MESES[mes]}_${ano}.zip"`,
       },
     });
   } catch (e) {

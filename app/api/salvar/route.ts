@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ erro: 'JSON inválido.' }, { status: 400 });
   }
 
-  if (!freq || !freq.funcionario || !freq.ano || !freq.mes) {
-    return Response.json({ erro: 'Frequência incompleta (funcionário, mês e ano).' }, { status: 400 });
+  if (!freq || !freq.empresa || !freq.funcionario || !freq.ano || !freq.mes) {
+    return Response.json({ erro: 'Frequência incompleta (empresa, funcionário, mês e ano).' }, { status: 400 });
   }
 
   try {

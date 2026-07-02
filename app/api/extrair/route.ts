@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
   const file = form.get('file');
   const ano = Number(form.get('ano'));
   const mes = Number(form.get('mes'));
+  const empresa = (form.get('empresa') as string) || undefined;
   const funcionario = (form.get('funcionario') as string) || undefined;
 
   if (!(file instanceof File)) {
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
       mimeType,
       ano,
       mes,
+      empresa,
       funcionario,
       modelo: getGeminiModelo(),
     });

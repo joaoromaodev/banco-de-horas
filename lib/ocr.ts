@@ -68,6 +68,7 @@ export async function extrairFolha(opts: {
   mimeType: string;
   ano: number;
   mes: number;
+  empresa?: string;
   funcionario?: string;
   modelo?: string;
 }): Promise<ResultadoOCR> {
@@ -117,6 +118,7 @@ export async function extrairFolha(opts: {
   });
 
   const frequencia: Frequencia = {
+    empresa: opts.empresa ?? '',
     funcionario: opts.funcionario ?? parsed.funcionario ?? '',
     ano: opts.ano,
     mes: opts.mes,

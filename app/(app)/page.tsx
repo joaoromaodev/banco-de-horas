@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { DiaFreq, Frequencia, Funcionario, MARCADORES } from '@/lib/tipos';
+import { DiaFreq, Empresa, Frequencia, Funcionario, MARCADORES } from '@/lib/tipos';
 import { MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, JORNADA_PADRAO } from '@/lib/calendario';
 import { validar, Alerta } from '@/lib/validacao';
 import { dataBR } from '@/lib/data';
@@ -36,6 +36,8 @@ function mesclar(ano: number, mes: number, dias: DiaFreq[]): DiaFreq[] {
 }
 
 export default function Home() {
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [empresa, setEmpresa] = useState('');
   const [funcionario, setFuncionario] = useState('');
   const [ano, setAno] = useState(2026);
   const [mes, setMes] = useState(6);
@@ -49,20 +51,32 @@ export default function Home() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [funcList, setFuncList] = useState<Funcionario[]>([]);
   const [feriadosCad, setFeriadosCad] = useState<string[]>([]);
-  const [trabalhaSabado, setTrabalhaSabado] = useState(JORNADA_PADRAO.trabalhaSabado);
 
   // Carrega cadastros (funciona mesmo se a planilha não estiver configurada).
   useEffect(() => {
-    fetch('/api/funcionarios').then((r) => r.json()).then((d) => {
-      if (Array.isArray(d.funcionarios)) setFuncList(d.funcionarios);
+    fetch('/api/empresas').then((r) => r.json()).then((d) => {
+      if (Array.isArray(d.empresas)) {
+        setEmpresas(d.empresas);
+        if (d.empresas.length) setEmpresa((prev) => prev || d.empresas[0].nome);
+      }
     }).catch(() => {});
     fetch('/api/feriados').then((r) => r.json()).then((d) => {
       if (Array.isArray(d.feriados)) setFeriadosCad(d.feriados.map((f: { data: string }) => f.data));
     }).catch(() => {});
-    fetch('/api/config').then((r) => r.json()).then((d) => {
-      if (typeof d.trabalha_sabado === 'boolean') setTrabalhaSabado(d.trabalha_sabado);
-    }).catch(() => {});
   }, []);
+
+  // Funcionários da empresa selecionada.
+  useEffect(() => {
+    if (!empresa) { setFuncList([]); return; }
+    fetch(`/api/funcionarios?empresa=${encodeURIComponent(empresa)}`).then((r) => r.json()).then((d) => {
+      if (Array.isArray(d.funcionarios)) setFuncList(d.funcionarios);
+    }).catch(() => {});
+  }, [empresa]);
+
+  const trabalhaSabado = useMemo(
+    () => empresas.find((e) => e.nome === empresa)?.trabalhaSabado ?? JORNADA_PADRAO.trabalhaSabado,
+    [empresas, empresa],
+  );
 
   const feriados = useMemo(
     () => new Set([
@@ -74,9 +88,9 @@ export default function Home() {
 
   const alertas: Alerta[] = useMemo(() => {
     if (!dias) return [];
-    const freq: Frequencia = { funcionario, ano, mes, dias };
+    const freq: Frequencia = { empresa, funcionario, ano, mes, dias };
     return validar(freq, feriados, { ...JORNADA_PADRAO, trabalhaSabado });
-  }, [dias, funcionario, ano, mes, feriados, trabalhaSabado]);
+  }, [dias, empresa, funcionario, ano, mes, feriados, trabalhaSabado]);
 
   const alertaPorCampo = useMemo(() => {
     const m = new Map<string, Alerta>();
@@ -104,6 +118,7 @@ export default function Home() {
       fd.append('file', arquivo);
       fd.append('ano', String(ano));
       fd.append('mes', String(mes));
+      if (empresa) fd.append('empresa', empresa);
       if (funcionario) fd.append('funcionario', funcionario);
       const res = await fetch('/api/extrair', { method: 'POST', body: fd });
       const data = await res.json();
@@ -139,13 +154,17 @@ export default function Home() {
 
   async function baixar() {
     setErro(null);
+    if (!empresa) {
+      setErro('Selecione a empresa.');
+      return;
+    }
     if (!funcionario) {
       setErro('Informe o nome do funcionário.');
       return;
     }
     setCarregando(true);
     try {
-      const freq: Frequencia = { funcionario, ano, mes, dias: dias ?? [] };
+      const freq: Frequencia = { empresa, funcionario, ano, mes, dias: dias ?? [] };
       const res = await fetch('/api/gerar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,13 +191,17 @@ export default function Home() {
   async function salvarSheets() {
     setErro(null);
     setAviso(null);
+    if (!empresa) {
+      setErro('Selecione a empresa.');
+      return;
+    }
     if (!funcionario) {
       setErro('Informe o nome do funcionário.');
       return;
     }
     setCarregando(true);
     try {
-      const freq: Frequencia = { funcionario, ano, mes, dias: dias ?? [] };
+      const freq: Frequencia = { empresa, funcionario, ano, mes, dias: dias ?? [] };
       const res = await fetch('/api/salvar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -197,9 +220,13 @@ export default function Home() {
   async function gerarLote() {
     setErro(null);
     setAviso(null);
+    if (!empresa) {
+      setErro('Selecione a empresa.');
+      return;
+    }
     setCarregando(true);
     try {
-      const res = await fetch(`/api/gerar-lote?ano=${ano}&mes=${mes}`);
+      const res = await fetch(`/api/gerar-lote?empresa=${encodeURIComponent(empresa)}&ano=${ano}&mes=${mes}`);
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.erro ?? 'Falha ao gerar lote.');
@@ -208,7 +235,7 @@ export default function Home() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `planilhas_${MESES[mes]}_${ano}.zip`;
+      a.download = `${empresa}_${MESES[mes]}_${ano}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -234,9 +261,17 @@ export default function Home() {
 
       <section className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-4">
         <label className="flex flex-col gap-1 md:col-span-2">
+          <span className="font-medium">Empresa</span>
+          <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={empresa}
+            onChange={(e) => { setEmpresa(e.target.value); setFuncionario(''); }}>
+            {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
+            {empresas.map((e) => <option key={e.nome} value={e.nome}>{e.nome}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 md:col-span-2">
           <span className="font-medium">Funcionário</span>
           <input className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={funcionario} list="lista-funcs"
-            onChange={(e) => setFuncionario(e.target.value)} placeholder="Nome completo (ou selecione)" />
+            onChange={(e) => setFuncionario(e.target.value)} placeholder={empresa ? 'Nome completo (ou selecione)' : 'Selecione a empresa primeiro'} />
           <datalist id="lista-funcs">
             {funcList.map((f) => <option key={f.nome} value={f.nome} />)}
           </datalist>
@@ -278,7 +313,7 @@ export default function Home() {
 
       <section className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-4">
         <span className="font-medium">Gerar em lote:</span>
-        <span className="text-slate-500">todas as planilhas de {MESES[mes]}/{ano} salvas no banco →</span>
+        <span className="text-slate-500">todas as planilhas de {empresa || 'empresa'} em {MESES[mes]}/{ano} salvas no banco →</span>
         <button onClick={gerarLote} disabled={carregando}
           className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
           Baixar todas (.zip)
