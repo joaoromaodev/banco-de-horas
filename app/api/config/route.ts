@@ -11,6 +11,7 @@ export async function GET() {
     return Response.json({
       temChave: Boolean(cfg['gemini_api_key']),
       gemini_modelo: cfg['gemini_modelo'] ?? '',
+      trabalha_sabado: cfg['trabalha_sabado'] === 'true' || cfg['trabalha_sabado'] === '1',
     });
   } catch (e) {
     return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao ler.' }, { status: 502 });
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest) {
     }
     if (typeof body.gemini_modelo === 'string') {
       entradas['gemini_modelo'] = body.gemini_modelo.trim();
+    }
+    if (typeof body.trabalha_sabado === 'boolean') {
+      entradas['trabalha_sabado'] = body.trabalha_sabado ? 'true' : 'false';
     }
     await salvarConfig(entradas);
     return Response.json({ ok: true });

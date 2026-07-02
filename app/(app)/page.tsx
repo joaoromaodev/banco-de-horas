@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DiaFreq, Frequencia, Funcionario, MARCADORES } from '@/lib/tipos';
-import { MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia } from '@/lib/calendario';
+import { MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, JORNADA_PADRAO } from '@/lib/calendario';
 import { validar, Alerta } from '@/lib/validacao';
 import { dataBR } from '@/lib/data';
 import LupaImagem from './LupaImagem';
@@ -49,6 +49,7 @@ export default function Home() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [funcList, setFuncList] = useState<Funcionario[]>([]);
   const [feriadosCad, setFeriadosCad] = useState<string[]>([]);
+  const [trabalhaSabado, setTrabalhaSabado] = useState(JORNADA_PADRAO.trabalhaSabado);
 
   // Carrega cadastros (funciona mesmo se a planilha não estiver configurada).
   useEffect(() => {
@@ -57,6 +58,9 @@ export default function Home() {
     }).catch(() => {});
     fetch('/api/feriados').then((r) => r.json()).then((d) => {
       if (Array.isArray(d.feriados)) setFeriadosCad(d.feriados.map((f: { data: string }) => f.data));
+    }).catch(() => {});
+    fetch('/api/config').then((r) => r.json()).then((d) => {
+      if (typeof d.trabalha_sabado === 'boolean') setTrabalhaSabado(d.trabalha_sabado);
     }).catch(() => {});
   }, []);
 
@@ -71,8 +75,8 @@ export default function Home() {
   const alertas: Alerta[] = useMemo(() => {
     if (!dias) return [];
     const freq: Frequencia = { funcionario, ano, mes, dias };
-    return validar(freq, feriados);
-  }, [dias, funcionario, ano, mes, feriados]);
+    return validar(freq, feriados, { ...JORNADA_PADRAO, trabalhaSabado });
+  }, [dias, funcionario, ano, mes, feriados, trabalhaSabado]);
 
   const alertaPorCampo = useMemo(() => {
     const m = new Map<string, Alerta>();

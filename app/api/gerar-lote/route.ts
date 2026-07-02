@@ -3,7 +3,7 @@
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
 import { gerarPlanilha } from '@/lib/planilha';
-import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios } from '@/lib/sheets';
+import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios, lerJornada } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
 
 export const runtime = 'nodejs';
@@ -22,18 +22,24 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [freqs, feriadosArr, funcs] = await Promise.all([
+    const [freqs, feriadosArr, funcs, jornadaEmpresa] = await Promise.all([
       lerFrequenciasDoMes(ano, mes),
       lerFeriados(),
       lerFuncionarios(),
+      lerJornada(),
     ]);
     if (!freqs.length) {
       return Response.json({ erro: `Nenhuma frequência salva para ${MESES[mes]}/${ano}.` }, { status: 404 });
     }
 
     const feriados = new Set(feriadosArr.map((f) => f.data));
+    // Minutos por dia podem variar por funcionário; "trabalha aos sábados" é da empresa.
     const jornadaPorNome = new Map(
-      funcs.map((f) => [f.nome, { utilMin: f.jornadaUtilMin ?? 480, sabadoMin: f.jornadaSabadoMin ?? 240 }]),
+      funcs.map((f) => [f.nome, {
+        utilMin: f.jornadaUtilMin ?? jornadaEmpresa.utilMin,
+        sabadoMin: f.jornadaSabadoMin ?? jornadaEmpresa.sabadoMin,
+        trabalhaSabado: jornadaEmpresa.trabalhaSabado,
+      }]),
     );
 
     const zip = new JSZip();

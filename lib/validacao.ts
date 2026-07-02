@@ -1,7 +1,7 @@
 // Regras de validação — destacam células suspeitas antes de gravar.
 import { Frequencia } from './tipos';
 import { parseHoraParaMin, formatarMin } from './tempo';
-import { tipoDoDia, diasNoMes } from './calendario';
+import { tipoDoDia, diasNoMes, ehDiaDeTrabalho, Jornada, JORNADA_PADRAO } from './calendario';
 
 export type CampoDia =
   | 'entradaManha'
@@ -24,26 +24,28 @@ const ORDEM: { campo: Exclude<CampoDia, 'geral'>; get: (d: any) => string | null
   { campo: 'saidaTarde', get: (d) => d?.saidaTarde },
 ];
 
-export function validar(freq: Frequencia, feriados: Set<string>): Alerta[] {
+export function validar(freq: Frequencia, feriados: Set<string>, jornada: Jornada = JORNADA_PADRAO): Alerta[] {
   const alertas: Alerta[] = [];
   const N = diasNoMes(freq.ano, freq.mes);
   const porDia = new Map(freq.dias.map((d) => [d.dia, d]));
 
   for (let dia = 1; dia <= N; dia++) {
     const tipo = tipoDoDia(freq.ano, freq.mes, dia, feriados);
+    const trabalha = ehDiaDeTrabalho(tipo, jornada); // sábado só conta se a empresa trabalha aos sábados
     const reg = porDia.get(dia);
     const marc = reg?.marcador ?? null;
 
     const mins = ORDEM.map(({ campo, get }) => ({ campo, v: parseHoraParaMin(get(reg)) }));
     const temAlgum = mins.some((m) => m.v != null);
 
-    // Domingo/feriado não deveria ter horários (a menos que marcado)
-    if ((tipo === 'domingo' || tipo === 'feriado') && temAlgum && !marc) {
-      alertas.push({ dia, campo: 'geral', nivel: 'alerta', msg: `Dia ${dia} é ${tipo} mas tem horários lançados.` });
+    // Dia de folga (domingo, feriado ou sábado sem expediente) não deveria ter horários
+    if (!trabalha && temAlgum && !marc) {
+      const rotulo = tipo === 'sabado' ? 'sábado (folga)' : tipo;
+      alertas.push({ dia, campo: 'geral', nivel: 'alerta', msg: `Dia ${dia} é ${rotulo} mas tem horários lançados.` });
     }
 
     // Dia de trabalho totalmente vazio e sem marcador
-    if ((tipo === 'util' || tipo === 'sabado') && !temAlgum && !marc) {
+    if (trabalha && !temAlgum && !marc) {
       alertas.push({ dia, campo: 'geral', nivel: 'alerta', msg: `Dia ${dia} (${tipo}) está vazio e sem marcador (falta? folga?).` });
     }
 
@@ -81,7 +83,7 @@ export function validar(freq: Frequencia, feriados: Set<string>): Alerta[] {
     }
 
     // Horários incompletos num dia de trabalho
-    if ((tipo === 'util' || tipo === 'sabado') && temAlgum && !marc) {
+    if (trabalha && temAlgum && !marc) {
       const faltando = mins.filter((m) => m.v == null).map((m) => m.campo);
       if (faltando.length) {
         alertas.push({ dia, campo: 'geral', nivel: 'alerta', msg: `Dia ${dia}: horários incompletos (${faltando.join(', ')}).` });

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { gerarPlanilha } from '@/lib/planilha';
 import { Frequencia } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
+import { lerJornada } from '@/lib/sheets';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +31,13 @@ export async function POST(req: NextRequest) {
   }
 
   const feriados = new Set(body.feriados ?? []);
-  const wb = gerarPlanilha(freq, feriados, body.jornada);
+  // A jornada (inclui "trabalha aos sábados") vem da config da empresa; o body
+  // pode sobrescrever só os minutos por dia (jornada por funcionário).
+  const cfg = await lerJornada();
+  const jornada = body.jornada
+    ? { ...cfg, utilMin: body.jornada.utilMin, sabadoMin: body.jornada.sabadoMin }
+    : cfg;
+  const wb = gerarPlanilha(freq, feriados, jornada);
   const buffer = await wb.xlsx.writeBuffer();
 
   const nome = `${slug(freq.funcionario)}_${MESES[freq.mes]}_${freq.ano}.xlsx`;

@@ -3,6 +3,7 @@
 import { google, sheets_v4 } from 'googleapis';
 import { getContaServico, getSpreadsheetId } from './config';
 import { Frequencia, Funcionario } from './tipos';
+import { Jornada, JORNADA_PADRAO } from './calendario';
 
 const ABA = 'Frequencias';
 const HEADER = [
@@ -278,6 +279,23 @@ export async function removerUsuario(email: string): Promise<void> {
   const alvo = email.trim().toLowerCase();
   const linhas = (await lerUsuarios()).filter((x) => x.email !== alvo).map((x) => [x.email, x.nome, x.role, x.salt, x.hash]);
   await reescreverCorpo(ctx, ABA_USERS, HEADER_USERS.length, linhas);
+}
+
+/** Lê a jornada da empresa (aba Config). Padrão: não trabalha aos sábados. */
+export async function lerJornada(): Promise<Jornada> {
+  try {
+    const cfg = await lerConfig();
+    const trabalhaSabado = cfg['trabalha_sabado'] === 'true' || cfg['trabalha_sabado'] === '1';
+    const utilMin = cfg['jornada_util_min'] ? Number(cfg['jornada_util_min']) : JORNADA_PADRAO.utilMin;
+    const sabadoMin = cfg['jornada_sabado_min'] ? Number(cfg['jornada_sabado_min']) : JORNADA_PADRAO.sabadoMin;
+    return {
+      utilMin: Number.isFinite(utilMin) ? utilMin : JORNADA_PADRAO.utilMin,
+      sabadoMin: Number.isFinite(sabadoMin) ? sabadoMin : JORNADA_PADRAO.sabadoMin,
+      trabalhaSabado,
+    };
+  } catch {
+    return { ...JORNADA_PADRAO };
+  }
 }
 
 /** Lê a chave do Gemini da aba Config (se houver planilha configurada). */
