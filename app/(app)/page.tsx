@@ -5,6 +5,7 @@ import { DiaFreq, Frequencia, Funcionario, MARCADORES } from '@/lib/tipos';
 import { MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia } from '@/lib/calendario';
 import { validar, Alerta } from '@/lib/validacao';
 import { dataBR } from '@/lib/data';
+import LupaImagem from './LupaImagem';
 
 type Campo = 'entradaManha' | 'saidaAlmoco' | 'retornoAlmoco' | 'saidaTarde';
 const CAMPOS: Campo[] = ['entradaManha', 'saidaAlmoco', 'retornoAlmoco', 'saidaTarde'];
@@ -287,7 +288,7 @@ export default function Home() {
           <div className="lg:sticky lg:top-4 lg:self-start">
             <h2 className="mb-2 font-semibold">Folha original</h2>
             {imgUrl
-              ? <img src={imgUrl} alt="folha" className="max-h-[80vh] w-full rounded-lg border border-slate-200 object-contain" />
+              ? <LupaImagem src={imgUrl} />
               : <p className="text-slate-400">Sem imagem (preenchimento manual).</p>}
           </div>
 
