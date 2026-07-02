@@ -21,7 +21,7 @@ export default function Cadastros() {
       if (!r.ok) throw new Error(d.erro);
       const lista: Empresa[] = d.empresas ?? [];
       setEmpresas(lista);
-      if (!empresaSel && lista.length) setEmpresaSel(lista[0].nome);
+      if (!empresaSel && lista.length) setEmpresaSel(lista[0].id);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
@@ -148,7 +148,7 @@ export default function Cadastros() {
           </tbody>
         </table>
         <div className="mt-2 flex gap-2">
-          <button onClick={() => setEmpresas((p) => [...p, { nome: '', cnpj: '', trabalhaSabado: false }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Empresa</button>
+          <button onClick={() => setEmpresas((p) => [...p, { id: '', nome: '', cnpj: '', trabalhaSabado: false }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Empresa</button>
           <button onClick={salvarEmpresas} className="rounded-lg bg-indigo-600 px-3 py-1 text-white">Salvar empresas</button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Dica: evite renomear uma empresa depois de cadastrar funcionários — o vínculo é pelo nome.</p>
@@ -163,7 +163,7 @@ export default function Cadastros() {
             <select value={empresaSel} onChange={(e) => setEmpresaSel(e.target.value)}
               className="rounded-lg border border-slate-300 px-2 py-1">
               {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
-              {empresas.map((e) => <option key={e.nome} value={e.nome}>{e.nome}</option>)}
+              {empresas.map((e) => <option key={e.id || e.nome} value={e.id}>{e.nome}</option>)}
             </select>
           </label>
         </div>

@@ -1,12 +1,24 @@
 // Persistência no Google Sheets. Abas: "Frequencias" (registro por dia),
 // "Funcionarios", "Feriados" e "Config" (chave/valor).
+import { randomUUID } from 'crypto';
 import { google, sheets_v4 } from 'googleapis';
 import { getContaServico, getSpreadsheetId } from './config';
 import { Empresa, Frequencia, Funcionario } from './tipos';
 import { Jornada, JORNADA_PADRAO } from './calendario';
 
-// Empresa atribuída às linhas antigas (antes do multiempresa), para não perder dados.
+// Empresa/ID atribuídos às linhas antigas (antes do multiempresa), para não perder dados.
 export const EMPRESA_PADRAO = 'VAZ E VOUZELA';
+export const EMPRESA_PADRAO_ID = 'empresa-vaz-e-vouzela';
+
+/** Resolve o valor gravado na coluna `empresa` para um id de empresa.
+ *  Aceita: id novo, razão social (deploy anterior) ou vazio (dados originais). */
+function resolverEmpresaId(valor: unknown, empresas: Empresa[]): string {
+  const v = String(valor ?? '').trim();
+  if (!v) return EMPRESA_PADRAO_ID;
+  if (empresas.some((e) => e.id === v)) return v;
+  const porNome = empresas.find((e) => e.nome === v);
+  return porNome ? porNome.id : v;
+}
 
 const ABA = 'Frequencias';
 // `empresa` foi ADICIONADA no fim (coluna K) para não quebrar linhas antigas:
@@ -21,7 +33,8 @@ const ABA_FUNC = 'Funcionarios';
 // `empresa` também no fim (coluna F) pela mesma razão.
 const HEADER_FUNC = ['nome', 'cargo', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem', 'empresa'];
 const ABA_EMP = 'Empresas';
-const HEADER_EMP = ['nome', 'cnpj', 'trabalhaSabado', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem'];
+// `id` no fim (coluna G) para não quebrar a aba criada no deploy anterior.
+const HEADER_EMP = ['nome', 'cnpj', 'trabalhaSabado', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem', 'id'];
 const ABA_FER = 'Feriados';
 const HEADER_FER = ['data', 'descricao'];
 const ABA_CFG = 'Config';
@@ -90,15 +103,16 @@ export async function salvarFrequencia(freq: Frequencia): Promise<number> {
   await garantirAba(ctx);
 
   // Lê registros atuais
+  const empresas = await lerEmpresas();
   const res = await ctx.sheets.spreadsheets.values.get({
     spreadsheetId: ctx.spreadsheetId,
     range: `${ABA}!A2:K`,
   });
   const atuais = res.data.values ?? [];
 
-  // Remove linhas da mesma empresa+funcionário+ano+mês (empresa em K; ausente = padrão)
+  // Remove linhas da mesma empresa+funcionário+ano+mês (empresa em K, resolvida por id)
   const mantidas = atuais.filter(
-    (r) => !((r[10] || EMPRESA_PADRAO) === freq.empresa && r[0] === freq.funcionario && Number(r[1]) === freq.ano && Number(r[2]) === freq.mes),
+    (r) => !(resolverEmpresaId(r[10], empresas) === freq.empresa && r[0] === freq.funcionario && Number(r[1]) === freq.ano && Number(r[2]) === freq.mes),
   );
 
   // Novas linhas (só dias com algum dado ou marcador)
@@ -132,21 +146,22 @@ export async function salvarFrequencia(freq: Frequencia): Promise<number> {
   return novas.length;
 }
 
-/** Lê as frequências de uma empresa num mês, agrupadas por funcionário. */
-export async function lerFrequenciasDoMes(empresa: string, ano: number, mes: number): Promise<Frequencia[]> {
+/** Lê as frequências de uma empresa (por id) num mês, agrupadas por funcionário. */
+export async function lerFrequenciasDoMes(empresaId: string, ano: number, mes: number): Promise<Frequencia[]> {
   const ctx = getSheets();
   await garantirAba(ctx);
+  const empresas = await lerEmpresas();
   const res = await ctx.sheets.spreadsheets.values.get({
     spreadsheetId: ctx.spreadsheetId,
     range: `${ABA}!A2:K`,
   });
   const linhas = (res.data.values ?? []).filter(
-    (r) => (r[10] || EMPRESA_PADRAO) === empresa && Number(r[1]) === ano && Number(r[2]) === mes,
+    (r) => resolverEmpresaId(r[10], empresas) === empresaId && Number(r[1]) === ano && Number(r[2]) === mes,
   );
   const porFunc = new Map<string, Frequencia>();
   for (const r of linhas) {
     const nome = String(r[0]);
-    if (!porFunc.has(nome)) porFunc.set(nome, { empresa, funcionario: nome, ano, mes, dias: [] });
+    if (!porFunc.has(nome)) porFunc.set(nome, { empresa: empresaId, funcionario: nome, ano, mes, dias: [] });
     porFunc.get(nome)!.dias.push({
       dia: Number(r[3]),
       entradaManha: r[4] || null,
@@ -193,10 +208,11 @@ async function reescreverCorpo(ctx: SheetsCtx, titulo: string, ncols: number, li
 }
 
 // ---- Funcionários ----
-/** Lê funcionários; se `empresa` for informada, filtra só os dela. */
-export async function lerFuncionarios(empresa?: string): Promise<Funcionario[]> {
+/** Lê funcionários; se `empresaId` for informado, filtra só os dela. */
+export async function lerFuncionarios(empresaId?: string): Promise<Funcionario[]> {
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_FUNC, HEADER_FUNC);
+  const empresas = await lerEmpresas(); // para resolver o vínculo (id/nome/legado)
   const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_FUNC}!A2:F` });
   const todos = (res.data.values ?? []).map((r) => ({
     nome: String(r[0] ?? ''),
@@ -204,17 +220,17 @@ export async function lerFuncionarios(empresa?: string): Promise<Funcionario[]> 
     jornadaUtilMin: r[2] ? Number(r[2]) : undefined,
     jornadaSabadoMin: r[3] ? Number(r[3]) : undefined,
     ordem: r[4] ? Number(r[4]) : null,
-    empresa: String(r[5] || EMPRESA_PADRAO), // linhas antigas caem na empresa padrão
+    empresa: resolverEmpresaId(r[5], empresas), // linhas antigas → id da empresa padrão
   })).filter((f) => f.nome);
-  return empresa ? todos.filter((f) => f.empresa === empresa) : todos;
+  return empresaId ? todos.filter((f) => f.empresa === empresaId) : todos;
 }
 
-/** Substitui os funcionários de UMA empresa, preservando os das demais. */
-export async function salvarFuncionarios(empresa: string, lista: Funcionario[]): Promise<number> {
+/** Substitui os funcionários de UMA empresa (por id), preservando os das demais. */
+export async function salvarFuncionarios(empresaId: string, lista: Funcionario[]): Promise<number> {
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_FUNC, HEADER_FUNC);
-  const outros = (await lerFuncionarios()).filter((f) => f.empresa !== empresa);
-  const desta = lista.filter((f) => f.nome?.trim()).map((f) => ({ ...f, empresa }));
+  const outros = (await lerFuncionarios()).filter((f) => f.empresa !== empresaId);
+  const desta = lista.filter((f) => f.nome?.trim()).map((f) => ({ ...f, empresa: empresaId }));
   const combinado = [...outros, ...desta];
   const linhas = combinado.map((f, i) => [
     f.nome.trim(), f.cargo ?? '', f.jornadaUtilMin ?? '', f.jornadaSabadoMin ?? '', f.ordem ?? i + 1, f.empresa,
@@ -227,14 +243,15 @@ export async function salvarFuncionarios(empresa: string, lista: Funcionario[]):
 export async function lerEmpresas(): Promise<Empresa[]> {
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_EMP, HEADER_EMP);
-  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_EMP}!A2:F` });
-  const lista = (res.data.values ?? []).map((r) => ({
+  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_EMP}!A2:G` });
+  const lista: Empresa[] = (res.data.values ?? []).map((r) => ({
     nome: String(r[0] ?? ''),
     cnpj: r[1] ? String(r[1]) : null,
     trabalhaSabado: r[2] === 'true' || r[2] === '1',
     jornadaUtilMin: r[3] ? Number(r[3]) : undefined,
     jornadaSabadoMin: r[4] ? Number(r[4]) : undefined,
     ordem: r[5] ? Number(r[5]) : null,
+    id: String(r[6] ?? '').trim(),
   })).filter((e) => e.nome);
 
   // Primeira execução: semeia a empresa padrão, herdando o ajuste global antigo.
@@ -244,10 +261,20 @@ export async function lerEmpresas(): Promise<Empresa[]> {
       const cfg = await lerConfig();
       trabalhaSabado = cfg['trabalha_sabado'] === 'true' || cfg['trabalha_sabado'] === '1';
     } catch { /* sem planilha de config ainda */ }
-    const padrao: Empresa = { nome: EMPRESA_PADRAO, cnpj: null, trabalhaSabado, ordem: 1 };
+    const padrao: Empresa = { id: EMPRESA_PADRAO_ID, nome: EMPRESA_PADRAO, cnpj: null, trabalhaSabado, ordem: 1 };
     await salvarEmpresas([padrao]);
     return [padrao];
   }
+
+  // Cura ids faltantes (aba criada no deploy anterior não tinha coluna id).
+  let precisaSalvar = false;
+  for (const e of lista) {
+    if (!e.id) {
+      e.id = e.nome === EMPRESA_PADRAO ? EMPRESA_PADRAO_ID : randomUUID();
+      precisaSalvar = true;
+    }
+  }
+  if (precisaSalvar) await salvarEmpresas(lista);
   return lista;
 }
 
@@ -259,14 +286,20 @@ export async function salvarEmpresas(lista: Empresa[]): Promise<number> {
     .map((e, i) => [
       e.nome.trim(), e.cnpj ?? '', e.trabalhaSabado ? 'true' : 'false',
       e.jornadaUtilMin ?? '', e.jornadaSabadoMin ?? '', e.ordem ?? i + 1,
+      // id imutável: mantém o existente; gera para empresas novas.
+      e.id?.trim() || (e.nome.trim() === EMPRESA_PADRAO ? EMPRESA_PADRAO_ID : randomUUID()),
     ]);
   await reescreverCorpo(ctx, ABA_EMP, HEADER_EMP.length, linhas);
   return linhas.length;
 }
 
-/** Jornada de uma empresa (inclui "trabalha aos sábados"). */
-export async function lerJornadaEmpresa(nome: string): Promise<Jornada> {
-  const e = (await lerEmpresas()).find((x) => x.nome === nome);
+export async function lerEmpresa(id: string): Promise<Empresa | null> {
+  return (await lerEmpresas()).find((e) => e.id === id) ?? null;
+}
+
+/** Jornada de uma empresa (por id; inclui "trabalha aos sábados"). */
+export async function lerJornadaEmpresa(id: string): Promise<Jornada> {
+  const e = await lerEmpresa(id);
   if (!e) return { ...JORNADA_PADRAO };
   return {
     utilMin: e.jornadaUtilMin ?? JORNADA_PADRAO.utilMin,

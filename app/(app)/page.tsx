@@ -57,7 +57,7 @@ export default function Home() {
     fetch('/api/empresas').then((r) => r.json()).then((d) => {
       if (Array.isArray(d.empresas)) {
         setEmpresas(d.empresas);
-        if (d.empresas.length) setEmpresa((prev) => prev || d.empresas[0].nome);
+        if (d.empresas.length) setEmpresa((prev) => prev || d.empresas[0].id);
       }
     }).catch(() => {});
     fetch('/api/feriados').then((r) => r.json()).then((d) => {
@@ -73,10 +73,8 @@ export default function Home() {
     }).catch(() => {});
   }, [empresa]);
 
-  const trabalhaSabado = useMemo(
-    () => empresas.find((e) => e.nome === empresa)?.trabalhaSabado ?? JORNADA_PADRAO.trabalhaSabado,
-    [empresas, empresa],
-  );
+  const empresaSel = useMemo(() => empresas.find((e) => e.id === empresa), [empresas, empresa]);
+  const trabalhaSabado = empresaSel?.trabalhaSabado ?? JORNADA_PADRAO.trabalhaSabado;
 
   const feriados = useMemo(
     () => new Set([
@@ -235,7 +233,7 @@ export default function Home() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${empresa}_${MESES[mes]}_${ano}.zip`;
+      a.download = `${empresaSel?.nome ?? 'planilhas'}_${MESES[mes]}_${ano}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -265,7 +263,7 @@ export default function Home() {
           <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={empresa}
             onChange={(e) => { setEmpresa(e.target.value); setFuncionario(''); }}>
             {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
-            {empresas.map((e) => <option key={e.nome} value={e.nome}>{e.nome}</option>)}
+            {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1 md:col-span-2">
@@ -313,7 +311,7 @@ export default function Home() {
 
       <section className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-4">
         <span className="font-medium">Gerar em lote:</span>
-        <span className="text-slate-500">todas as planilhas de {empresa || 'empresa'} em {MESES[mes]}/{ano} salvas no banco →</span>
+        <span className="text-slate-500">todas as planilhas de {empresaSel?.nome || 'empresa'} em {MESES[mes]}/{ano} salvas no banco →</span>
         <button onClick={gerarLote} disabled={carregando}
           className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
           Baixar todas (.zip)

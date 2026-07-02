@@ -55,6 +55,7 @@ export function gerarPlanilha(
   freq: Frequencia,
   feriados: Set<string>,
   jornada: Jornada = JORNADA_PADRAO,
+  nomeEmpresa = '',
 ): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.properties.date1904 = true; // permite exibir saldo negativo
@@ -67,7 +68,7 @@ export function gerarPlanilha(
 
   // --- Faixa de título: empresa + tipo de documento ---
   ws.mergeCells('A1:L1');
-  paint(ws, 'A1', (freq.empresa || '').toUpperCase(),
+  paint(ws, 'A1', (nomeEmpresa || '').toUpperCase(),
     { font: { size: 15, bold: true, color: { argb: WHITE } }, fill: NAVY });
   ws.getRow(1).height = 30;
 

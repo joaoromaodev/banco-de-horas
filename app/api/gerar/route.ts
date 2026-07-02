@@ -3,7 +3,8 @@ import { NextRequest } from 'next/server';
 import { gerarPlanilha } from '@/lib/planilha';
 import { Frequencia } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
-import { lerJornadaEmpresa } from '@/lib/sheets';
+import { lerEmpresa } from '@/lib/sheets';
+import { JORNADA_PADRAO } from '@/lib/calendario';
 
 export const runtime = 'nodejs';
 
@@ -31,13 +32,16 @@ export async function POST(req: NextRequest) {
   }
 
   const feriados = new Set(body.feriados ?? []);
-  // A jornada (inclui "trabalha aos sábados") vem do cadastro da empresa; o body
-  // pode sobrescrever só os minutos por dia (jornada por funcionário).
-  const base = await lerJornadaEmpresa(freq.empresa);
+  // Empresa (por id): jornada + razão social para o cabeçalho da planilha.
+  const emp = await lerEmpresa(freq.empresa);
+  const base = emp
+    ? { utilMin: emp.jornadaUtilMin ?? JORNADA_PADRAO.utilMin, sabadoMin: emp.jornadaSabadoMin ?? JORNADA_PADRAO.sabadoMin, trabalhaSabado: emp.trabalhaSabado }
+    : { ...JORNADA_PADRAO };
+  // O body pode sobrescrever só os minutos por dia (jornada por funcionário).
   const jornada = body.jornada
     ? { ...base, utilMin: body.jornada.utilMin, sabadoMin: body.jornada.sabadoMin }
     : base;
-  const wb = gerarPlanilha(freq, feriados, jornada);
+  const wb = gerarPlanilha(freq, feriados, jornada, emp?.nome ?? '');
   const buffer = await wb.xlsx.writeBuffer();
 
   const nome = `${slug(freq.funcionario)}_${MESES[freq.mes]}_${freq.ano}.xlsx`;

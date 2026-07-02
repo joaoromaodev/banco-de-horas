@@ -29,7 +29,7 @@ export interface DiaFreq {
 
 /** Frequência de um funcionário num mês. */
 export interface Frequencia {
-  empresa: string; // razão social da empresa-cliente
+  empresa: string; // id interno da empresa-cliente
   funcionario: string;
   cargo?: string | null;
   ano: number;
@@ -38,7 +38,7 @@ export interface Frequencia {
 }
 
 export interface Funcionario {
-  empresa: string; // a qual empresa-cliente pertence
+  empresa: string; // id interno da empresa-cliente a que pertence
   nome: string;
   cargo?: string | null;
   ordem?: number | null;
@@ -49,6 +49,7 @@ export interface Funcionario {
 
 /** Empresa-cliente da contadora. O `nome` (razão social) vai no cabeçalho da planilha. */
 export interface Empresa {
+  id: string; // identificador interno imutável (vínculo estável, sobrevive a renomear)
   nome: string;
   cnpj?: string | null;
   /** A empresa trabalha aos sábados? Quando false, sábado vira folga. */

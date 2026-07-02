@@ -3,7 +3,7 @@
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
 import { gerarPlanilha } from '@/lib/planilha';
-import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios, lerJornadaEmpresa } from '@/lib/sheets';
+import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios, lerJornadaEmpresa, lerEmpresa } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
 
 export const runtime = 'nodejs';
@@ -26,14 +26,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [freqs, feriadosArr, funcs, jornadaEmpresa] = await Promise.all([
+    const [freqs, feriadosArr, funcs, jornadaEmpresa, emp] = await Promise.all([
       lerFrequenciasDoMes(empresa, ano, mes),
       lerFeriados(),
       lerFuncionarios(empresa),
       lerJornadaEmpresa(empresa),
+      lerEmpresa(empresa),
     ]);
+    const nomeEmpresa = emp?.nome ?? '';
     if (!freqs.length) {
-      return Response.json({ erro: `Nenhuma frequência salva para ${empresa} em ${MESES[mes]}/${ano}.` }, { status: 404 });
+      return Response.json({ erro: `Nenhuma frequência salva para ${nomeEmpresa || 'a empresa'} em ${MESES[mes]}/${ano}.` }, { status: 404 });
     }
 
     const feriados = new Set(feriadosArr.map((f) => f.data));
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     const zip = new JSZip();
     for (const freq of freqs) {
-      const wb = gerarPlanilha(freq, feriados, jornadaPorNome.get(freq.funcionario));
+      const wb = gerarPlanilha(freq, feriados, jornadaPorNome.get(freq.funcionario), nomeEmpresa);
       const buf = await wb.xlsx.writeBuffer();
       zip.file(`${slug(freq.funcionario)}_${MESES[mes]}_${ano}.xlsx`, buf as ArrayBuffer);
     }
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${slug(empresa)}_${MESES[mes]}_${ano}.zip"`,
+        'Content-Disposition': `attachment; filename="${slug(nomeEmpresa || empresa)}_${MESES[mes]}_${ano}.zip"`,
       },
     });
   } catch (e) {
