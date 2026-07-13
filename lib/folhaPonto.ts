@@ -141,9 +141,13 @@ export async function gerarFolhaPontoPDF(opts: {
     const bg = folga ? WEEKEND : (d % 2 === 0 ? ZEBRA : undefined);
 
     if (folga) {
-      // Domingo / feriado / sábado sem expediente: linha inteira mesclada, em negrito.
+      // Domingo / feriado / sábado sem expediente: Dia e Assinatura separados;
+      // apenas as colunas B..F são mescladas, em negrito.
       const rotulo = tipo === 'feriado' ? 'FERIADO' : DIAS_SEMANA[wd];
-      cell(ctx, MARGIN, top, CONTENT_W, hDia, { fill: bg, texto: `${d}   -   ${rotulo}`, bold: true, size: 9.5, color: MUTED });
+      const wBanner = W.semana + W.c + W.d + W.e + W.f;
+      cell(ctx, X.dia, top, W.dia, hDia, { fill: bg, texto: String(d), bold: true, size: 10, color: NAVY });
+      cell(ctx, X.semana, top, wBanner, hDia, { fill: bg, texto: rotulo, bold: true, size: 9.5, color: MUTED });
+      cell(ctx, X.assinatura, top, W.assinatura, hDia, { fill: bg });
     } else {
       cell(ctx, X.dia, top, W.dia, hDia, { fill: bg, texto: String(d), bold: true, size: 10, color: NAVY });
       cell(ctx, X.semana, top, W.semana, hDia, { fill: bg, texto: DIAS_SEMANA[wd], size: 8, color: INK, align: 'center' });
