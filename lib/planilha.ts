@@ -21,8 +21,8 @@ const MUTED = 'FF6B7280';      // texto suave
 const GREEN = 'FF15803D';      // saldo positivo
 const RED = 'FFB91C1C';        // saldo negativo
 
-const NUMFMT = '[h]:mm:ss';
-const SALDO_FMT = '[h]:mm:ss;[Red]-[h]:mm:ss';
+const NUMFMT = '[h]:mm';
+const SALDO_FMT = '[h]:mm;[Red]-[h]:mm';
 
 const gridB = { style: 'thin' as const, color: { argb: 'FFCBD5E1' } };
 const border = { top: gridB, left: gridB, bottom: gridB, right: gridB };
@@ -158,7 +158,7 @@ export function gerarPlanilha(
     ws.mergeCells(`J${r}:K${r}`);
     paint(ws, `J${r}`, val, {
       font: { size: 10, bold: true, color: { argb: r === r2 ? WHITE : INK } },
-      align: 'right', fmt: r === r2 ? '[h]:mm:ss;-[h]:mm:ss' : NUMFMT,
+      align: 'right', fmt: r === r2 ? '[h]:mm;-[h]:mm' : NUMFMT,
       fill: r === r2 ? NAVY : WHITE,
     });
   }
