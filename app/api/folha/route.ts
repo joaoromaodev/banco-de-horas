@@ -1,7 +1,7 @@
 // GET /api/folha?empresa=<id>&funcionario=<nome>&ano=&mes= — folha de ponto
 // em branco (.xlsx) de um funcionário, para preencher à mão.
 import { NextRequest } from 'next/server';
-import { gerarFolhaPonto } from '@/lib/folhaPonto';
+import { gerarFolhaPontoPDF } from '@/lib/folhaPonto';
 import { lerEmpresa, lerFeriados, lerFuncionarios, lerJornadaEmpresa } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
 
@@ -31,14 +31,13 @@ export async function GET(req: NextRequest) {
     ]);
     const cargo = funcs.find((f) => f.nome === funcionario)?.cargo ?? null;
     const feriados = new Set(feriadosArr.map((f) => f.data));
-    const wb = gerarFolhaPonto({ nomeEmpresa: emp?.nome ?? '', funcionario, cargo, ano, mes, feriados, jornada });
-    const buffer = await wb.xlsx.writeBuffer();
+    const pdf = await gerarFolhaPontoPDF({ nomeEmpresa: emp?.nome ?? '', funcionario, cargo, ano, mes, feriados, jornada });
 
-    const nome = `folha_${slug(funcionario)}_${MESES[mes]}_${ano}.xlsx`;
-    return new Response(buffer as ArrayBuffer, {
+    const nome = `folha_${slug(funcionario)}_${MESES[mes]}_${ano}.pdf`;
+    return new Response(pdf as unknown as BodyInit, {
       status: 200,
       headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${nome}"`,
       },
     });

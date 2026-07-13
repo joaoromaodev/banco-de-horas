@@ -2,7 +2,7 @@
 // TODOS os funcionários da empresa (do cadastro), num .zip.
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
-import { gerarFolhaPonto } from '@/lib/folhaPonto';
+import { gerarFolhaPontoPDF } from '@/lib/folhaPonto';
 import { lerEmpresa, lerFeriados, lerFuncionarios, lerJornadaEmpresa } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
 
@@ -37,9 +37,8 @@ export async function GET(req: NextRequest) {
     const feriados = new Set(feriadosArr.map((f) => f.data));
     const zip = new JSZip();
     for (const f of funcs) {
-      const wb = gerarFolhaPonto({ nomeEmpresa, funcionario: f.nome, cargo: f.cargo, ano, mes, feriados, jornada });
-      const buf = await wb.xlsx.writeBuffer();
-      zip.file(`folha_${slug(f.nome)}_${MESES[mes]}_${ano}.xlsx`, buf as ArrayBuffer);
+      const pdf = await gerarFolhaPontoPDF({ nomeEmpresa, funcionario: f.nome, cargo: f.cargo, ano, mes, feriados, jornada });
+      zip.file(`folha_${slug(f.nome)}_${MESES[mes]}_${ano}.pdf`, pdf as Uint8Array);
     }
     const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
 

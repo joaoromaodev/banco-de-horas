@@ -57,7 +57,7 @@ export default function Folhas() {
   function baixarFuncionario() {
     if (!funcionario) { setErro('Selecione o funcionário.'); return; }
     const url = `/api/folha?empresa=${encodeURIComponent(empresa)}&funcionario=${encodeURIComponent(funcionario)}&ano=${ano}&mes=${mes}`;
-    baixar(url, `folha_${funcionario}_${MESES[mes]}_${ano}.xlsx`);
+    baixar(url, `folha_${funcionario}_${MESES[mes]}_${ano}.pdf`);
   }
 
   function baixarLote() {
@@ -112,7 +112,7 @@ export default function Folhas() {
             </label>
             <button onClick={baixarFuncionario} disabled={carregando}
               className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
-              {carregando ? 'Gerando…' : 'Baixar folha (.xlsx)'}
+              {carregando ? 'Gerando…' : 'Baixar folha (PDF)'}
             </button>
           </div>
         </section>

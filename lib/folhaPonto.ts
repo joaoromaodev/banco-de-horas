@@ -1,44 +1,70 @@
-// Gera uma FOLHA DE PONTO em branco (.xlsx) para o funcionário preencher à mão.
-// Mesmo visual azul-marinho da planilha de saída; fins de semana/feriados já
-// aparecem sombreados e rotulados para orientar quem preenche.
-import ExcelJS from 'exceljs';
+// Gera uma FOLHA DE PONTO em branco em PDF (A4, uma página), pronta para
+// imprimir e preencher à mão. Visual azul-marinho; fins de semana e feriados
+// (conforme a jornada da empresa) saem mesclados e em negrito.
+import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage, RGB } from 'pdf-lib';
 import {
   MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, ehDiaDeTrabalho, Jornada, JORNADA_PADRAO,
 } from './calendario';
 
-const NAVY = 'FF17365D';
-const NAVY_SOFT = 'FF2E5B8A';
-const LABEL_BG = 'FFEDF2F8';
-const ZEBRA = 'FFF4F8FC';
-const WEEKEND = 'FFE3EAF3';
-const WHITE = 'FFFFFFFF';
-const INK = 'FF1F2937';
-const MUTED = 'FF6B7280';
+// Paleta (0–1)
+const NAVY = rgb(0x17 / 255, 0x36 / 255, 0x5d / 255);
+const NAVY_SOFT = rgb(0x2e / 255, 0x5b / 255, 0x8a / 255);
+const LABEL_BG = rgb(0xed / 255, 0xf2 / 255, 0xf8 / 255);
+const ZEBRA = rgb(0xf4 / 255, 0xf8 / 255, 0xfc / 255);
+const WEEKEND = rgb(0xe3 / 255, 0xea / 255, 0xf3 / 255);
+const WHITE = rgb(1, 1, 1);
+const INK = rgb(0x1f / 255, 0x29 / 255, 0x37 / 255);
+const MUTED = rgb(0x6b / 255, 0x72 / 255, 0x80 / 255);
+const GRID = rgb(0xcb / 255, 0xd5 / 255, 0xe1 / 255);
 
-const gridB = { style: 'thin' as const, color: { argb: 'FFCBD5E1' } };
-const border = { top: gridB, left: gridB, bottom: gridB, right: gridB };
+const A4 = { w: 595.28, h: 841.89 };
+const MARGIN = 22;
+const PAD = 4;
 
-const LARGURAS: Record<string, number> = { A: 6.5, B: 20, C: 12.5, D: 12.5, E: 12.5, F: 12.5, G: 28 };
-
-interface Opts {
-  font?: Partial<ExcelJS.Font>;
-  fill?: string;
-  align?: 'left' | 'center' | 'right';
-  wrap?: boolean;
-  bordas?: Partial<ExcelJS.Borders>;
+interface Ctx {
+  page: PDFPage;
+  reg: PDFFont;
+  bold: PDFFont;
 }
 
-function paint(ws: ExcelJS.Worksheet, ref: string, value: string | number, o: Opts = {}) {
-  const c = ws.getCell(ref);
-  c.value = value;
-  c.font = { name: 'Arial', size: 9, color: { argb: INK }, ...o.font };
-  if (o.fill) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: o.fill } };
-  c.border = o.bordas ?? border;
-  c.alignment = { horizontal: o.align ?? 'center', vertical: 'middle', wrapText: o.wrap };
-  return c;
+// Larguras das colunas (somam a largura útil da página)
+const CONTENT_W = A4.w - 2 * MARGIN;
+const W = { dia: 34, semana: 108, c: 70, d: 70, e: 70, f: 70, assinatura: CONTENT_W - (34 + 108 + 70 * 4) };
+const X = {
+  dia: MARGIN,
+  semana: MARGIN + W.dia,
+  c: MARGIN + W.dia + W.semana,
+  d: MARGIN + W.dia + W.semana + W.c,
+  e: MARGIN + W.dia + W.semana + W.c + W.d,
+  f: MARGIN + W.dia + W.semana + W.c + W.d + W.e,
+  assinatura: MARGIN + W.dia + W.semana + W.c + W.d + W.e + W.f,
+};
+
+type Align = 'left' | 'center' | 'right';
+
+function cell(
+  ctx: Ctx, x: number, top: number, w: number, h: number,
+  o: { fill?: RGB; texto?: string; align?: Align; bold?: boolean; size?: number; color?: RGB; borda?: boolean } = {},
+) {
+  const y = A4.h - top - h;
+  ctx.page.drawRectangle({
+    x, y, width: w, height: h,
+    color: o.fill ?? WHITE,
+    borderColor: o.borda === false ? undefined : GRID,
+    borderWidth: o.borda === false ? 0 : 0.5,
+  });
+  if (o.texto) {
+    const font = o.bold ? ctx.bold : ctx.reg;
+    const size = o.size ?? 8.5;
+    const tw = font.widthOfTextAtSize(o.texto, size);
+    const align = o.align ?? 'center';
+    const tx = align === 'left' ? x + PAD : align === 'right' ? x + w - tw - PAD : x + (w - tw) / 2;
+    const ty = A4.h - top - h / 2 - size * 0.35;
+    ctx.page.drawText(o.texto, { x: tx, y: ty, size, font, color: o.color ?? INK });
+  }
 }
 
-export function gerarFolhaPonto(opts: {
+export async function gerarFolhaPontoPDF(opts: {
   nomeEmpresa: string;
   funcionario: string;
   cargo?: string | null;
@@ -46,90 +72,99 @@ export function gerarFolhaPonto(opts: {
   mes: number;
   feriados: Set<string>;
   jornada?: Jornada;
-}): ExcelJS.Workbook {
+}): Promise<Uint8Array> {
   const { nomeEmpresa, funcionario, cargo, ano, mes, feriados } = opts;
   const jornada = opts.jornada ?? JORNADA_PADRAO;
 
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(MESES[mes], { views: [{ showGridLines: false }] });
-  for (const [c, w] of Object.entries(LARGURAS)) ws.getColumn(c).width = w;
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([A4.w, A4.h]);
+  const ctx: Ctx = {
+    page,
+    reg: await pdf.embedFont(StandardFonts.Helvetica),
+    bold: await pdf.embedFont(StandardFonts.HelveticaBold),
+  };
 
-  // --- Faixa de título ---
-  ws.mergeCells('A1:G1');
-  paint(ws, 'A1', (nomeEmpresa || '').toUpperCase(), { font: { size: 15, bold: true, color: { argb: WHITE } }, fill: NAVY });
-  ws.getRow(1).height = 30;
-  ws.mergeCells('A2:G2');
-  paint(ws, 'A2', 'FOLHA DE PONTO', { font: { size: 10, bold: true, color: { argb: WHITE } }, fill: NAVY_SOFT });
-  ws.getRow(2).height = 18;
-
-  // --- Identificação ---
-  const rotulo: Opts = { font: { size: 9, bold: true, color: { argb: NAVY } }, fill: LABEL_BG };
-  const valor: Opts = { font: { size: 11, bold: true, color: { argb: INK } }, align: 'left' };
-  const nomeCompleto = cargo ? `  ${funcionario}   —   ${cargo}` : `  ${funcionario}`;
-  ws.mergeCells('A3:B3'); paint(ws, 'A3', 'NOME', rotulo);
-  ws.mergeCells('C3:G3'); paint(ws, 'C3', nomeCompleto, valor);
-  ws.mergeCells('A4:B4'); paint(ws, 'A4', 'PERÍODO', rotulo);
-  ws.mergeCells('C4:G4'); paint(ws, 'C4', `  ${MESES[mes]} / ${ano}`, valor);
-  ws.getRow(3).height = 20;
-  ws.getRow(4).height = 20;
-
-  // --- Cabeçalho da tabela (linhas 5 e 6) ---
-  const th: Opts = { font: { size: 9, bold: true, color: { argb: WHITE } }, fill: NAVY, wrap: true };
-  for (const [col, texto] of [['A', 'Dia'], ['B', 'Dia da semana'], ['G', 'Assinatura']] as const) {
-    ws.mergeCells(`${col}5:${col}6`);
-    paint(ws, `${col}5`, texto, th);
-  }
-  ws.mergeCells('C5:D5'); paint(ws, 'C5', 'MATUTINO', th);
-  ws.mergeCells('E5:F5'); paint(ws, 'E5', 'VESPERTINO', th);
-  for (const [col, texto] of [['C', 'Entrada'], ['D', 'Saída'], ['E', 'Entrada'], ['F', 'Saída']] as const) {
-    paint(ws, `${col}6`, texto, th);
-  }
-  ws.getRow(5).height = 18;
-  ws.getRow(6).height = 22;
-
-  // --- Linhas dos dias (em branco para preencher) ---
-  const firstRow = 7;
   const N = diasNoMes(ano, mes);
+
+  // Alturas fixas do cabeçalho + rodapé; a altura das linhas de dia é calculada
+  // para caber tudo em UMA página.
+  const H_TITULO = 30, H_SUB = 16, H_ID = 17, H_GRUPO = 15, H_SUBH = 14;
+  const H_RODAPE = 34, GAP_RODAPE = 8;
+  const headerBloco = H_TITULO + H_SUB + H_ID * 3 + H_GRUPO + H_SUBH;
+  const disponivel = A4.h - 2 * MARGIN;
+  const areaDias = disponivel - headerBloco - H_RODAPE - GAP_RODAPE;
+  const hDia = areaDias / N;
+
+  let top = MARGIN;
+
+  // Faixa de título (empresa)
+  cell(ctx, MARGIN, top, CONTENT_W, H_TITULO, { fill: NAVY, texto: (nomeEmpresa || '').toUpperCase(), bold: true, size: 15, color: WHITE, borda: false });
+  top += H_TITULO;
+  cell(ctx, MARGIN, top, CONTENT_W, H_SUB, { fill: NAVY_SOFT, texto: 'FOLHA DE PONTO', bold: true, size: 10, color: WHITE, borda: false });
+  top += H_SUB;
+
+  // Identificação (rótulo à esquerda, valor centralizado)
+  const wRot = W.dia + W.semana;
+  const wVal = CONTENT_W - wRot;
+  const idRow = (rotulo: string, valor: string) => {
+    cell(ctx, MARGIN, top, wRot, H_ID, { fill: LABEL_BG, texto: rotulo, bold: true, size: 9, color: NAVY });
+    cell(ctx, MARGIN + wRot, top, wVal, H_ID, { texto: valor, bold: true, size: 11, align: 'center' });
+    top += H_ID;
+  };
+  idRow('NOME', funcionario);
+  idRow('CARGO', cargo || '');
+  idRow('PERÍODO', `${MESES[mes]} / ${ano}`);
+
+  // Cabeçalho da tabela (grupo + sub), tudo navy
+  const topGrupo = top;
+  const th = { fill: NAVY, bold: true, size: 9, color: WHITE };
+  // Colunas que ocupam as duas linhas
+  cell(ctx, X.dia, topGrupo, W.dia, H_GRUPO + H_SUBH, { ...th, texto: 'Dia' });
+  cell(ctx, X.semana, topGrupo, W.semana, H_GRUPO + H_SUBH, { ...th, texto: 'Dia da semana' });
+  cell(ctx, X.assinatura, topGrupo, W.assinatura, H_GRUPO + H_SUBH, { ...th, texto: 'Assinatura' });
+  // Grupos
+  cell(ctx, X.c, topGrupo, W.c + W.d, H_GRUPO, { ...th, texto: 'MATUTINO' });
+  cell(ctx, X.e, topGrupo, W.e + W.f, H_GRUPO, { ...th, texto: 'VESPERTINO' });
+  // Sub-cabeçalhos
+  const topSub = topGrupo + H_GRUPO;
+  cell(ctx, X.c, topSub, W.c, H_SUBH, { ...th, texto: 'Entrada' });
+  cell(ctx, X.d, topSub, W.d, H_SUBH, { ...th, texto: 'Saída' });
+  cell(ctx, X.e, topSub, W.e, H_SUBH, { ...th, texto: 'Entrada' });
+  cell(ctx, X.f, topSub, W.f, H_SUBH, { ...th, texto: 'Saída' });
+  top = topSub + H_SUBH;
+
+  // Linhas dos dias
   for (let d = 1; d <= N; d++) {
-    const r = firstRow + (d - 1);
     const tipo = tipoDoDia(ano, mes, d, feriados);
     const wd = diaSemana(ano, mes, d);
     const folga = !ehDiaDeTrabalho(tipo, jornada);
     const bg = folga ? WEEKEND : (d % 2 === 0 ? ZEBRA : undefined);
 
-    paint(ws, `A${r}`, d, { font: { size: 10, bold: true, color: { argb: NAVY } }, fill: bg });
-    paint(ws, `B${r}`, DIAS_SEMANA[wd], { font: { size: 8, italic: folga, color: { argb: folga ? MUTED : INK } }, align: 'left', fill: bg });
-
     if (folga) {
-      // Dia sem expediente: bloqueia as colunas e rotula o motivo.
-      ws.mergeCells(`C${r}:G${r}`);
-      const rotuloFolga = tipo === 'feriado' ? 'FERIADO' : tipo === 'domingo' ? 'DOMINGO' : 'SÁBADO';
-      paint(ws, `C${r}`, rotuloFolga, { font: { size: 8, bold: true, color: { argb: MUTED } }, fill: bg });
+      // Domingo / feriado / sábado sem expediente: linha inteira mesclada, em negrito.
+      const rotulo = tipo === 'feriado' ? 'FERIADO' : DIAS_SEMANA[wd];
+      cell(ctx, MARGIN, top, CONTENT_W, hDia, { fill: bg, texto: `${d}   -   ${rotulo}`, bold: true, size: 9.5, color: MUTED });
     } else {
-      for (const col of ['C', 'D', 'E', 'F', 'G'] as const) paint(ws, `${col}${r}`, '', { fill: bg });
+      cell(ctx, X.dia, top, W.dia, hDia, { fill: bg, texto: String(d), bold: true, size: 10, color: NAVY });
+      cell(ctx, X.semana, top, W.semana, hDia, { fill: bg, texto: DIAS_SEMANA[wd], size: 8, color: INK, align: 'center' });
+      cell(ctx, X.c, top, W.c, hDia, { fill: bg });
+      cell(ctx, X.d, top, W.d, hDia, { fill: bg });
+      cell(ctx, X.e, top, W.e, hDia, { fill: bg });
+      cell(ctx, X.f, top, W.f, hDia, { fill: bg });
+      cell(ctx, X.assinatura, top, W.assinatura, hDia, { fill: bg });
     }
-    ws.getRow(r).height = 24; // espaço para escrever à mão
+    top += hDia;
   }
 
-  const lastRow = firstRow + N - 1;
-
-  // --- Rodapé: assinaturas ---
-  const linhaAssinatura: Opts = { font: { size: 9, color: { argb: INK } }, align: 'center', bordas: { top: { style: 'thin', color: { argb: INK } } } };
-  const rAssin = lastRow + 3;
-  ws.mergeCells(`B${rAssin}:C${rAssin}`); paint(ws, `B${rAssin}`, 'Assinatura do Funcionário', linhaAssinatura);
-  ws.mergeCells(`E${rAssin}:F${rAssin}`); paint(ws, `E${rAssin}`, 'Assinatura do Responsável', linhaAssinatura);
-  ws.getRow(rAssin - 1).height = 22; // respiro acima das linhas
-
-  // --- Impressão ---
-  ws.views = [{ state: 'frozen', ySplit: 6, showGridLines: false }];
-  ws.pageSetup = {
-    orientation: 'portrait',
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
-    horizontalCentered: true,
-    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 },
+  // Rodapé: linhas de assinatura
+  const topRod = top + GAP_RODAPE + 12;
+  const meia = CONTENT_W / 2;
+  const linha = (x: number, w: number, rotulo: string) => {
+    ctx.page.drawLine({ start: { x: x + 20, y: A4.h - topRod }, end: { x: x + w - 20, y: A4.h - topRod }, thickness: 0.7, color: INK });
+    cell(ctx, x, topRod + 2, w, 14, { texto: rotulo, size: 9, color: INK, borda: false });
   };
+  linha(MARGIN, meia, 'Assinatura do Funcionário');
+  linha(MARGIN + meia, meia, 'Assinatura do Responsável');
 
-  return wb;
+  return pdf.save();
 }
