@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import { Frequencia } from './tipos';
 import { horaParaFracaoDia } from './tempo';
 import {
-  MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, minutosACumprir,
+  MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, minutosACumprirDia,
   ehDiaDeTrabalho, Jornada, JORNADA_PADRAO,
 } from './calendario';
 
@@ -124,7 +124,9 @@ export function gerarPlanilha(
     paint(ws, `F${r}`, horaParaFracaoDia(reg?.retornoAlmoco), tNum);
     paint(ws, `G${r}`, horaParaFracaoDia(reg?.saidaTarde), tNum);
     paint(ws, `H${r}`, { formula: `G${r}-F${r}` }, tCalc);
-    paint(ws, `I${r}`, minutosACumprir(tipo, jornada) / 1440, { font: { size: 9, color: { argb: MUTED } }, align: 'right', fmt: NUMFMT, fill: bg });
+    // Dias marcados como FALTA/ATESTADO/FÉRIAS/FOLGA não geram débito no banco:
+    // a falta é descontada em folha, os demais são abonados.
+    paint(ws, `I${r}`, minutosACumprirDia(tipo, reg?.marcador, jornada) / 1440, { font: { size: 9, color: { argb: MUTED } }, align: 'right', fmt: NUMFMT, fill: bg });
     paint(ws, `J${r}`, { formula: `E${r}+H${r}` }, tCalc);
     paint(ws, `K${r}`, { formula: `J${r}-I${r}` }, { font: { size: 9, bold: true, color: { argb: INK } }, align: 'right', fmt: SALDO_FMT, fill: bg });
 
