@@ -200,6 +200,26 @@ detalhado, o caminho está pronto e não custa nada mantê-lo.
 - Termos de abertura e encerramento
 - `.xlsx` no formato da planilha dela (reusa o padrão de `lib/planilha.ts`)
 
+## Estado do banco
+
+Migrações `0000`, `0001` e `0002` aplicadas; `supabase migration list` bate com a
+pasta. O CLI está **logado na conta certa e linkado** ao projeto
+`zxjeibkttmacpuukvyzo`, então daqui para a frente `npx supabase db push` resolve
+— não precisa mais colar SQL no dashboard.
+
+Conteúdo: 118 contas no catálogo, 24 históricos padrão, e **nenhum lançamento
+ainda** — as Fases 3 e 4 foram testadas de ponta a ponta na empresa `TESTE` e os
+dados de teste foram apagados depois. O exercício de janeiro/2026 nasce quando a
+primeira empresa abrir a tela.
+
+O que o teste cobriu, em 23/07/2026: lançar entrada e saída, o cheque gerando os
+dois lançamentos na ordem certa (retirada antes do pagamento), as quatro recusas
+de validação, saldo corrido e transportado entre meses, saldo negativo aceito
+com aviso, edição derrubando a conferência, a fila de conferência, confirmar o
+mês sem travar a edição, acentuação preservada no round-trip, e o cliente
+recebendo 403 em tudo que é da contabilidade (outra empresa, confirmar, conferir,
+criar conta, saldo inicial, fila) — além do recorte por prefixo do resumo.
+
 ## Pendências com a contadora
 
 1. **Saldo inicial de janeiro/2026 das 5 empresas** — um número por empresa. Não
@@ -224,20 +244,23 @@ de ideia.
 
 ## Armadilhas conhecidas
 
-- **A migração `0001` ficou pela metade no banco — e a `0002` ainda não foi
-  aplicada.** Descoberto em 23/07/2026, ao começar a Fase 3: `plano_contas`
-  (118 linhas), `empresa_contas`, `historicos_padrao`, `exercicios` e
-  `meses_confirmados` existem, mas **`lancamentos` e a view `resumo_mensal`
-  não** — o Postgres responde `relation "lancamentos" does not exist` até dentro
-  de `saldo_final_exercicio()`. Sem a tabela, a tela do caixa não grava nada.
-  **Rode `supabase/migrations/0002_lancamentos_e_conferencia.sql` no SQL Editor
-  do Supabase.** Ela é idempotente e recria o que falta, além de acrescentar as
-  colunas de conferência. Enquanto não for aplicada, `/caixa` mostra um aviso
-  explicando isso em vez de estourar erro cru.
-  Não dá para aplicar daqui: o `supabase` CLI da máquina está logado em **outra
-  conta** (o projeto `zxjeibkttmacpuukvyzo` não aparece em `supabase projects
-  list`) e o `.env.local` só tem as chaves da API, não a senha do banco — e
-  PostgREST não roda DDL.
+- **Falta pôr as variáveis do Supabase na Vercel.** Em produção só existem
+  `MASTER_EMAIL`, `MASTER_PASSWORD`, `SESSION_SECRET`,
+  `GOOGLE_SERVICE_ACCOUNT_JSON`, `GEMINI_API_KEY` e `GOOGLE_SHEETS_ID`
+  (`vercel env ls`). **`NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY` não
+  estão lá**, então o Livro Caixa funciona local e estoura
+  `NEXT_PUBLIC_SUPABASE_URL não configurada` no deploy. O módulo de ponto não
+  sente, porque vive no Sheets.
+- **O histórico de migração do Supabase já esteve dessincronizado — confira
+  antes de dar push.** Em 23/07/2026 o banco tinha as tabelas da `0001` mas o
+  remoto só registrava a `0000`; `lancamentos` e a view `resumo_mensal` nunca
+  chegaram a ser criadas (`relation "lancamentos" does not exist`, até dentro de
+  `saldo_final_exercicio()`). Resolvido com `migration repair --status applied
+  0001` seguido de `db push` da `0002`, que é idempotente e recria o que faltava.
+  A lição: **`supabase migration list` antes de `db push`** — se o remoto não
+  registra uma migração cujas tabelas já existem, o push tenta recriá-las e
+  quebra. As telas do caixa detectam a tabela ausente e mostram um aviso pedindo
+  a migração em vez de estourar erro cru.
 - **Duas cópias do projeto.** A pasta obsoleta `Desktop\sistema contadora` foi
   apagada em 23/07/2026. Se aparecer de novo, não trabalhe nela. Se um teste der
   resultado estranho (rota nova em 404, mudança que "não pegou"), confirme qual
