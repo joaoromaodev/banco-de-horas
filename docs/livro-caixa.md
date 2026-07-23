@@ -244,13 +244,12 @@ de ideia.
 
 ## Armadilhas conhecidas
 
-- **Falta pôr as variáveis do Supabase na Vercel.** Em produção só existem
-  `MASTER_EMAIL`, `MASTER_PASSWORD`, `SESSION_SECRET`,
-  `GOOGLE_SERVICE_ACCOUNT_JSON`, `GEMINI_API_KEY` e `GOOGLE_SHEETS_ID`
-  (`vercel env ls`). **`NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY` não
-  estão lá**, então o Livro Caixa funciona local e estoura
-  `NEXT_PUBLIC_SUPABASE_URL não configurada` no deploy. O módulo de ponto não
-  sente, porque vive no Sheets.
+- **As variáveis do Supabase só entraram na Vercel em 23/07/2026** —
+  `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`, em Production e Preview.
+  Até então o Livro Caixa rodava local e estourava `NEXT_PUBLIC_SUPABASE_URL não
+  configurada` no deploy (o módulo de ponto não sentia, porque vive no Sheets).
+  Variável nova na Vercel **só vale no deploy seguinte** — se o caixa quebrar em
+  produção logo depois de mexer em env, é isso antes de ser bug.
 - **O histórico de migração do Supabase já esteve dessincronizado — confira
   antes de dar push.** Em 23/07/2026 o banco tinha as tabelas da `0001` mas o
   remoto só registrava a `0000`; `lancamentos` e a view `resumo_mensal` nunca
@@ -269,8 +268,11 @@ de ideia.
 - **`SESSION_SECRET` é obrigatório.** Sem ele o cookie de sessão é assinado com um
   padrão embutido no código e qualquer um forja uma sessão de master. Já definido
   no `.env.local` e na Vercel.
-- **`APP_USER`/`APP_PASSWORD` não são lidos por nada** — `lib/config.ts` lê
-  `MASTER_EMAIL`/`MASTER_PASSWORD`. Podem ser removidos do `.env.local`.
+- **Variáveis mortas no `.env.local`.** `APP_USER`/`APP_PASSWORD` não são lidos
+  por nada — `lib/config.ts` lê `MASTER_EMAIL`/`MASTER_PASSWORD`. E
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` também não: o único acesso ao Postgres é
+  `lib/db.ts`, sempre com a secret key, porque as tabelas têm RLS ligada sem
+  policies e a publishable key não leria nada mesmo. As três podem sair.
 - **Cota do Google Sheets.** Cada rota chama `garantirAbaHeader`, que faz
   `spreadsheets.get` + `values.update` **antes de qualquer leitura** — ~3 chamadas
   por request, uma delas de escrita. Um teste com ~85 requisições estourou a cota
