@@ -1,6 +1,7 @@
 // GET /api/folha?empresa=<id>&funcionario=<nome>&ano=&mes= — folha de ponto
 // em branco (.xlsx) de um funcionário, para preencher à mão.
 import { NextRequest } from 'next/server';
+import { exigirGestor } from '@/lib/acesso';
 import { gerarFolhaPontoPDF } from '@/lib/folhaPonto';
 import { lerEmpresa, lerFeriados, lerFuncionarios, lerJornadaEmpresa } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
@@ -12,6 +13,8 @@ function slug(s: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const g = await exigirGestor(req);
+  if (!g.ok) return g.resposta;
   const { searchParams } = new URL(req.url);
   const empresa = (searchParams.get('empresa') || '').trim();
   const funcionario = (searchParams.get('funcionario') || '').trim();

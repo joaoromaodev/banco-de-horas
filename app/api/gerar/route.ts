@@ -1,5 +1,6 @@
 // POST /api/gerar — recebe a frequência revisada e devolve o .xlsx (anexo 2).
 import { NextRequest } from 'next/server';
+import { exigirGestor } from '@/lib/acesso';
 import { gerarPlanilha } from '@/lib/planilha';
 import { Frequencia } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
@@ -19,6 +20,8 @@ function slug(s: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await exigirGestor(req);
+  if (!g.ok) return g.resposta;
   let body: Body;
   try {
     body = await req.json();

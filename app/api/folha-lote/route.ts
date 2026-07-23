@@ -2,6 +2,7 @@
 // TODOS os funcionários da empresa (do cadastro), num .zip.
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
+import { exigirGestor } from '@/lib/acesso';
 import { gerarFolhaPontoPDF } from '@/lib/folhaPonto';
 import { lerEmpresa, lerFeriados, lerFuncionarios, lerJornadaEmpresa } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
@@ -14,6 +15,8 @@ function slug(s: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const g = await exigirGestor(req);
+  if (!g.ok) return g.resposta;
   const { searchParams } = new URL(req.url);
   const empresa = (searchParams.get('empresa') || '').trim();
   const ano = Number(searchParams.get('ano'));

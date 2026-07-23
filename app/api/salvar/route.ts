@@ -1,11 +1,14 @@
 // POST /api/salvar — grava a frequência revisada no Google Sheets.
 import { NextRequest } from 'next/server';
+import { exigirGestor } from '@/lib/acesso';
 import { salvarFrequencia } from '@/lib/sheets';
 import { Frequencia } from '@/lib/tipos';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
+  const g = await exigirGestor(req);
+  if (!g.ok) return g.resposta;
   let freq: Frequencia;
   try {
     const body = await req.json();

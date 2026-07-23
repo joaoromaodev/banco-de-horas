@@ -1,11 +1,14 @@
 // GET/POST /api/config — configurações (chave Gemini, modelo).
 // GET nunca devolve a chave em si, só se ela existe.
 import { NextRequest } from 'next/server';
+import { exigirMaster } from '@/lib/acesso';
 import { lerConfig, salvarConfig } from '@/lib/sheets';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const g = await exigirMaster(req);
+  if (!g.ok) return g.resposta;
   try {
     const cfg = await lerConfig();
     return Response.json({
@@ -18,6 +21,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await exigirMaster(req);
+  if (!g.ok) return g.resposta;
   try {
     const body = await req.json();
     const entradas: Record<string, string> = {};

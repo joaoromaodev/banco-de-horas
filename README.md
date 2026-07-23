@@ -41,12 +41,28 @@ lib/
   ocr.ts          extração via Gemini (schema JSON)
   sheets.ts       persistência e cadastros no Google Sheets
   config.ts       credenciais (env / conta de serviço)
+  auth.ts         sessão em cookie assinado + hash de senha
+  acesso.ts       guardas de autorização das rotas de API
 app/
   page.tsx              upload + revisão + download + lote
+  caixa/               livro caixa (empresa lança, contabilidade concilia)
   cadastros/           funcionários e feriados
   configuracoes/       chave da IA e modelo
   api/{extrair,gerar,gerar-lote,salvar,funcionarios,feriados,config}
 ```
+
+## Papéis
+
+| Papel | Enxerga | Faz |
+|---|---|---|
+| `master` | tudo | administra o sistema e cadastra usuários |
+| `usuario` (contabilidade) | todas as empresas | folha de ponto (Timesheet e Folhas em branco são exclusivos deste perfil) e conciliação do livro caixa |
+| `cliente` | só a empresa vinculada | lança o movimento do caixa da própria empresa |
+
+O recorte é feito em duas camadas: o [`proxy.ts`](proxy.ts) barra o `cliente` por lista
+de permissão (o que não está em `CLIENTE_PODE` ele não alcança) e cada rota de API
+chama a guarda correspondente de [`lib/acesso.ts`](lib/acesso.ts). O vínculo
+usuário↔empresa fica na coluna `empresa` da aba `Usuarios`.
 
 ## Rodando localmente
 

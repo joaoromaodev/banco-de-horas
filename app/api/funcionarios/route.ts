@@ -1,11 +1,14 @@
 // GET/POST /api/funcionarios — lista e salva o cadastro de funcionários.
 import { NextRequest } from 'next/server';
+import { exigirGestor } from '@/lib/acesso';
 import { lerFuncionarios, salvarFuncionarios } from '@/lib/sheets';
 import { Funcionario } from '@/lib/tipos';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
+  const g = await exigirGestor(req);
+  if (!g.ok) return g.resposta;
   try {
     const empresa = new URL(req.url).searchParams.get('empresa') || undefined;
     return Response.json({ funcionarios: await lerFuncionarios(empresa) });
@@ -15,6 +18,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await exigirGestor(req);
+  if (!g.ok) return g.resposta;
   try {
     const body = await req.json();
     const empresa: string = (body.empresa ?? '').trim();

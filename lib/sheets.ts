@@ -3,6 +3,7 @@
 import { randomUUID } from 'crypto';
 import { google, sheets_v4 } from 'googleapis';
 import { getContaServico, getSpreadsheetId } from './config';
+import { Papel } from './auth';
 import { Empresa, Frequencia, Funcionario } from './tipos';
 import { Jornada, JORNADA_PADRAO } from './calendario';
 
@@ -40,7 +41,9 @@ const HEADER_FER = ['data', 'descricao'];
 const ABA_CFG = 'Config';
 const HEADER_CFG = ['chave', 'valor'];
 const ABA_USERS = 'Usuarios';
-const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash'];
+// `empresa` no fim (coluna F): linhas antigas continuam válidas (vínculo vazio,
+// que só importa para o papel `cliente`).
+const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash', 'empresa'];
 
 export interface Feriado {
   data: string; // AAAA-MM-DD
@@ -50,9 +53,11 @@ export interface Feriado {
 export interface UsuarioRec {
   email: string;
   nome: string;
-  role: 'master' | 'usuario';
+  role: Papel;
   salt: string;
   hash: string;
+  /** Id da empresa que o usuário enxerga. Só se aplica ao papel `cliente`. */
+  empresa?: string | null;
 }
 
 export interface SheetsCtx {
@@ -346,16 +351,21 @@ export async function salvarConfig(entradas: Record<string, string>): Promise<vo
 }
 
 // ---- Usuários ----
+function linhaUsuario(u: UsuarioRec): (string | number)[] {
+  return [u.email, u.nome, u.role, u.salt, u.hash, u.empresa ?? ''];
+}
+
 export async function lerUsuarios(): Promise<UsuarioRec[]> {
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
-  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:E` });
+  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:F` });
   return (res.data.values ?? []).map((r) => ({
     email: String(r[0] ?? '').toLowerCase(),
     nome: String(r[1] ?? ''),
-    role: (r[2] === 'master' ? 'master' : 'usuario') as 'master' | 'usuario',
+    role: (r[2] === 'master' ? 'master' : r[2] === 'cliente' ? 'cliente' : 'usuario') as Papel,
     salt: String(r[3] ?? ''),
     hash: String(r[4] ?? ''),
+    empresa: r[5] ? String(r[5]).trim() : null,
   })).filter((u) => u.email);
 }
 
@@ -371,7 +381,7 @@ export async function salvarUsuario(u: UsuarioRec): Promise<void> {
   const atuais = await lerUsuarios();
   const email = u.email.trim().toLowerCase();
   const mantidos = atuais.filter((x) => x.email !== email);
-  const linhas = [...mantidos, { ...u, email }].map((x) => [x.email, x.nome, x.role, x.salt, x.hash]);
+  const linhas = [...mantidos, { ...u, email }].map(linhaUsuario);
   await reescreverCorpo(ctx, ABA_USERS, HEADER_USERS.length, linhas);
 }
 
@@ -379,7 +389,7 @@ export async function removerUsuario(email: string): Promise<void> {
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
   const alvo = email.trim().toLowerCase();
-  const linhas = (await lerUsuarios()).filter((x) => x.email !== alvo).map((x) => [x.email, x.nome, x.role, x.salt, x.hash]);
+  const linhas = (await lerUsuarios()).filter((x) => x.email !== alvo).map(linhaUsuario);
   await reescreverCorpo(ctx, ABA_USERS, HEADER_USERS.length, linhas);
 }
 

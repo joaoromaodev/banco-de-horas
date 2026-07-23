@@ -1,6 +1,7 @@
 // POST /api/extrair — recebe a foto da folha (multipart) e devolve a
 // frequência estruturada + campos incertos, via Gemini.
 import { NextRequest } from 'next/server';
+import { exigirGestor } from '@/lib/acesso';
 import { extrairFolha } from '@/lib/ocr';
 import { getGeminiApiKey, getGeminiModelo } from '@/lib/config';
 import { getGeminiKeyDaConfig } from '@/lib/sheets';
@@ -9,6 +10,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  const g = await exigirGestor(req);
+  if (!g.ok) return g.resposta;
   // Chave da contadora (aba Config) tem precedência; env é fallback.
   const apiKey = (await getGeminiKeyDaConfig()) ?? getGeminiApiKey();
   if (!apiKey) {

@@ -1,10 +1,16 @@
 // Autenticação: hash de senha (PBKDF2) e sessão em cookie assinado (HMAC).
 // Usa Web Crypto — funciona tanto no runtime Node quanto no edge (proxy.ts).
 
+/** `master` administra o sistema; `usuario` é a contadora (vê todas as empresas);
+ *  `cliente` é o administrativo da empresa-cliente (vê só a empresa dele). */
+export type Papel = 'master' | 'usuario' | 'cliente';
+
 export interface Sessao {
   email: string;
   nome: string;
-  role: 'master' | 'usuario';
+  role: Papel;
+  /** Empresa vinculada — obrigatória no papel `cliente`, ausente nos demais. */
+  empresa?: string;
   exp: number; // epoch ms
 }
 

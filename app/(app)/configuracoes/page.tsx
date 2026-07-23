@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react';
 
-interface Usuario { email: string; nome: string; role: 'master' | 'usuario'; }
+type Papel = 'master' | 'usuario' | 'cliente';
+interface Usuario { email: string; nome: string; role: Papel; empresa: string | null; }
+interface Empresa { id: string; nome: string; }
+
+const ROTULO_PAPEL: Record<Papel, string> = {
+  master: 'Administrador',
+  usuario: 'Contabilidade',
+  cliente: 'Empresa cliente',
+};
 
 export default function Configuracoes() {
   // --- Gemini ---
@@ -14,7 +22,8 @@ export default function Configuracoes() {
 
   // --- Usuários ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', role: 'usuario' as 'usuario' | 'master' });
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', role: 'usuario' as Papel, empresa: '' });
   const [savingUser, setSavingUser] = useState(false);
   const [msgUser, setMsgUser] = useState<string | null>(null);
 
@@ -30,7 +39,12 @@ export default function Configuracoes() {
     const d = await res.json();
     if (res.ok) setUsuarios(d.usuarios ?? []);
   }
-  useEffect(() => { carregarCfg(); carregarUsuarios(); }, []);
+  async function carregarEmpresas() {
+    const res = await fetch('/api/empresas');
+    const d = await res.json();
+    if (res.ok) setEmpresas(d.empresas ?? []);
+  }
+  useEffect(() => { carregarCfg(); carregarUsuarios(); carregarEmpresas(); }, []);
 
   async function salvarCfg() {
     setErro(null); setMsgCfg(null); setSavingCfg(true);
@@ -52,7 +66,7 @@ export default function Configuracoes() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.erro);
       setMsgUser('Usuário salvo.');
-      setNovo({ nome: '', email: '', senha: '', role: 'usuario' });
+      setNovo({ nome: '', email: '', senha: '', role: 'usuario', empresa: '' });
       carregarUsuarios();
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     finally { setSavingUser(false); }
@@ -114,7 +128,10 @@ export default function Configuracoes() {
         {/* Usuários */}
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="font-semibold text-slate-900">Usuários</h2>
-          <p className="mt-1 text-xs text-slate-500">Cadastre quem pode acessar o sistema (ex.: a contadora).</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Cadastre quem pode acessar o sistema. <strong>Contabilidade</strong> enxerga todas as empresas;
+            <strong> Empresa cliente</strong> só lança no Livro Caixa da empresa vinculada.
+          </p>
 
           <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
             {usuarios.length === 0 && <p className="px-3 py-3 text-slate-400">Nenhum usuário cadastrado.</p>}
@@ -126,7 +143,8 @@ export default function Configuracoes() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
-                    {u.role === 'master' ? 'Administrador' : 'Usuário'}
+                    {ROTULO_PAPEL[u.role]}
+                    {u.role === 'cliente' && ` · ${empresas.find((e) => e.id === u.empresa)?.nome ?? 'empresa removida'}`}
                   </span>
                   <button onClick={() => removerUsuario(u.email)} className="text-red-600 hover:underline">Remover</button>
                 </div>
@@ -138,10 +156,17 @@ export default function Configuracoes() {
             <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Nome" className={input} />
             <input value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} placeholder="E-mail" className={input} />
             <input type="password" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} placeholder="Senha (mín. 4)" className={input} />
-            <select value={novo.role} onChange={(e) => setNovo({ ...novo, role: e.target.value as 'usuario' | 'master' })} className={input}>
-              <option value="usuario">Usuário</option>
+            <select value={novo.role} onChange={(e) => setNovo({ ...novo, role: e.target.value as Papel, empresa: '' })} className={input}>
+              <option value="usuario">Contabilidade</option>
+              <option value="cliente">Empresa cliente</option>
               <option value="master">Administrador</option>
             </select>
+            {novo.role === 'cliente' && (
+              <select value={novo.empresa} onChange={(e) => setNovo({ ...novo, empresa: e.target.value })} className={input}>
+                <option value="">Escolha a empresa…</option>
+                {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              </select>
+            )}
           </div>
           <div className="mt-3 flex items-center gap-3">
             <button onClick={addUsuario} disabled={savingUser}
