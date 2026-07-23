@@ -154,7 +154,7 @@ O **exercício é criado sob demanda**: abrir a tela de uma empresa num ano que
 ainda não existe já abre o livro com saldo inicial zero, editável pela
 contabilidade. Não há etapa de configuração antes do primeiro lançamento.
 
-### ✅ Fase 4 — Resumo do exercício
+### ✅ Fase 4 — Resumo do exercício (commit `e360fcf`)
 
 **Escopo reduzido em 23/07/2026.** Era para ser o Balanço Financeiro completo em
 débitos × créditos; a contadora dispensou. O que ela analisa é **entradas, saídas
