@@ -80,6 +80,7 @@ empresa_contas     subconjunto do catálogo que cada empresa usa
 historicos_padrao  24 históricos, 21 com conta sugerida
 exercicios         um por empresa/ano + todos os campos dos termos
 lancamentos        mes é GERADO da data; trigger recusa data fora do exercício
+                   (+ conferido_por/conferido_em, migração 0002)
 meses_confirmados  confirmação do mês (não trava edição)
 resumo_mensal      view: entradas, saídas e saldo transportado por mês
 saldo_final_exercicio()  o que abre o ano seguinte
@@ -96,21 +97,38 @@ pela migração `0000` (dados exportados para
 Rotas: `POST /api/caixa/seed` (carga do catálogo, idempotente, master) e
 `GET /api/caixa/de-para` (planilha de revisão para a contadora).
 
-### ⬜ Fase 3 — Tela de lançamentos (próxima)
+### ✅ Fase 3 — Tela de lançamentos (commit `18a4afd`)
 
-Onde o administrativo lança e a contadora acompanha.
+Onde o administrativo lança e a contadora acompanha. `/caixa` deixou de ser
+placeholder.
 
-- Tela por mês, no formato da planilha: DATA · HISTÓRICO · COMPLEMENTO · CONTA · ENTRADA · SAÍDA · SALDO
-- **Busca no plano de contas** (decisão dela); sem o teto de 51 linhas do Excel
-- Saldo corrido ao vivo e saldo transportado entre os meses
-- Aviso (não bloqueio) quando o saldo fica negativo
-- Atalho para o lançamento duplo de cheque
-- Visão da contadora: acompanhar, marcar conferido, confirmar o mês
-- Aviso para ela quando uma empresa lança
+A tela é o mês do livro no formato da planilha — DATA · HISTÓRICO ·
+COMPLEMENTO · CONTA · ENTRADA · SAÍDA · SALDO — com as 12 abas de mês em cima,
+o saldo transportado na primeira linha e o saldo corrido recalculado a cada
+lançamento. Sem o teto de 51 linhas do Excel.
+
+- `app/(app)/caixa/page.tsx` — a tela
+- `app/(app)/caixa/SeletorConta.tsx` — busca no plano de contas
+- `lib/caixa.ts` — regras compartilhadas pelas rotas
+- `app/api/caixa/{exercicio,contas,lancamentos,meses,atividade}` — as rotas
+
+Como cada decisão dela virou código:
+
+| Decisão | Onde |
+|---|---|
+| Lista de contas **aberta** | busca varre as 118 contas; as da empresa sobem ao topo |
+| Só ela cria conta **nova no catálogo** | `POST /api/caixa/contas` exige gestor |
+| Históricos padronizados | `datalist` no campo; escolher um já traz a conta sugerida |
+| Saldo negativo **avisa**, não bloqueia | faixa âmbar com o dia em que o saldo vira |
+| Cheque gera **dois lançamentos** | caixa de seleção no formulário; grava a retirada + o pagamento numa transação só |
+| Edição **sempre** liberada | nenhuma rota checa mês confirmado |
+| Confirmar o mês **não trava** | `meses_confirmados`, sem efeito sobre os lançamentos |
+| Avisar quando a empresa lançar | `GET /api/caixa/atividade` |
+| Sem nº de documento, sem anexo | não existem no formulário |
 
 **A lista de contas é aberta, não um cadastro fechado.** Ela foi explícita: há
 contas que aparecem uma vez no mês e não são frequentes, então tem que dar para
-incluir na hora do lançamento. O desenho:
+incluir na hora do lançamento. Como ficou:
 
 - a busca varre o **catálogo inteiro** (118); as contas já usadas por aquela
   empresa sobem para o topo e viram a lista "dela" na prática
@@ -118,14 +136,34 @@ incluir na hora do lançamento. O desenho:
   etapa de configuração antes do primeiro lançamento
 - criar conta que **não existe no catálogo** continua sendo só da contadora
 
-### ⬜ Fase 4 — Resumo e conciliação
+Duas coisas que a Fase 2 não tinha previsto e apareceram aqui:
+
+- **Conferência por lançamento.** Ela pediu para "marcar conferido" e para ser
+  avisada quando a empresa lança. As duas coisas são a mesma: lançamento sem
+  `conferido_em` é o que ela ainda não olhou. Virou coluna em `lancamentos`
+  (migração `0002`) e a fila alimenta o aviso no topo da tela — sem tabela de
+  notificação, some sozinho quando ela confere. Editar um lançamento **derruba a
+  conferência**: o que ela conferiu mudou.
+- **Lançamento sem conta.** Depósito e retirada de conta corrente são
+  transferência, não receita nem despesa — o catálogo dela não tem linha para
+  isso (os dois históricos padrão já vinham sem conta sugerida). `conta_id` é
+  nulo nesses casos, e a tela marca a linha em âmbar para ela não confundir com
+  esquecimento. É também o que a perna bancária do cheque usa.
+
+O **exercício é criado sob demanda**: abrir a tela de uma empresa num ano que
+ainda não existe já abre o livro com saldo inicial zero, editável pela
+contabilidade. Não há etapa de configuração antes do primeiro lançamento.
+
+### ⬜ Fase 4 — Resumo e conciliação (próxima)
 
 **Escopo reduzido em 23/07/2026.** Era para ser o Balanço Financeiro completo em
 débitos × créditos; a contadora dispensou. O que ela analisa é **entradas, saídas
 e o saldo de um mês para o outro** — é um livro caixa, não um balanço patrimonial.
 
 - Resumo mensal e anual: entradas, saídas, saldo transportado — a view
-  `resumo_mensal` **já entrega isso**, então sobra a interface
+  `resumo_mensal` **já entrega isso** e o `GET /api/caixa/exercicio` já devolve
+  os 12 meses prontos (a Fase 3 usa esses números nas abas de mês), então sobra
+  mesmo só a interface
 - Só visível ao cliente depois do mês confirmado
 - Gráfico da evolução do saldo
 
@@ -141,8 +179,10 @@ detalhado, o caminho está pronto e não custa nada mantê-lo.
 
 ## Pendências com a contadora
 
-1. **Saldo inicial de janeiro/2026 das 5 empresas** — um número por empresa. Sem
-   isso começa em zero (campo editável).
+1. **Saldo inicial de janeiro/2026 das 5 empresas** — um número por empresa. Não
+   trava nada: o exercício nasce com zero e a contabilidade edita o saldo pelo
+   link "editar" ao lado de "Saldo inicial do exercício", na própria tela do
+   caixa.
 2. **Dados cadastrais das 5 empresas** para o Termo de Abertura — trava a Fase 5.
    Razão social, endereço e número, município/UF, registro na Junta e sob qual
    número, CNPJ, inscrição estadual, inscrição municipal, prefeitura, cidade do
@@ -161,6 +201,20 @@ de ideia.
 
 ## Armadilhas conhecidas
 
+- **A migração `0001` ficou pela metade no banco — e a `0002` ainda não foi
+  aplicada.** Descoberto em 23/07/2026, ao começar a Fase 3: `plano_contas`
+  (118 linhas), `empresa_contas`, `historicos_padrao`, `exercicios` e
+  `meses_confirmados` existem, mas **`lancamentos` e a view `resumo_mensal`
+  não** — o Postgres responde `relation "lancamentos" does not exist` até dentro
+  de `saldo_final_exercicio()`. Sem a tabela, a tela do caixa não grava nada.
+  **Rode `supabase/migrations/0002_lancamentos_e_conferencia.sql` no SQL Editor
+  do Supabase.** Ela é idempotente e recria o que falta, além de acrescentar as
+  colunas de conferência. Enquanto não for aplicada, `/caixa` mostra um aviso
+  explicando isso em vez de estourar erro cru.
+  Não dá para aplicar daqui: o `supabase` CLI da máquina está logado em **outra
+  conta** (o projeto `zxjeibkttmacpuukvyzo` não aparece em `supabase projects
+  list`) e o `.env.local` só tem as chaves da API, não a senha do banco — e
+  PostgREST não roda DDL.
 - **Duas cópias do projeto.** A pasta obsoleta `Desktop\sistema contadora` foi
   apagada em 23/07/2026. Se aparecer de novo, não trabalhe nela. Se um teste der
   resultado estranho (rota nova em 404, mudança que "não pegou"), confirme qual
