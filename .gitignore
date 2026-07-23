@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# supabase — estado local do CLI (ref do projeto, versões, pooler url)
+supabase/.temp/
+
 # credenciais
 service-account.json
 *-service-account.json
