@@ -24,7 +24,7 @@ abas: `Ajuda`, `Plano de Contas`, `EXEMPLO`, `Termo de abertura`, os 12 meses,
 | Assunto | Decisão |
 |---|---|
 | Classificação | Por **código** do plano de contas, obrigatória |
-| Lista de contas | Só as contas **daquela empresa**, com **barra de pesquisa** |
+| Lista de contas | As contas **daquela empresa**, com **barra de pesquisa** — mas a lista é **aberta**: tem que dar para incluir uma conta na hora, porque há contas que aparecem uma vez no mês e não são frequentes |
 | Catálogo | Ela **padroniza um só**; cada empresa usa um subconjunto. Só ela cria conta nova |
 | Comprovantes | **Não** anexa e **não** tem OCR — o administrativo digita, o papel fica na empresa |
 | Nº do documento | **Não** quis o campo |
@@ -33,7 +33,7 @@ abas: `Ajuda`, `Plano de Contas`, `EXEMPLO`, `Termo de abertura`, os 12 meses,
 | Saldo negativo | Só **avisa**, não bloqueia |
 | Saldo de janeiro | Vem do **encerramento do ano anterior** (2026 é o 1º ano: digitado) |
 | Confirmar o mês | **Não trava a edição** — libera o balanço para o cliente ver |
-| Balanço | **Mês a mês** e anual |
+| Balanço | **Mês a mês** e anual, mas **simples**: entradas, saídas e saldo transportado. Ela **dispensou** o balanço detalhado em débitos × créditos (ver "O de-para" abaixo) |
 | Despesa fixa/variável | **Não** vira campo — é só linguagem dela ao explicar pro cliente |
 | Login do cliente | **Um por empresa, compartilhado** por várias pessoas do administrativo |
 | Entrega em PDF | **Livro inteiro** (termo de abertura + 12 meses + encerramento) |
@@ -108,18 +108,30 @@ Onde o administrativo lança e a contadora acompanha.
 - Visão da contadora: acompanhar, marcar conferido, confirmar o mês
 - Aviso para ela quando uma empresa lança
 
-**Decisão tomada por falta da lista por empresa:** a busca varre o catálogo
-inteiro (118) por padrão e as contas já usadas pela empresa sobem para o topo.
-Quando ela quiser enxugar, faz-se a tela de seleção. Isso evita uma etapa de
-configuração de 5 empresas × dezenas de contas antes do primeiro lançamento.
+**A lista de contas é aberta, não um cadastro fechado.** Ela foi explícita: há
+contas que aparecem uma vez no mês e não são frequentes, então tem que dar para
+incluir na hora do lançamento. O desenho:
 
-### ⬜ Fase 4 — Balanço e conciliação
+- a busca varre o **catálogo inteiro** (118); as contas já usadas por aquela
+  empresa sobem para o topo e viram a lista "dela" na prática
+- escolher uma conta nova a inclui automaticamente em `empresa_contas` — sem
+  etapa de configuração antes do primeiro lançamento
+- criar conta que **não existe no catálogo** continua sendo só da contadora
 
-Depende do **de-para** (ver pendências).
+### ⬜ Fase 4 — Resumo e conciliação
 
-- Balanço financeiro mensal e anual, montado a partir de `plano_contas.linha_balanco`
+**Escopo reduzido em 23/07/2026.** Era para ser o Balanço Financeiro completo em
+débitos × créditos; a contadora dispensou. O que ela analisa é **entradas, saídas
+e o saldo de um mês para o outro** — é um livro caixa, não um balanço patrimonial.
+
+- Resumo mensal e anual: entradas, saídas, saldo transportado — a view
+  `resumo_mensal` **já entrega isso**, então sobra a interface
 - Só visível ao cliente depois do mês confirmado
-- Gráfico
+- Gráfico da evolução do saldo
+
+`plano_contas.linha_balanco` continua no schema e mapeado para 64 contas. Não é
+mais necessário para a entrega, mas fica: se um dia ela quiser o balanço
+detalhado, o caminho está pronto e não custa nada mantê-lo.
 
 ### ⬜ Fase 5 — Documentos
 
@@ -129,20 +141,23 @@ Depende do **de-para** (ver pendências).
 
 ## Pendências com a contadora
 
-1. **De-para plano de contas × Balanço Financeiro** — trava a Fase 4.
-   O modelo de balanço dela tem ~34 linhas para 118 contas: **64 encaixaram, 54
-   não**. Faltam linhas para Aluguel, IRPJ, CSLL, COFINS, PIS, ISSQN, IPTU,
-   combustível, viagens, publicidade e contribuições sindicais.
-   Planilha de revisão gerada em `GET /api/caixa/de-para`.
-   **A pergunta certa não é "classifique as 54"** e sim *"posso acrescentar 5
-   linhas ao seu balanço — Aluguel, Tributos Federais, Tributos Municipais,
-   Despesas com Pessoal e Despesas Gerais?"*
-2. **Saldo inicial de janeiro/2026 das 5 empresas** — um número por empresa. Sem
+1. **Saldo inicial de janeiro/2026 das 5 empresas** — um número por empresa. Sem
    isso começa em zero (campo editável).
-3. **Dados cadastrais das 5 empresas** para o Termo de Abertura — trava a Fase 5.
+2. **Dados cadastrais das 5 empresas** para o Termo de Abertura — trava a Fase 5.
    Razão social, endereço e número, município/UF, registro na Junta e sob qual
    número, CNPJ, inscrição estadual, inscrição municipal, prefeitura, cidade do
    termo (Belém ou Castanhal), número do livro e número de ordem.
+
+### ✅ Resolvida: o de-para
+
+Ela **validou** o mapeamento como estava e **dispensou** as 5 linhas novas que
+seriam acrescentadas ao Balanço Financeiro. Motivo dela: *é um livro caixa, ela
+só analisa o saldo final — o que entrou, o que saiu e o saldo de um mês para o
+outro*. As 54 contas sem linha ficam sem linha mesmo.
+
+Consequência prática: a Fase 4 encolheu e nada mais depende desta pendência.
+A planilha de revisão (`GET /api/caixa/de-para`) segue disponível caso ela mude
+de ideia.
 
 ## Armadilhas conhecidas
 
