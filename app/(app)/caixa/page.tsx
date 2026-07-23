@@ -10,6 +10,7 @@
 // disso trava a edição: lançamento é sempre editável e excluível, inclusive
 // retroativo — decisão dela.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { diaMes, dinheiro, MESES } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
@@ -29,12 +30,7 @@ interface RespostaMes {
 interface ResumoMes { mes: number; entradas: number; saidas: number; saldoFinal: number; }
 interface Pendencia { empresaId: string; pendentes: number; meses: number[]; ultimo: { historico: string; criadoEm: string; criadoPor: string; mes: number }; }
 
-const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const PRIMEIRO_EXERCICIO = 2026; // a contadora começa o sistema em janeiro/2026
-
-const dinheiro = (n: number) =>
-  n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 /** O banco ainda não tem a tabela? A mensagem crua não ajuda ninguém. */
 const faltaMigracao = (msg: string) =>
@@ -303,6 +299,11 @@ export default function Caixa() {
       </header>
 
       <div className="space-y-4 p-6">
+        <nav className="flex gap-1 text-xs">
+          <span className="rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-white">Lançamentos</span>
+          <a href="/caixa/resumo" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-indigo-400">Resumo</a>
+        </nav>
+
         {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
         {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
 

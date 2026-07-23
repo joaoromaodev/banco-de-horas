@@ -154,24 +154,47 @@ O **exercício é criado sob demanda**: abrir a tela de uma empresa num ano que
 ainda não existe já abre o livro com saldo inicial zero, editável pela
 contabilidade. Não há etapa de configuração antes do primeiro lançamento.
 
-### ⬜ Fase 4 — Resumo e conciliação (próxima)
+### ✅ Fase 4 — Resumo do exercício
 
 **Escopo reduzido em 23/07/2026.** Era para ser o Balanço Financeiro completo em
 débitos × créditos; a contadora dispensou. O que ela analisa é **entradas, saídas
 e o saldo de um mês para o outro** — é um livro caixa, não um balanço patrimonial.
 
-- Resumo mensal e anual: entradas, saídas, saldo transportado — a view
-  `resumo_mensal` **já entrega isso** e o `GET /api/caixa/exercicio` já devolve
-  os 12 meses prontos (a Fase 3 usa esses números nas abas de mês), então sobra
-  mesmo só a interface
-- Só visível ao cliente depois do mês confirmado
-- Gráfico da evolução do saldo
+Ficou em `/caixa/resumo`, ao lado da tela de lançamentos:
+
+- `app/(app)/caixa/resumo/page.tsx` — tabela dos 12 meses (saldo transportado ·
+  entradas · saídas · saldo do mês · situação) e a linha de total do exercício
+- `app/(app)/caixa/resumo/Graficos.tsx` — os dois gráficos, em SVG puro
+- `app/api/caixa/resumo/route.ts` — a rota, que aplica o recorte do cliente
+- `app/(app)/caixa/formato.ts` — formatação que as duas telas usam
+
+**O recorte do cliente é um prefixo, não um mês solto.** A regra dela é "só
+visível depois do mês confirmado", mas o livro é sequencial: o saldo de um mês
+abre o seguinte, então liberar abril sozinho entregaria o saldo de janeiro a
+março junto. O cliente enxerga de janeiro até o último mês confirmado **sem
+buraco** — confirmar 1, 2 e 4 libera até fevereiro. A contabilidade vê o ano
+inteiro. Quem corta é a rota, não a tela.
+
+Vale registrar o que esse recorte **não** é: na tela de lançamentos o cliente
+continua vendo o saldo corrido do mês em que digita — ele precisa disso para
+trabalhar, e são os números que ele mesmo lançou. O que a confirmação libera é o
+resumo fechado, que é o que ela entrega.
+
+**Dois gráficos, não um.** Saldo acumulado e fluxo do mês têm ordens de grandeza
+diferentes; juntá-los num só exigiria dois eixos Y, que é justamente a leitura
+enganosa a evitar. Então: uma figura para a evolução do saldo (linha) e outra
+para entradas × saídas (barras agrupadas), um eixo cada. Verde para entrada e
+vermelho para saída, a convenção contábil e a mesma cor da tabela de
+lançamentos — o par passa na checagem de daltonismo (ΔE 8,6 em deuteranopia), e
+mesmo assim a identidade nunca depende só da cor: há legenda, posição fixa e a
+tabela logo abaixo com os mesmos números. SVG escrito à mão, sem biblioteca:
+são doze pontos.
 
 `plano_contas.linha_balanco` continua no schema e mapeado para 64 contas. Não é
 mais necessário para a entrega, mas fica: se um dia ela quiser o balanço
 detalhado, o caminho está pronto e não custa nada mantê-lo.
 
-### ⬜ Fase 5 — Documentos
+### ⬜ Fase 5 — Documentos (próxima)
 
 - PDF do **livro inteiro** com folhas numeradas (reusa o padrão de `lib/folhaPonto.ts`)
 - Termos de abertura e encerramento

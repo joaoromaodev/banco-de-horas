@@ -4,7 +4,7 @@
 // etapa de configuração antes do primeiro lançamento.
 import { NextRequest } from 'next/server';
 import { exigirEmpresa, exigirGestor, podeVerEmpresa } from '@/lib/acesso';
-import { ErroCaixa, garantirExercicio, mesesConfirmados, paraValor } from '@/lib/caixa';
+import { ErroCaixa, garantirExercicio, mesesConfirmados, paraValor, resumoDoExercicio } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -28,19 +28,12 @@ export async function GET(req: NextRequest) {
   try {
     const ano = anoDe(req.nextUrl.searchParams.get('ano'));
     const ex = await garantirExercicio(empresa, ano);
-
-    const db = getDb();
-    const { data: resumo, error } = await db
-      .from('resumo_mensal').select('mes, entradas, saidas, saldo_final')
-      .eq('exercicio_id', ex.id).order('mes');
-    if (error) throw new ErroCaixa(`resumo_mensal: ${error.message}`, 502);
+    const [resumo, confirmados] = await Promise.all([resumoDoExercicio(ex.id), mesesConfirmados(ex.id)]);
 
     return Response.json({
       exercicio: { id: ex.id, ano: ex.ano, saldoInicial: ex.saldoInicial },
-      resumo: (resumo ?? []).map((m) => ({
-        mes: m.mes, entradas: Number(m.entradas), saidas: Number(m.saidas), saldoFinal: Number(m.saldo_final),
-      })),
-      confirmados: await mesesConfirmados(ex.id),
+      resumo,
+      confirmados,
     });
   } catch (e) {
     return falha(e);

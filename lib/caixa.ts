@@ -154,6 +154,18 @@ export async function saldoTransportado(ex: ExercicioCaixa, mes: number): Promis
   return (data ?? []).reduce((s, l) => s + num(l.entrada) - num(l.saida), ex.saldoInicial);
 }
 
+/** Os 12 meses da view `resumo_mensal` — entradas, saídas e saldo acumulado. */
+export async function resumoDoExercicio(exercicioId: string): Promise<{ mes: number; entradas: number; saidas: number; saldoFinal: number }[]> {
+  const db = getDb();
+  const { data, error } = await db
+    .from('resumo_mensal').select('mes, entradas, saidas, saldo_final')
+    .eq('exercicio_id', exercicioId).order('mes');
+  if (error) throw new ErroCaixa(`resumo_mensal: ${error.message}`, 502);
+  return (data ?? []).map((m) => ({
+    mes: m.mes as number, entradas: num(m.entradas), saidas: num(m.saidas), saldoFinal: num(m.saldo_final),
+  }));
+}
+
 /** Meses já confirmados pela contabilidade (libera o resumo para o cliente). */
 export async function mesesConfirmados(exercicioId: string): Promise<number[]> {
   const db = getDb();
