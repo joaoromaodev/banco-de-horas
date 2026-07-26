@@ -249,10 +249,48 @@ dele vêm sem a sugestão. Verificado: cliente vê 8 contas, master vê 118.
 - **Filtro de empresa/exercício persiste entre as abas** (Lançamentos ↔ Resumo),
   via `localStorage` (`caixa.empresa`, `caixa.ano`).
 
-### ⬜ Fase 5 — Documentos (próxima)
+### ⬜ Fase 5 — Plataforma: módulos por contador e cadastro separado (próxima)
+
+Decidido em **26/07/2026** (João). O projeto passa a ser tratado como **plataforma
+com dois módulos distintos** — Folha de Ponto e Livro Caixa —, com **liberação por
+contador**. Isso entra **antes dos documentos** (que viraram a Fase 6): o Termo de
+Abertura precisa dos campos fiscais da empresa, e é esta etapa que os organiza. Sem
+ela, a Fase 6 seria feita no cadastro antigo e refeita depois.
+
+Motivação: só a Edilse usa a Folha de Ponto. Um contador que só tem o Livro Caixa
+não deveria nem ver jornadas/funcionários/feriados — é trabalho que não importa
+pra ele.
+
+**Parte A — Módulos por contador (feature gating)**
+- Coluna `modulos` na aba **Usuarios** (ex.: `caixa` ou `caixa,ponto`). O master
+  habilita ao criar/editar o usuário (checkboxes em Configurações).
+- A **sessão** (cookie assinado) passa a carregar `modulos` → checagem sem I/O.
+  `master` tem tudo; `cliente` é sempre só caixa.
+- `lib/acesso.ts` ganha `temModulo`; `proxy.ts` gateia rotas de ponto (`/`,
+  `/folhas`, `/api/folha*`, `/api/funcionarios`, `/api/gerar*`, `/api/extrair`,
+  `/api/feriados`) atrás de `ponto`, e as do caixa atrás de `caixa`.
+- Sidebar mostra só os módulos habilitados.
+
+**Parte B — Cadastro numa página, com seções por módulo**
+- `Identidade` (razão social, CNPJ) sempre; bloco **Livro Caixa** (fiscal) se tem
+  caixa; bloco **Folha de Ponto** (trabalha sábado, jornadas, **funcionários**) se
+  tem ponto; **feriados** são de ponto. Um contador só-caixa vê o cadastro enxuto.
+
+**Parte C — Dados fiscais no Postgres (decisão de 26/07/2026)**
+- Nova tabela no Supabase (ex.: `empresa_fiscal`), **1:1 com a empresa** por
+  `empresa_id`, com os campos do Termo: endereço+nº, município/UF, inscrição
+  estadual e municipal, registro na Junta+nº, prefeitura, cidade do termo
+  (Belém/Castanhal), nº do livro, nº de ordem, contabilista/CRC.
+- A **identidade** da empresa continua no Sheets (compartilhada pelos dois
+  módulos); o **fiscal** vive com o caixa, no mesmo banco dos lançamentos — é dele
+  que a Fase 6 monta o Termo. Custo aceito: o cadastro grava em dois lugares.
+
+**Sequência:** A → B+C → coletar os dados fiscais com a Edilse → Fase 6.
+
+### ⬜ Fase 6 — Documentos
 
 - PDF do **livro inteiro** com folhas numeradas (reusa o padrão de `lib/folhaPonto.ts`)
-- Termos de abertura e encerramento
+- Termos de abertura e encerramento (lê o fiscal da tabela da Fase 5, Parte C)
 - `.xlsx` no formato da planilha dela (reusa o padrão de `lib/planilha.ts`)
 
 ## Estado do banco
@@ -281,10 +319,11 @@ criar conta, saldo inicial, fila) — além do recorte por prefixo do resumo.
    trava nada: o exercício nasce com zero e a contabilidade edita o saldo pelo
    link "editar" ao lado de "Saldo inicial do exercício", na própria tela do
    caixa.
-2. **Dados cadastrais das 5 empresas** para o Termo de Abertura — trava a Fase 5.
-   Razão social, endereço e número, município/UF, registro na Junta e sob qual
-   número, CNPJ, inscrição estadual, inscrição municipal, prefeitura, cidade do
-   termo (Belém ou Castanhal), número do livro e número de ordem.
+2. **Dados cadastrais das 5 empresas** para o Termo de Abertura — trava a **Fase 6**
+   (documentos). Serão guardados no Postgres pela Fase 5 (Parte C). Razão social,
+   endereço e número, município/UF, registro na Junta e sob qual número, CNPJ,
+   inscrição estadual, inscrição municipal, prefeitura, cidade do termo (Belém ou
+   Castanhal), número do livro e número de ordem.
 
 ### ✅ Resolvida: o de-para
 
