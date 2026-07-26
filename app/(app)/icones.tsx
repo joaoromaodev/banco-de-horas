@@ -70,6 +70,16 @@ export function IconeCheck({ size = 16, className }: Props) {
   );
 }
 
+/** Sino — alerta/notificação (ex.: lançamentos a conferir). */
+export function IconeSino({ size = 14, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
 /** Recolher/expandir a barra lateral (setas duplas). */
 export function IconePainel({ size = 18, className, recolhido }: Props & { recolhido?: boolean }) {
   return (

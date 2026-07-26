@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { diaMes, dinheiro, MESES } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
-import { IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeExcluir, IconeLapis } from '../icones';
+import { IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeExcluir, IconeLapis, IconeSino } from '../icones';
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
@@ -408,8 +408,8 @@ export default function Caixa() {
               Saldo inicial do exercício: <strong className="text-slate-700">{dinheiro(saldoInicial)}</strong>
               {ehGestor && (
                 <button onClick={() => setEditandoSaldo(true)} title="Editar saldo inicial" aria-label="Editar saldo inicial"
-                  className="ml-1 align-middle text-indigo-600 hover:text-indigo-700">
-                  <IconeLapis size={14} className="inline" />
+                  className="ml-1 inline-flex items-center rounded p-1 align-middle text-indigo-600 hover:bg-indigo-50">
+                  <IconeLapis size={14} />
                 </button>
               )}
             </span>
@@ -427,7 +427,12 @@ export default function Caixa() {
               {dados?.confirmado ? 'Desfazer confirmação' : 'Confirmar o mês'}
             </button>
           )}
-          {ehGestor && aConferir > 0 && <span className="text-indigo-700">{aConferir} lançamento(s) a conferir neste mês</span>}
+          {ehGestor && aConferir > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-800">
+              <IconeSino size={14} />
+              {aConferir} lançamento(s) a conferir neste mês
+            </span>
+          )}
         </div>
 
         {negativo && (
@@ -475,7 +480,7 @@ export default function Caixa() {
                   </td>
                 </tr>
               ) : (
-                <tr key={l.id} className={l.conferidoEm ? '' : 'bg-amber-50/30'}>
+                <tr key={l.id} className={l.conferidoEm ? '' : 'bg-sky-50'}>
                   <td className="whitespace-nowrap border-b px-2 py-1.5">{diaMes(l.data)}</td>
                   <td className="border-b px-2 py-1.5">{l.historico}</td>
                   <td className="border-b px-2 py-1.5 text-slate-500">{l.complemento}</td>
