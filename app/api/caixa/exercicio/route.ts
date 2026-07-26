@@ -3,7 +3,7 @@
 // O GET **abre o exercício se ele ainda não existir**: a contadora não quer
 // etapa de configuração antes do primeiro lançamento.
 import { NextRequest } from 'next/server';
-import { exigirEmpresa, exigirGestor, podeVerEmpresa } from '@/lib/acesso';
+import { exigirEmpresa, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { ErroCaixa, garantirExercicio, mesesConfirmados, paraValor, resumoDoExercicio } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
 
@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const empresa = String(body.empresa ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!podeVerEmpresa(g.sessao, empresa)) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
 
     const ano = anoDe(String(body.ano ?? ''));
     const saldo = paraValor(body.saldoInicial);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { IconePainel } from './icones';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 
@@ -26,10 +27,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
+  const [recolhido, setRecolhido] = useState(false);
 
   useEffect(() => {
     fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => d?.autenticado && setMe(d)).catch(() => {});
+    setRecolhido(localStorage.getItem('sidebar-recolhida') === '1');
   }, []);
+
+  function alternarBarra() {
+    setRecolhido((v) => {
+      const novo = !v;
+      localStorage.setItem('sidebar-recolhida', novo ? '1' : '0');
+      return novo;
+    });
+  }
 
   // O cliente só enxerga o livro caixa; o resto é da contabilidade.
   const nav = me?.role === 'cliente'
@@ -52,40 +63,59 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col bg-[#1b2559] text-white">
-        <div className="px-6 py-6">
-          <div className="text-lg font-semibold tracking-tight">Banco de Horas</div>
-          <div className="text-xs text-indigo-300">Folha de ponto</div>
+      <aside className={`flex shrink-0 flex-col bg-[#1b2559] text-white transition-all duration-200 ${recolhido ? 'w-16' : 'w-60'}`}>
+        <div className={`flex items-center py-6 ${recolhido ? 'justify-center px-2' : 'justify-between px-6'}`}>
+          {!recolhido && (
+            <div className="min-w-0">
+              <div className="truncate text-lg font-semibold tracking-tight">Banco de Horas</div>
+              <div className="text-xs text-indigo-300">Folha de ponto</div>
+            </div>
+          )}
+          <button onClick={alternarBarra} title={recolhido ? 'Expandir menu' : 'Recolher menu'}
+            aria-label={recolhido ? 'Expandir menu' : 'Recolher menu'}
+            className="rounded-lg p-1.5 text-indigo-200 hover:bg-white/10 hover:text-white">
+            <IconePainel recolhido={recolhido} />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 px-3">
           {nav.map((item) => {
             const ativo = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
             return (
-              <a key={item.href} href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+              <a key={item.href} href={item.href} title={recolhido ? item.label : undefined}
+                className={`flex items-center gap-3 rounded-lg py-2.5 text-sm transition ${recolhido ? 'justify-center px-0' : 'px-3'} ${
                   ativo ? 'bg-white/10 font-medium text-white' : 'text-indigo-200 hover:bg-white/5 hover:text-white'
                 }`}>
                 <Icon name={item.icon} />
-                {item.label}
+                {!recolhido && item.label}
               </a>
             );
           })}
         </nav>
 
-        <div className="m-3 rounded-lg bg-white/5 p-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-500 text-sm font-semibold">
+        <div className={`rounded-lg bg-white/5 ${recolhido ? 'm-2 p-2' : 'm-3 p-3'}`}>
+          <div className={`flex items-center gap-3 ${recolhido ? 'justify-center' : ''}`}>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-sm font-semibold">
               {iniciais}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{me?.nome ?? '—'}</div>
-              <div className="truncate text-xs text-indigo-300">{me ? ROTULO_PAPEL[me.role] : '—'}</div>
-            </div>
-            <button onClick={sair} title="Sair" className="text-indigo-200 hover:text-white">
+            {!recolhido && (
+              <>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{me?.nome ?? '—'}</div>
+                  <div className="truncate text-xs text-indigo-300">{me ? ROTULO_PAPEL[me.role] : '—'}</div>
+                </div>
+                <button onClick={sair} title="Sair" className="text-indigo-200 hover:text-white">
+                  <Icon name="logout" />
+                </button>
+              </>
+            )}
+          </div>
+          {recolhido && (
+            <button onClick={sair} title="Sair" aria-label="Sair"
+              className="mt-2 flex w-full justify-center text-indigo-200 hover:text-white">
               <Icon name="logout" />
             </button>
-          </div>
+          )}
         </div>
       </aside>
 

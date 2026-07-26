@@ -4,7 +4,7 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **23/07/2026**
+Última atualização: **26/07/2026**
 
 ## Por que este módulo existe
 
@@ -56,7 +56,7 @@ Três papéis, com o `cliente` negado por padrão:
 | Papel | Enxerga | Faz |
 |---|---|---|
 | `master` | tudo | administra e cadastra usuários |
-| `usuario` (contabilidade) | todas as empresas | folha de ponto e conciliação do caixa |
+| `usuario` (contabilidade) | **as empresas que cadastra** (ver Rodada de QA) | folha de ponto e conciliação do caixa |
 | `cliente` | só a empresa vinculada | lança o movimento do caixa |
 
 - `lib/auth.ts` — tipo `Papel`, `empresa` na sessão
@@ -194,6 +194,61 @@ são doze pontos.
 mais necessário para a entrega, mas fica: se um dia ela quiser o balanço
 detalhado, o caminho está pronto e não custa nada mantê-lo.
 
+### ✅ Rodada de QA — ajustes pré-MVP (26/07/2026)
+
+Feedback do João testando o sistema antes de validar com a contadora. Doze itens;
+os dois últimos mudaram o modelo, o resto é UX. Verificados de ponta a ponta.
+
+**Multiempresa por contador (o maior).** Antes, `usuario` (contabilidade) via
+**todas** as empresas — errado quando há mais de um contador. Agora cada empresa
+tem um **dono** e o contador só vê as suas.
+
+- Coluna `contador` (e-mail) na aba **Empresas** do Sheets (coluna H, no fim, para
+  não quebrar linhas antigas). Tipo `Empresa.contador` em `lib/tipos.ts`.
+- Decisão do João: **cada contador cadastra as suas** — ao salvar o cadastro, as
+  empresas ganham o e-mail dele. O master vê todas e define o dono numa coluna
+  extra da tela de Cadastros (só o master a enxerga).
+- `lib/acesso.ts`: `empresaVisivelPara` (com o objeto empresa) e
+  `podeAcessarEmpresa` (assíncrona, por id). `exigirEmpresa` e as rotas do caixa
+  passaram a usá-la. `podeVerEmpresa`/`empresasPermitidas` saíram.
+- `POST /api/empresas` grava por dono: o contador só mexe nas suas (as dos outros
+  ficam intactas); o master grava tudo preservando o dono de cada linha.
+- Vale nos **dois módulos** (empresas são compartilhadas): a folha de ponto também
+  filtra por dono, via `lerEmpresas`.
+- A fila de conferência (`/api/caixa/atividade`) também respeita o dono.
+- Para não ler o Sheets a cada request de contador (a cota é apertada — ver
+  armadilhas), `lerEmpresas` ganhou um **cache em memória de 8s**, invalidado em
+  `salvarEmpresas`. O master não paga esse custo (decide sem I/O).
+
+**Cliente não vê o catálogo inteiro.** `GET /api/caixa/contas`, quando a sessão é
+`cliente`, devolve **só as contas da própria empresa** (as 118 do catálogo aberto
+continuam só para a contabilidade). Históricos que sugerem conta fora do conjunto
+dele vêm sem a sugestão. Verificado: cliente vê 8 contas, master vê 118.
+
+**UX (o resto):**
+
+- Barra lateral **recolhível** (`layout.tsx`), estado em `localStorage`.
+- Ícones padrão: **lápis** para editar, **X vermelho** para excluir — no caixa,
+  nos cadastros e na tela de usuários. `app/(app)/icones.tsx`.
+- Pop-ups na identidade visual (`app/(app)/Dialogo.tsx`): os `confirm()`/`prompt()`
+  nativos viraram modais. Texto "Deseja realmente excluir…". Cobre a exclusão de
+  lançamento, a de usuário e a edição do saldo inicial.
+- "Confirmar o mês" / "Desfazer confirmação" viraram **botão com ícone**.
+- **Saldo inicial do exercício** só aparece na aba de **janeiro** (é ele que abre o
+  ano e se propaga como saldo transportado nos demais meses).
+- O `conf.` (checkbox críptico) virou um **check claro** "Conferir/Conferido". É a
+  conferência por lançamento — a marca de que a contadora revisou aquela linha, e o
+  que alimenta a fila "empresa lançou". Continua igual por dentro.
+- **Desfazer exclusão**: excluir um lançamento mostra um aviso com ícone de voltar
+  que **recria** a linha (novo id/carimbo, mesmos dados). Some ao trocar de mês.
+- Gráfico **"Evolução do saldo"** não fica mais achatado: a escala Y deixou de ser
+  ancorada em zero e passou a **enquadrar a faixa real** do saldo (com 10% de
+  folga). Um caixa de ~270 mil que varia pouco agora mostra a variação, em vez de
+  virar um traço reto no topo. As barras de entradas×saídas seguem ancoradas em
+  zero, que é o certo para barras. `resumo/Graficos.tsx` (`enquadrar`).
+- **Filtro de empresa/exercício persiste entre as abas** (Lançamentos ↔ Resumo),
+  via `localStorage` (`caixa.empresa`, `caixa.ano`).
+
 ### ⬜ Fase 5 — Documentos (próxima)
 
 - PDF do **livro inteiro** com folhas numeradas (reusa o padrão de `lib/folhaPonto.ts`)
@@ -243,6 +298,15 @@ A planilha de revisão (`GET /api/caixa/de-para`) segue disponível caso ela mud
 de ideia.
 
 ## Armadilhas conhecidas
+
+- **Empresa sem dono é visível a todo contador (transitório).** No modelo por dono,
+  uma empresa com a coluna `contador` vazia é tratada como legado e aparece para
+  **qualquer** `usuario` — é o que evita que VAZ E VOUZELA e TESTE sumissem para a
+  Edilse quando o campo foi criado. O isolamento de verdade só vale entre empresas
+  **com dono**: assim que um contador salva o cadastro, as dele são carimbadas e
+  passam a ser invisíveis aos outros. Para migrar de vez, atribua o dono de cada
+  empresa (o master faz isso na tela de Cadastros, ou cada contador salva a sua).
+  Enquanto houver empresa sem dono, dois contadores ainda a enxergam.
 
 - **As variáveis do Supabase só entraram na Vercel em 23/07/2026** —
   `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`, em Production e Preview.

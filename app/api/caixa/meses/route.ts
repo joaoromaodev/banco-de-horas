@@ -4,7 +4,7 @@
 // do mês ao cliente. Por isso é só um registro em `meses_confirmados`, sem
 // nenhum efeito sobre os lançamentos.
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeVerEmpresa } from '@/lib/acesso';
+import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { Sessao } from '@/lib/auth';
 import { ErroCaixa, garantirExercicio } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
@@ -20,7 +20,7 @@ async function alvo(req: NextRequest, sessao: Sessao) {
   const body = await req.json();
   const empresa = String(body.empresa ?? '').trim();
   if (!empresa) throw new ErroCaixa('Informe a empresa.');
-  if (!podeVerEmpresa(sessao, empresa)) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+  if (!(await podeAcessarEmpresa(sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
 
   const ano = Number(body.ano);
   const mes = Number(body.mes);

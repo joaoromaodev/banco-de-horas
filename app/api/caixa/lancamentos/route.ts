@@ -5,7 +5,7 @@
 // depois do mês confirmado — decisão da contadora. Por isso não há nenhuma
 // checagem de "mês fechado" aqui.
 import { NextRequest } from 'next/server';
-import { ehGestor, exigirEmpresa, exigirSessao, podeVerEmpresa } from '@/lib/acesso';
+import { ehGestor, exigirEmpresa, exigirSessao, podeAcessarEmpresa } from '@/lib/acesso';
 import {
   empresaDoLancamento, ErroCaixa, garantirExercicio, HISTORICO_RETIRADA_CHEQUE,
   lancamentosDoMes, mesesConfirmados, saldoTransportado, validarLancamento, vincularConta,
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const empresa = String(body.empresa ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!podeVerEmpresa(g.sessao, empresa)) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
 
     const ano = anoDe(body.ano);
     const ex = await garantirExercicio(empresa, ano);
@@ -136,7 +136,7 @@ export async function PATCH(req: NextRequest) {
     if (!id) throw new ErroCaixa('Informe o lançamento.');
 
     const dono = await empresaDoLancamento(id);
-    if (!podeVerEmpresa(g.sessao, dono.empresaId)) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    if (!(await podeAcessarEmpresa(g.sessao, dono.empresaId))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
 
     const db = getDb();
 
@@ -179,7 +179,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) throw new ErroCaixa('Informe o lançamento.');
 
     const dono = await empresaDoLancamento(id);
-    if (!podeVerEmpresa(g.sessao, dono.empresaId)) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    if (!(await podeAcessarEmpresa(g.sessao, dono.empresaId))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
 
     const { error } = await getDb().from('lancamentos').delete().eq('id', id);
     if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);

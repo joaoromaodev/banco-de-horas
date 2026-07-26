@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { IconeExcluir } from '../icones';
+import { DialogoConfirmacao } from '../Dialogo';
 
 type Papel = 'master' | 'usuario' | 'cliente';
 interface Usuario { email: string; nome: string; role: Papel; empresa: string | null; }
@@ -28,6 +30,7 @@ export default function Configuracoes() {
   const [msgUser, setMsgUser] = useState<string | null>(null);
 
   const [erro, setErro] = useState<string | null>(null);
+  const [aExcluir, setAExcluir] = useState<Usuario | null>(null);
 
   async function carregarCfg() {
     const res = await fetch('/api/config');
@@ -73,7 +76,7 @@ export default function Configuracoes() {
   }
 
   async function removerUsuario(email: string) {
-    setErro(null); setMsgUser(null);
+    setErro(null); setMsgUser(null); setAExcluir(null);
     try {
       const res = await fetch(`/api/usuarios?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
       const d = await res.json();
@@ -129,8 +132,8 @@ export default function Configuracoes() {
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="font-semibold text-slate-900">Usuários</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Cadastre quem pode acessar o sistema. <strong>Contabilidade</strong> enxerga todas as empresas;
-            <strong> Empresa cliente</strong> só lança no Livro Caixa da empresa vinculada.
+            Cadastre quem pode acessar o sistema. <strong>Contabilidade</strong> enxerga apenas as empresas
+            que cadastrar; <strong>Empresa cliente</strong> só lança no Livro Caixa da empresa vinculada.
           </p>
 
           <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
@@ -146,7 +149,10 @@ export default function Configuracoes() {
                     {ROTULO_PAPEL[u.role]}
                     {u.role === 'cliente' && ` · ${empresas.find((e) => e.id === u.empresa)?.nome ?? 'empresa removida'}`}
                   </span>
-                  <button onClick={() => removerUsuario(u.email)} className="text-red-600 hover:underline">Remover</button>
+                  <button onClick={() => setAExcluir(u)} title="Remover" aria-label={`Remover ${u.nome}`}
+                    className="text-red-600 hover:text-red-700">
+                    <IconeExcluir size={16} className="inline" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -177,6 +183,16 @@ export default function Configuracoes() {
           </div>
         </section>
       </div>
+
+      {aExcluir && (
+        <DialogoConfirmacao
+          titulo="Remover usuário"
+          mensagem={<>Deseja realmente remover <strong>{aExcluir.nome}</strong> ({aExcluir.email})? Ele perde o acesso ao sistema.</>}
+          textoConfirmar="Remover"
+          onConfirmar={() => removerUsuario(aExcluir.email)}
+          onCancelar={() => setAExcluir(null)}
+        />
+      )}
     </div>
   );
 }

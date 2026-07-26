@@ -48,6 +48,16 @@ export default function ResumoCaixa() {
     return Array.from({ length: ultimo - PRIMEIRO_EXERCICIO + 1 }, (_, i) => PRIMEIRO_EXERCICIO + i);
   }, []);
 
+  // Mantém o filtro em sincronia com a tela de Lançamentos (mesmas chaves).
+  useEffect(() => {
+    const e = localStorage.getItem('caixa.empresa');
+    if (e) setEmpresaSel(e);
+    const a = Number(localStorage.getItem('caixa.ano'));
+    if (a >= PRIMEIRO_EXERCICIO) setAno(a);
+  }, []);
+  useEffect(() => { if (empresaSel) localStorage.setItem('caixa.empresa', empresaSel); }, [empresaSel]);
+  useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
+
   useEffect(() => {
     fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => d?.autenticado && setMe(d)).catch(() => {});
     fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((d) => {

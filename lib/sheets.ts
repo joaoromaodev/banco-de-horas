@@ -34,8 +34,9 @@ const ABA_FUNC = 'Funcionarios';
 // `empresa` também no fim (coluna F) pela mesma razão.
 const HEADER_FUNC = ['nome', 'cargo', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem', 'empresa'];
 const ABA_EMP = 'Empresas';
-// `id` no fim (coluna G) para não quebrar a aba criada no deploy anterior.
-const HEADER_EMP = ['nome', 'cnpj', 'trabalhaSabado', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem', 'id'];
+// `id` (coluna G) e `contador` (coluna H) foram adicionados no fim para não
+// quebrar as linhas antigas: linha sem H fica sem dono (visível a toda contabilidade).
+const HEADER_EMP = ['nome', 'cnpj', 'trabalhaSabado', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem', 'id', 'contador'];
 const ABA_FER = 'Feriados';
 const HEADER_FER = ['data', 'descricao'];
 const ABA_CFG = 'Config';
@@ -245,10 +246,18 @@ export async function salvarFuncionarios(empresaId: string, lista: Funcionario[]
 }
 
 // ---- Empresas ----
+// Cache curto em memória: a autorização por dono (lib/acesso) lê as empresas a
+// cada request de contador, e cada leitura são ~3 chamadas ao Sheets. O TTL baixo
+// segura uma rajada (uma tela do caixa dispara várias rotas de uma vez) sem
+// deixar o cadastro defasado. `salvarEmpresas` invalida na hora.
+let cacheEmpresas: { em: number; lista: Empresa[] } | null = null;
+const TTL_EMPRESAS_MS = 8_000;
+
 export async function lerEmpresas(): Promise<Empresa[]> {
+  if (cacheEmpresas && Date.now() - cacheEmpresas.em < TTL_EMPRESAS_MS) return cacheEmpresas.lista;
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_EMP, HEADER_EMP);
-  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_EMP}!A2:G` });
+  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_EMP}!A2:H` });
   const lista: Empresa[] = (res.data.values ?? []).map((r) => ({
     nome: String(r[0] ?? ''),
     cnpj: r[1] ? String(r[1]) : null,
@@ -257,6 +266,7 @@ export async function lerEmpresas(): Promise<Empresa[]> {
     jornadaSabadoMin: r[4] ? Number(r[4]) : undefined,
     ordem: r[5] ? Number(r[5]) : null,
     id: String(r[6] ?? '').trim(),
+    contador: String(r[7] ?? '').trim().toLowerCase() || null,
   })).filter((e) => e.nome);
 
   // Primeira execução: semeia a empresa padrão, herdando o ajuste global antigo.
@@ -268,6 +278,7 @@ export async function lerEmpresas(): Promise<Empresa[]> {
     } catch { /* sem planilha de config ainda */ }
     const padrao: Empresa = { id: EMPRESA_PADRAO_ID, nome: EMPRESA_PADRAO, cnpj: null, trabalhaSabado, ordem: 1 };
     await salvarEmpresas([padrao]);
+    cacheEmpresas = { em: Date.now(), lista: [padrao] };
     return [padrao];
   }
 
@@ -280,6 +291,7 @@ export async function lerEmpresas(): Promise<Empresa[]> {
     }
   }
   if (precisaSalvar) await salvarEmpresas(lista);
+  cacheEmpresas = { em: Date.now(), lista };
   return lista;
 }
 
@@ -293,8 +305,10 @@ export async function salvarEmpresas(lista: Empresa[]): Promise<number> {
       e.jornadaUtilMin ?? '', e.jornadaSabadoMin ?? '', e.ordem ?? i + 1,
       // id imutável: mantém o existente; gera para empresas novas.
       e.id?.trim() || (e.nome.trim() === EMPRESA_PADRAO ? EMPRESA_PADRAO_ID : randomUUID()),
+      e.contador?.trim().toLowerCase() ?? '',
     ]);
   await reescreverCorpo(ctx, ABA_EMP, HEADER_EMP.length, linhas);
+  cacheEmpresas = null; // cadastro mudou: força releitura na próxima
   return linhas.length;
 }
 

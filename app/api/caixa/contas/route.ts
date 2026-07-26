@@ -8,7 +8,7 @@
 // O POST é outra coisa: **criar conta que não existe no catálogo** continua
 // sendo só da contadora.
 import { NextRequest } from 'next/server';
-import { exigirEmpresa, exigirGestor, podeVerEmpresa } from '@/lib/acesso';
+import { exigirEmpresa, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { contasDaEmpresa, ErroCaixa, historicosPadrao, vincularConta } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
 
@@ -24,8 +24,20 @@ export async function GET(req: NextRequest) {
   const g = await exigirEmpresa(req, empresa);
   if (!g.ok) return g.resposta;
   try {
-    const [contas, historicos] = await Promise.all([contasDaEmpresa(empresa), historicosPadrao()]);
-    return Response.json({ contas, historicos });
+    const [todas, historicosTodos] = await Promise.all([contasDaEmpresa(empresa), historicosPadrao()]);
+
+    // O cliente não navega o catálogo inteiro: ele só pode usar as contas da
+    // própria empresa. A lista aberta (as 118 do catálogo) é só da contabilidade.
+    if (g.sessao.role === 'cliente') {
+      const contas = todas.filter((c) => c.daEmpresa);
+      const dela = new Set(contas.map((c) => c.id));
+      // Um histórico padrão pode sugerir conta fora do conjunto dela — não vaza:
+      // some a sugestão, o cliente escolhe entre as próprias.
+      const historicos = historicosTodos.map((h) => (h.contaId && dela.has(h.contaId) ? h : { ...h, contaId: null }));
+      return Response.json({ contas, historicos });
+    }
+
+    return Response.json({ contas: todas, historicos: historicosTodos });
   } catch (e) {
     return falha(e);
   }
@@ -45,7 +57,7 @@ export async function POST(req: NextRequest) {
     const grupo = String(body.grupo ?? '').trim();
     const nome = String(body.nome ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!podeVerEmpresa(g.sessao, empresa)) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
     if (!grupo) throw new ErroCaixa('Escolha o grupo da conta.');
     if (!nome) throw new ErroCaixa('Informe o nome da conta.');
 

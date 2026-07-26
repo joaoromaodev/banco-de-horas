@@ -12,6 +12,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { diaMes, dinheiro, MESES } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
+import { IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeExcluir, IconeLapis } from '../icones';
+import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; }
@@ -75,6 +77,10 @@ export default function Caixa() {
   const [erro, setErro] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const [aExcluir, setAExcluir] = useState<Lancamento | null>(null);
+  const [desfazer, setDesfazer] = useState<Lancamento | null>(null); // último excluído, para desfazer
+  const [editandoSaldo, setEditandoSaldo] = useState(false);
+
   const ehGestor = me?.role === 'master' || me?.role === 'usuario';
   const anos = useMemo(() => {
     const ultimo = Math.max(new Date().getFullYear() + 1, PRIMEIRO_EXERCICIO);
@@ -91,6 +97,20 @@ export default function Caixa() {
   }
 
   // ------------------------------------------------------------------ carga
+  // Restaura o filtro salvo antes de tudo, para o fetch das empresas não
+  // sobrescrever com a primeira da lista (o setEmpresaSel abaixo só preenche se
+  // ainda estiver vazio). É o que mantém empresa/exercício entre as abas.
+  useEffect(() => {
+    const e = localStorage.getItem('caixa.empresa');
+    if (e) setEmpresaSel(e);
+    const a = Number(localStorage.getItem('caixa.ano'));
+    if (a >= PRIMEIRO_EXERCICIO) setAno(a);
+  }, []);
+  useEffect(() => { if (empresaSel) localStorage.setItem('caixa.empresa', empresaSel); }, [empresaSel]);
+  useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
+  // A oferta de desfazer é do mês/empresa onde a exclusão aconteceu; ao navegar, some.
+  useEffect(() => { setDesfazer(null); }, [empresaSel, mes, ano]);
+
   useEffect(() => {
     fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => d?.autenticado && setMe(d)).catch(() => {});
     fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((d) => {
@@ -193,13 +213,39 @@ export default function Caixa() {
     }
   }
 
-  async function excluir(l: Lancamento) {
-    const valor = l.entrada > 0 ? `entrada de ${dinheiro(l.entrada)}` : `saída de ${dinheiro(l.saida)}`;
-    if (!confirm(`Excluir o lançamento de ${diaMes(l.data)} — ${l.historico} (${valor})?`)) return;
-    setErro(null); setMsg(null);
+  async function confirmarExclusao() {
+    const l = aExcluir;
+    if (!l) return;
+    setAExcluir(null); setErro(null); setMsg(null);
     try {
       await chamar(`/api/caixa/lancamentos?id=${encodeURIComponent(l.id)}`, { method: 'DELETE' });
-      setMsg('Lançamento excluído.');
+      setDesfazer(l); // guarda a linha apagada para o "desfazer"
+      await recarregar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /**
+   * Recria o lançamento apagado — vira um lançamento novo (id e carimbo novos),
+   * mas com os mesmos dados. É o "não perdi minha linha" que o QA pediu para quem
+   * exclui sem querer.
+   */
+  async function desfazerExclusao() {
+    const l = desfazer;
+    if (!l) return;
+    setDesfazer(null); setErro(null); setMsg(null);
+    try {
+      await chamar('/api/caixa/lancamentos', {
+        method: 'POST',
+        body: JSON.stringify({
+          empresa: empresaSel, ano, data: l.data, historico: l.historico,
+          complemento: l.complemento ?? '', contaId: l.contaId,
+          entrada: l.entrada > 0 ? String(l.entrada) : '',
+          saida: l.saida > 0 ? String(l.saida) : '',
+        }),
+      });
+      setMsg('Exclusão desfeita.');
       await recarregar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -230,11 +276,8 @@ export default function Caixa() {
     }
   }
 
-  async function editarSaldoInicial() {
-    const atual = dinheiro(saldoInicial);
-    const v = prompt(`Saldo que abre o exercício de ${ano} (vem do encerramento do ano anterior):`, atual);
-    if (v == null) return;
-    setErro(null); setMsg(null);
+  async function salvarSaldoInicial(v: string) {
+    setEditandoSaldo(false); setErro(null); setMsg(null);
     try {
       await chamar('/api/caixa/exercicio', { method: 'PATCH', body: JSON.stringify({ empresa: empresaSel, ano, saldoInicial: v }) });
       setMsg('Saldo inicial atualizado.');
@@ -307,6 +350,16 @@ export default function Caixa() {
         {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
         {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
 
+        {desfazer && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+            <span>Lançamento excluído — {diaMes(desfazer.data)} · {desfazer.historico}.</span>
+            <button onClick={desfazerExclusao}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-2.5 py-1 font-medium text-indigo-700 hover:border-indigo-400">
+              <IconeDesfazer size={15} /> Desfazer
+            </button>
+          </div>
+        )}
+
         {ehGestor && pendencias.length > 0 && (
           <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-indigo-900">
             <span className="font-medium">Lançamentos novos para conferir:</span>{' '}
@@ -347,15 +400,31 @@ export default function Caixa() {
           <Cartao titulo="Saldo do mês" valor={dados?.saldoFinal ?? 0} destaque />
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-          <span>
-            Saldo inicial do exercício: <strong className="text-slate-700">{dinheiro(saldoInicial)}</strong>
-            {ehGestor && <button onClick={editarSaldoInicial} className="ml-1 text-indigo-600 hover:underline">editar</button>}
-          </span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+          {/* Saldo inicial só na aba de janeiro: é ele que abre o exercício e se
+              propaga como "saldo transportado" nos demais meses. */}
+          {mes === 1 && (
+            <span>
+              Saldo inicial do exercício: <strong className="text-slate-700">{dinheiro(saldoInicial)}</strong>
+              {ehGestor && (
+                <button onClick={() => setEditandoSaldo(true)} title="Editar saldo inicial" aria-label="Editar saldo inicial"
+                  className="ml-1 align-middle text-indigo-600 hover:text-indigo-700">
+                  <IconeLapis size={14} className="inline" />
+                </button>
+              )}
+            </span>
+          )}
           {dados?.confirmado && <span className="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700">Mês confirmado</span>}
           {ehGestor && (
-            <button onClick={alternarConfirmacao} className="text-indigo-600 hover:underline">
-              {dados?.confirmado ? 'desfazer confirmação do mês' : 'confirmar o mês'}
+            <button onClick={alternarConfirmacao}
+              title={dados?.confirmado ? 'Desfazer a confirmação deste mês' : 'Confirmar o mês — libera o resumo para o cliente'}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-medium ${
+                dados?.confirmado
+                  ? 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                  : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400'
+              }`}>
+              {dados?.confirmado ? <IconeDesfazerConfirmacao size={15} /> : <IconeConfirmar size={15} />}
+              {dados?.confirmado ? 'Desfazer confirmação' : 'Confirmar o mês'}
             </button>
           )}
           {ehGestor && aConferir > 0 && <span className="text-indigo-700">{aConferir} lançamento(s) a conferir neste mês</span>}
@@ -418,11 +487,14 @@ export default function Caixa() {
                   <td className={`border-b px-2 py-1.5 text-right font-medium ${saldo < 0 ? 'text-red-600' : 'text-slate-700'}`}>{dinheiro(saldo)}</td>
                   <td className="whitespace-nowrap border-b px-2 py-1.5 text-right">
                     {ehGestor && (
-                      <label title={l.conferidoEm ? `Conferido por ${l.conferidoPor}` : 'Marcar como conferido'}
-                        className="mr-2 inline-flex items-center gap-1 text-slate-500">
-                        <input type="checkbox" checked={Boolean(l.conferidoEm)} onChange={(e) => conferir(l, e.target.checked)} />
-                        conf.
-                      </label>
+                      <button onClick={() => conferir(l, !l.conferidoEm)}
+                        title={l.conferidoEm ? `Conferido por ${l.conferidoPor} — clique para desmarcar` : 'Marcar como conferido'}
+                        aria-label={l.conferidoEm ? 'Conferido' : 'Conferir'}
+                        className={`mr-1 inline-flex items-center rounded p-1 ${
+                          l.conferidoEm ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
+                        }`}>
+                        <IconeCheck size={15} />
+                      </button>
                     )}
                     <button onClick={() => {
                       setEditandoId(l.id);
@@ -431,8 +503,13 @@ export default function Caixa() {
                         contaId: l.contaId, entrada: l.entrada > 0 ? String(l.entrada) : '',
                         saida: l.saida > 0 ? String(l.saida) : '',
                       });
-                    }} className="text-indigo-600 hover:underline">Editar</button>
-                    <button onClick={() => excluir(l)} className="ml-2 text-red-600 hover:underline">Excluir</button>
+                    }} title="Editar" aria-label="Editar lançamento" className="mr-1 inline-flex items-center rounded p-1 text-indigo-600 hover:bg-indigo-50">
+                      <IconeLapis size={15} />
+                    </button>
+                    <button onClick={() => setAExcluir(l)} title="Excluir" aria-label="Excluir lançamento"
+                      className="inline-flex items-center rounded p-1 text-red-600 hover:bg-red-50">
+                      <IconeExcluir size={15} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -473,6 +550,29 @@ export default function Caixa() {
 
         {carregando && <p className="text-xs text-slate-400">Carregando…</p>}
       </div>
+
+      {aExcluir && (
+        <DialogoConfirmacao
+          titulo="Excluir lançamento"
+          mensagem={
+            <>Deseja realmente excluir o lançamento de <strong>{diaMes(aExcluir.data)}</strong> — {aExcluir.historico}
+              {' '}({aExcluir.entrada > 0 ? `entrada de ${dinheiro(aExcluir.entrada)}` : `saída de ${dinheiro(aExcluir.saida)}`})?</>
+          }
+          onConfirmar={confirmarExclusao}
+          onCancelar={() => setAExcluir(null)}
+        />
+      )}
+
+      {editandoSaldo && (
+        <DialogoValor
+          titulo={`Saldo inicial do exercício de ${ano}`}
+          descricao="Vem do encerramento do ano anterior. Aceita vírgula ou ponto."
+          rotulo="Saldo inicial (R$)"
+          valorInicial={dinheiro(saldoInicial)}
+          onConfirmar={salvarSaldoInicial}
+          onCancelar={() => setEditandoSaldo(false)}
+        />
+      )}
     </div>
   );
 }

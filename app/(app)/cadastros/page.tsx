@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { Empresa, Funcionario } from '@/lib/tipos';
+import { IconeExcluir } from '../icones';
 
 interface Feriado { data: string; descricao: string; }
 
 export default function Cadastros() {
+  const [ehMaster, setEhMaster] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [empresaSel, setEmpresaSel] = useState('');
   const [funcs, setFuncs] = useState<Funcionario[]>([]);
@@ -44,7 +46,10 @@ export default function Cadastros() {
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
-  useEffect(() => { carregarEmpresas(); carregarFeriados(); }, []);
+  useEffect(() => {
+    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => setEhMaster(d?.role === 'master')).catch(() => {});
+    carregarEmpresas(); carregarFeriados();
+  }, []);
   useEffect(() => { carregarFuncs(empresaSel); }, [empresaSel]);
 
   async function salvarEmpresas() {
@@ -112,6 +117,9 @@ export default function Cadastros() {
         <h2 className="mb-1 font-semibold">Empresas-clientes</h2>
         <p className="mb-2 text-xs text-slate-500">
           O nome (razão social) aparece no cabeçalho da planilha. Marque se a empresa trabalha aos sábados.
+          {ehMaster
+            ? ' Como administrador, você vê as empresas de todos os contadores e define o responsável de cada uma.'
+            : ' Você vê e edita apenas as suas empresas.'}
         </p>
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -121,6 +129,7 @@ export default function Cadastros() {
               <th className="border px-1 py-1">Trabalha sáb.?</th>
               <th className="border px-1 py-1">Jornada útil (min)</th>
               <th className="border px-1 py-1">Jornada sáb. (min)</th>
+              {ehMaster && <th className="border px-1 py-1 text-left">Contador responsável</th>}
               <th className="border px-1 py-1"></th>
             </tr>
           </thead>
@@ -137,13 +146,20 @@ export default function Cadastros() {
                   placeholder="480" onChange={(ev) => setE(i, 'jornadaUtilMin', ev.target.value)} /></td>
                 <td className="border px-0.5"><input className="w-full px-1 py-0.5 text-center" value={e.jornadaSabadoMin ?? ''}
                   placeholder="240" onChange={(ev) => setE(i, 'jornadaSabadoMin', ev.target.value)} /></td>
+                {ehMaster && (
+                  <td className="border px-0.5"><input className="w-full px-1 py-0.5" value={e.contador ?? ''}
+                    placeholder="e-mail do contador" onChange={(ev) => setE(i, 'contador', ev.target.value)} /></td>
+                )}
                 <td className="border px-1 text-center">
-                  <button onClick={() => setEmpresas((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-600 hover:underline">Remover</button>
+                  <button onClick={() => setEmpresas((p) => p.filter((_, j) => j !== i))}
+                    title="Remover" aria-label="Remover empresa" className="text-red-600 hover:text-red-700">
+                    <IconeExcluir size={15} className="inline" />
+                  </button>
                 </td>
               </tr>
             ))}
             {empresas.length === 0 && (
-              <tr><td colSpan={6} className="border px-2 py-3 text-center text-slate-400">Nenhuma empresa cadastrada.</td></tr>
+              <tr><td colSpan={ehMaster ? 7 : 6} className="border px-2 py-3 text-center text-slate-400">Nenhuma empresa cadastrada.</td></tr>
             )}
           </tbody>
         </table>
@@ -189,7 +205,10 @@ export default function Cadastros() {
                 <td className="border px-0.5"><input className="w-full px-1 py-0.5 text-center" value={f.jornadaSabadoMin ?? ''}
                   placeholder="240" onChange={(e) => setF(i, 'jornadaSabadoMin', e.target.value)} /></td>
                 <td className="border px-1 text-center">
-                  <button onClick={() => setFuncs((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-600 hover:underline">Remover</button>
+                  <button onClick={() => setFuncs((p) => p.filter((_, j) => j !== i))}
+                    title="Remover" aria-label="Remover funcionário" className="text-red-600 hover:text-red-700">
+                    <IconeExcluir size={15} className="inline" />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -225,7 +244,10 @@ export default function Cadastros() {
                 <td className="border px-0.5"><input className="w-full px-1 py-0.5" value={f.descricao}
                   onChange={(e) => setH(i, 'descricao', e.target.value)} /></td>
                 <td className="border px-1 text-center">
-                  <button onClick={() => setFeriados((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-600 hover:underline">Remover</button>
+                  <button onClick={() => setFeriados((p) => p.filter((_, j) => j !== i))}
+                    title="Remover" aria-label="Remover feriado" className="text-red-600 hover:text-red-700">
+                    <IconeExcluir size={15} className="inline" />
+                  </button>
                 </td>
               </tr>
             ))}

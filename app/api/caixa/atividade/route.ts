@@ -5,9 +5,10 @@
 // ainda não olhou. Não há tabela de notificação — quando ela confere, sai da
 // fila sozinho.
 import { NextRequest } from 'next/server';
-import { exigirGestor } from '@/lib/acesso';
+import { empresaVisivelPara, exigirGestor } from '@/lib/acesso';
 import { ErroCaixa } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
+import { lerEmpresas } from '@/lib/sheets';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +48,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const empresas = [...porEmpresa.values()].map((e) => ({ ...e, meses: e.meses.sort((a, b) => a - b) }));
+    // Cada contador só é avisado das suas empresas (o master vê todas).
+    const visiveis = new Set((await lerEmpresas()).filter((e) => empresaVisivelPara(g.sessao, e)).map((e) => e.id));
+    const empresas = [...porEmpresa.values()]
+      .filter((e) => visiveis.has(e.empresaId))
+      .map((e) => ({ ...e, meses: e.meses.sort((a, b) => a - b) }));
     return Response.json({
       empresas,
       total: empresas.reduce((s, e) => s + e.pendentes, 0),

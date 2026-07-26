@@ -36,6 +36,26 @@ function escala(min: number, max: number, de: number, para: number) {
   return (v: number) => de + ((v - min) / vao) * (para - de);
 }
 
+/**
+ * Faixa [min, max] que enquadra os valores sem forçar o zero. Dá 10% de folga
+ * acima e abaixo; se todos os valores forem iguais (saldo parado), abre uma
+ * banda em torno deles para a linha não colar na borda.
+ */
+function enquadrar(valores: number[]): { min: number; max: number } {
+  let min = Math.min(...valores);
+  let max = Math.max(...valores);
+  if (min === max) {
+    const d = Math.abs(min) * 0.1 || 1;
+    return { min: min - d, max: max + d };
+  }
+  const folga = (max - min) * 0.1;
+  min -= folga; max += folga;
+  // Se a série passa perto do zero, traz o zero para o quadro (linha de base útil).
+  if (min > 0 && min < (max - min) * 0.25) min = 0;
+  if (max < 0 && max > (min - max) * 0.25) max = 0;
+  return { min, max };
+}
+
 /** Divisões "redondas" do eixo Y. */
 function marcas(min: number, max: number, quantas = 4): number[] {
   const passo = (max - min) / quantas || 1;
@@ -89,9 +109,12 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
     return <VazioGrafico texto="O saldo aparece aqui quando houver mês liberado." />;
   }
 
+  // Escala pela faixa real do saldo (incluindo o saldo que abre o exercício), com
+  // uma folga de 10% — não ancorada em zero. Ancorar em zero achatava a linha
+  // quando o saldo é alto e varia pouco: um caixa de ~270 mil virava um traço
+  // reto colado no topo, sem informação. O zero só aparece se os dados o cruzam.
   const valores = [saldoInicial, ...pontos.map((p) => p.saldoFinal)];
-  const min = Math.min(0, ...valores);
-  const max = Math.max(0, ...valores);
+  const { min, max } = enquadrar(valores);
   const x = escala(1, 12, L, W - R);
   const y = escala(min, max, H - B, T);
 

@@ -7,6 +7,8 @@
 // porque o `cliente` já não alcança as rotas de gestão.
 import { NextRequest } from 'next/server';
 import { COOKIE_SESSAO, lerSessao, Sessao } from './auth';
+import { lerEmpresa } from './sheets';
+import { Empresa } from './tipos';
 
 export type Guarda =
   | { ok: true; sessao: Sessao }
@@ -21,14 +23,30 @@ export function ehGestor(s: Sessao | null | undefined): boolean {
   return s?.role === 'master' || s?.role === 'usuario';
 }
 
-/** Empresas que a sessão alcança. `null` = todas. */
-export function empresasPermitidas(s: Sessao): string[] | null {
-  return ehGestor(s) ? null : [s.empresa ?? ''];
+/**
+ * Visibilidade a partir do objeto empresa já carregado (sem I/O).
+ *
+ * - `master` vê todas.
+ * - `usuario` (contador) vê só as suas — as que têm o e-mail dele como dono, ou
+ *   as ainda sem dono (legado), que ele reivindica ao salvar o cadastro.
+ * - `cliente` vê só a empresa vinculada à sessão.
+ */
+export function empresaVisivelPara(s: Sessao, e: Pick<Empresa, 'id' | 'contador'>): boolean {
+  if (s.role === 'master') return true;
+  if (s.role === 'usuario') return !e.contador || e.contador === s.email.toLowerCase();
+  return Boolean(s.empresa) && s.empresa === e.id;
 }
 
-export function podeVerEmpresa(s: Sessao, empresaId: string): boolean {
-  if (ehGestor(s)) return true;
-  return Boolean(s.empresa) && s.empresa === empresaId;
+/**
+ * Mesma decisão, mas só com o id da empresa. `master`/`cliente` resolvem sem
+ * tocar no Sheets; o contador precisa consultar o dono (leitura cacheada).
+ */
+export async function podeAcessarEmpresa(s: Sessao, empresaId: string): Promise<boolean> {
+  if (!empresaId?.trim()) return false;
+  if (s.role === 'master') return true;
+  if (s.role === 'cliente') return s.empresa === empresaId;
+  const e = await lerEmpresa(empresaId);
+  return e ? empresaVisivelPara(s, e) : false;
 }
 
 function negar(msg: string, status: number): Guarda {
@@ -62,6 +80,6 @@ export async function exigirEmpresa(req: NextRequest, empresaId: string): Promis
   const sessao = await sessaoDe(req);
   if (!sessao) return negar('Não autenticado.', 401);
   if (!empresaId?.trim()) return negar('Informe a empresa.', 400);
-  if (!podeVerEmpresa(sessao, empresaId)) return negar('Acesso restrito a esta empresa.', 403);
+  if (!(await podeAcessarEmpresa(sessao, empresaId))) return negar('Acesso restrito a esta empresa.', 403);
   return { ok: true, sessao };
 }

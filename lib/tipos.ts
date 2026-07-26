@@ -58,4 +58,10 @@ export interface Empresa {
   jornadaUtilMin?: number;
   jornadaSabadoMin?: number;
   ordem?: number | null;
+  /**
+   * E-mail do contador (papel `usuario`) dono desta empresa. Cada contador só
+   * enxerga as suas; o `master` vê todas. Vazio = ainda sem dono (legado),
+   * visível a qualquer contabilidade até alguém a reivindicar ao salvar.
+   */
+  contador?: string | null;
 }
