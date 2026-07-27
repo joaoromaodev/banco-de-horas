@@ -3,7 +3,7 @@
 import { randomUUID } from 'crypto';
 import { google, sheets_v4 } from 'googleapis';
 import { getContaServico, getSpreadsheetId } from './config';
-import { Papel } from './auth';
+import { Papel, Modulo, MODULOS } from './auth';
 import { Empresa, Frequencia, Funcionario } from './tipos';
 import { Jornada, JORNADA_PADRAO } from './calendario';
 
@@ -42,9 +42,18 @@ const HEADER_FER = ['data', 'descricao'];
 const ABA_CFG = 'Config';
 const HEADER_CFG = ['chave', 'valor'];
 const ABA_USERS = 'Usuarios';
-// `empresa` no fim (coluna F): linhas antigas continuam válidas (vínculo vazio,
-// que só importa para o papel `cliente`).
-const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash', 'empresa'];
+// `empresa` (F) e `modulos` (G) foram adicionadas no fim: linhas antigas seguem
+// válidas — sem F o vínculo fica vazio (só importa ao `cliente`) e sem G os
+// módulos ficam vazios, que `resolverModulos` trata como legado (tudo liberado).
+const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash', 'empresa', 'modulos'];
+
+/** Serializa/parseia a coluna `modulos` ("caixa,ponto"), ignorando lixo. */
+function parseModulos(valor: unknown): Modulo[] {
+  return String(valor ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s): s is Modulo => (MODULOS as string[]).includes(s));
+}
 
 export interface Feriado {
   data: string; // AAAA-MM-DD
@@ -59,6 +68,8 @@ export interface UsuarioRec {
   hash: string;
   /** Id da empresa que o usuário enxerga. Só se aplica ao papel `cliente`. */
   empresa?: string | null;
+  /** Módulos habilitados pelo master. Vazio = legado (ver `resolverModulos`). */
+  modulos?: Modulo[];
 }
 
 export interface SheetsCtx {
@@ -366,13 +377,13 @@ export async function salvarConfig(entradas: Record<string, string>): Promise<vo
 
 // ---- Usuários ----
 function linhaUsuario(u: UsuarioRec): (string | number)[] {
-  return [u.email, u.nome, u.role, u.salt, u.hash, u.empresa ?? ''];
+  return [u.email, u.nome, u.role, u.salt, u.hash, u.empresa ?? '', (u.modulos ?? []).join(',')];
 }
 
 export async function lerUsuarios(): Promise<UsuarioRec[]> {
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
-  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:F` });
+  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:G` });
   return (res.data.values ?? []).map((r) => ({
     email: String(r[0] ?? '').toLowerCase(),
     nome: String(r[1] ?? ''),
@@ -380,6 +391,7 @@ export async function lerUsuarios(): Promise<UsuarioRec[]> {
     salt: String(r[3] ?? ''),
     hash: String(r[4] ?? ''),
     empresa: r[5] ? String(r[5]).trim() : null,
+    modulos: parseModulos(r[6]),
   })).filter((u) => u.email);
 }
 

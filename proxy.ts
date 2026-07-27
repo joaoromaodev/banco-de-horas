@@ -3,7 +3,7 @@
 // O papel 'cliente' (administrativo da empresa) segue lista de permissão: só
 // alcança o que estiver em CLIENTE_PODE — todo o resto é do gestor.
 import { NextRequest, NextResponse } from 'next/server';
-import { lerSessao, COOKIE_SESSAO } from '@/lib/auth';
+import { lerSessao, temModulo, COOKIE_SESSAO } from '@/lib/auth';
 
 const PUBLICO = ['/login', '/api/login', '/api/logout'];
 const SOMENTE_MASTER = ['/configuracoes', '/api/usuarios', '/api/config'];
@@ -12,6 +12,16 @@ const SOMENTE_MASTER = ['/configuracoes', '/api/usuarios', '/api/config'];
 const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas'];
 /** Para onde o cliente é mandado quando tenta alcançar área de gestão. */
 const HOME_CLIENTE = '/caixa';
+
+/** Rotas do módulo Folha de Ponto (timesheet + folhas em branco). `/` é o
+ *  timesheet: casa só na raiz exata, não vira prefixo de tudo. */
+const ROTAS_PONTO = [
+  '/', '/folhas',
+  '/api/salvar', '/api/extrair', '/api/gerar', '/api/gerar-lote',
+  '/api/folha', '/api/folha-lote', '/api/funcionarios', '/api/feriados',
+];
+/** Rotas do módulo Livro Caixa. */
+const ROTAS_CAIXA = ['/caixa', '/api/caixa'];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -45,6 +55,21 @@ export async function proxy(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = HOME_CLIENTE;
     return NextResponse.redirect(url);
+  }
+
+  // Feature gating por módulo (só para gestores; o cliente já foi recortado acima,
+  // e o master tem todos os módulos). Um contador só-caixa não alcança a folha de
+  // ponto, e vice-versa. `/cadastros` e `/api/empresas` são compartilhados e ficam
+  // de fora das duas listas de propósito.
+  if (sessao.role === 'usuario') {
+    const semPonto = casaCom(ROTAS_PONTO) && !temModulo(sessao, 'ponto');
+    const semCaixa = casaCom(ROTAS_CAIXA) && !temModulo(sessao, 'caixa');
+    if (semPonto || semCaixa) {
+      if (ehApi) return NextResponse.json({ erro: 'Módulo não habilitado.' }, { status: 403 });
+      const url = req.nextUrl.clone();
+      url.pathname = temModulo(sessao, 'caixa') ? '/caixa' : '/';
+      return NextResponse.redirect(url);
+    }
   }
 
   return NextResponse.next();

@@ -36,6 +36,73 @@ export interface ExercicioCaixa {
   saldoInicial: number;
 }
 
+/**
+ * Dados fiscais estáveis da empresa (1:1), usados no Termo de Abertura (Fase 6).
+ * A identidade (razão social/CNPJ) vem do Sheets; aqui fica o que é fiscal.
+ */
+export interface DadosFiscais {
+  endereco: string | null;
+  numeroEndereco: string | null;
+  municipio: string | null;
+  estado: string | null;
+  inscricaoEstadual: string | null;
+  inscricaoMunicipal: string | null;
+  registroJunta: string | null;
+  registroNumero: string | null;
+  prefeitura: string | null;
+  cidadeTermo: string | null;
+  contabilista: string;
+  crc: string;
+}
+
+const FISCAL_PADRAO: DadosFiscais = {
+  endereco: null, numeroEndereco: null, municipio: null, estado: null,
+  inscricaoEstadual: null, inscricaoMunicipal: null, registroJunta: null,
+  registroNumero: null, prefeitura: null, cidadeTermo: null,
+  contabilista: 'Edilse Goes da Costa', crc: '01619/0-3',
+};
+
+/** Fiscal da empresa; devolve os padrões (contabilista/CRC da Edilse) se ainda não houver linha. */
+export async function lerFiscal(empresaId: string): Promise<DadosFiscais> {
+  const db = getDb();
+  const { data, error } = await db
+    .from('empresa_fiscal')
+    .select('endereco, numero_endereco, municipio, estado, inscricao_estadual, inscricao_municipal, registro_junta, registro_numero, prefeitura, cidade_termo, contabilista, crc')
+    .eq('empresa_id', empresaId).maybeSingle();
+  if (error) throw new ErroCaixa(`empresa_fiscal: ${error.message}`, 502);
+  if (!data) return { ...FISCAL_PADRAO };
+  return {
+    endereco: data.endereco, numeroEndereco: data.numero_endereco,
+    municipio: data.municipio, estado: data.estado,
+    inscricaoEstadual: data.inscricao_estadual, inscricaoMunicipal: data.inscricao_municipal,
+    registroJunta: data.registro_junta, registroNumero: data.registro_numero,
+    prefeitura: data.prefeitura, cidadeTermo: data.cidade_termo,
+    contabilista: data.contabilista ?? FISCAL_PADRAO.contabilista,
+    crc: data.crc ?? FISCAL_PADRAO.crc,
+  };
+}
+
+/** Grava (upsert) o fiscal da empresa. */
+export async function salvarFiscal(empresaId: string, d: DadosFiscais, por: string): Promise<void> {
+  const db = getDb();
+  const limpo = (v: string | null | undefined) => {
+    const s = String(v ?? '').trim();
+    return s || null;
+  };
+  const { error } = await db.from('empresa_fiscal').upsert({
+    empresa_id: empresaId,
+    endereco: limpo(d.endereco), numero_endereco: limpo(d.numeroEndereco),
+    municipio: limpo(d.municipio), estado: limpo(d.estado),
+    inscricao_estadual: limpo(d.inscricaoEstadual), inscricao_municipal: limpo(d.inscricaoMunicipal),
+    registro_junta: limpo(d.registroJunta), registro_numero: limpo(d.registroNumero),
+    prefeitura: limpo(d.prefeitura), cidade_termo: limpo(d.cidadeTermo),
+    contabilista: limpo(d.contabilista) ?? FISCAL_PADRAO.contabilista,
+    crc: limpo(d.crc) ?? FISCAL_PADRAO.crc,
+    atualizado_por: por, atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'empresa_id' });
+  if (error) throw new ErroCaixa(`empresa_fiscal: ${error.message}`, 502);
+}
+
 /** Histórico que a UI oferece pronto, já com a conta que ele sugere. */
 export interface HistoricoCaixa {
   texto: string;

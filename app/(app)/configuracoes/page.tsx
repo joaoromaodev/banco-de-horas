@@ -5,13 +5,19 @@ import { IconeExcluir } from '../icones';
 import { DialogoConfirmacao } from '../Dialogo';
 
 type Papel = 'master' | 'usuario' | 'cliente';
-interface Usuario { email: string; nome: string; role: Papel; empresa: string | null; }
+type Modulo = 'ponto' | 'caixa';
+interface Usuario { email: string; nome: string; role: Papel; empresa: string | null; modulos: Modulo[]; }
 interface Empresa { id: string; nome: string; }
 
 const ROTULO_PAPEL: Record<Papel, string> = {
   master: 'Administrador',
   usuario: 'Contabilidade',
   cliente: 'Empresa cliente',
+};
+
+const ROTULO_MODULO: Record<Modulo, string> = {
+  ponto: 'Folha de Ponto',
+  caixa: 'Livro Caixa',
 };
 
 export default function Configuracoes() {
@@ -25,7 +31,7 @@ export default function Configuracoes() {
   // --- Usuários ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', role: 'usuario' as Papel, empresa: '' });
+  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', role: 'usuario' as Papel, empresa: '', modulos: ['caixa'] as Modulo[] });
   const [savingUser, setSavingUser] = useState(false);
   const [msgUser, setMsgUser] = useState<string | null>(null);
 
@@ -69,7 +75,7 @@ export default function Configuracoes() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.erro);
       setMsgUser('Usuário salvo.');
-      setNovo({ nome: '', email: '', senha: '', role: 'usuario', empresa: '' });
+      setNovo({ nome: '', email: '', senha: '', role: 'usuario', empresa: '', modulos: ['caixa'] });
       carregarUsuarios();
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     finally { setSavingUser(false); }
@@ -149,6 +155,11 @@ export default function Configuracoes() {
                     {ROTULO_PAPEL[u.role]}
                     {u.role === 'cliente' && ` · ${empresas.find((e) => e.id === u.empresa)?.nome ?? 'empresa removida'}`}
                   </span>
+                  {u.role === 'usuario' && (
+                    <span className="hidden text-xs text-slate-500 sm:inline">
+                      {u.modulos.map((m) => ROTULO_MODULO[m]).join(' · ')}
+                    </span>
+                  )}
                   <button onClick={() => setAExcluir(u)} title="Remover" aria-label={`Remover ${u.nome}`}
                     className="text-red-600 hover:text-red-700">
                     <IconeExcluir size={16} className="inline" />
@@ -174,6 +185,26 @@ export default function Configuracoes() {
               </select>
             )}
           </div>
+
+          {/* Módulos — só para a contabilidade. Master tem tudo; cliente é só caixa. */}
+          {novo.role === 'usuario' && (
+            <div className="mt-3">
+              <label className="mb-1 block font-medium text-slate-700">Módulos liberados</label>
+              <p className="mb-2 text-xs text-slate-500">O que este contador enxerga. A Folha de Ponto só faz sentido para quem usa timesheet.</p>
+              <div className="flex flex-wrap gap-4">
+                {(['caixa', 'ponto'] as Modulo[]).map((m) => (
+                  <label key={m} className="flex items-center gap-2">
+                    <input type="checkbox" checked={novo.modulos.includes(m)}
+                      onChange={(e) => setNovo({
+                        ...novo,
+                        modulos: e.target.checked ? [...novo.modulos, m] : novo.modulos.filter((x) => x !== m),
+                      })} />
+                    {ROTULO_MODULO[m]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="mt-3 flex items-center gap-3">
             <button onClick={addUsuario} disabled={savingUser}
               className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">

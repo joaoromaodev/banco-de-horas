@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { IconePainel } from './icones';
 
-interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
+type Modulo = 'ponto' | 'caixa';
+interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; modulos: Modulo[]; }
+interface Item { href: string; label: string; icon: string; }
+interface Grupo { titulo?: string; itens: Item[]; }
 
 const ROTULO_PAPEL: Record<Me['role'], string> = {
   master: 'Administrador',
@@ -42,15 +45,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     });
   }
 
-  // O cliente só enxerga o livro caixa; o resto é da contabilidade.
-  const nav = me?.role === 'cliente'
-    ? [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }]
+  // O menu segue papel e módulos. O cliente só enxerga o Livro Caixa. Para o
+  // gestor, Folha de Ponto (Timesheet + Folhas em branco) e Livro Caixa aparecem
+  // só se o módulo estiver habilitado — um contador só-caixa não vê a folha.
+  const temModulo = (m: Modulo) => me?.role === 'master' || (me?.modulos ?? []).includes(m);
+  const grupos: Grupo[] = me?.role === 'cliente'
+    ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }] }]
     : [
-        { href: '/', label: 'Timesheet', icon: 'timesheet' },
-        { href: '/folhas', label: 'Folhas em branco', icon: 'folha' },
-        { href: '/caixa', label: 'Livro Caixa', icon: 'caixa' },
-        { href: '/cadastros', label: 'Cadastros', icon: 'cadastros' },
-        ...(me?.role === 'master' ? [{ href: '/configuracoes', label: 'Configurações', icon: 'config' }] : []),
+        ...(temModulo('ponto')
+          ? [{ titulo: 'Folha de Ponto', itens: [
+              { href: '/', label: 'Timesheet', icon: 'timesheet' },
+              { href: '/folhas', label: 'Folhas em branco', icon: 'folha' },
+            ] } as Grupo]
+          : []),
+        ...(temModulo('caixa')
+          ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }] } as Grupo]
+          : []),
+        { itens: [
+          { href: '/cadastros', label: 'Cadastros', icon: 'cadastros' },
+          ...(me?.role === 'master' ? [{ href: '/configuracoes', label: 'Configurações', icon: 'config' }] : []),
+        ] },
       ];
 
   async function sair() {
@@ -78,19 +92,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
-          {nav.map((item) => {
-            const ativo = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-            return (
-              <a key={item.href} href={item.href} title={recolhido ? item.label : undefined}
-                className={`flex items-center gap-3 rounded-lg py-2.5 text-sm transition ${recolhido ? 'justify-center px-0' : 'px-3'} ${
-                  ativo ? 'bg-white/10 font-medium text-white' : 'text-indigo-200 hover:bg-white/5 hover:text-white'
-                }`}>
-                <Icon name={item.icon} />
-                {!recolhido && item.label}
-              </a>
-            );
-          })}
+        <nav className="flex-1 space-y-3 px-3">
+          {grupos.map((grupo, gi) => (
+            <div key={gi} className="space-y-1">
+              {grupo.titulo && !recolhido && (
+                <div className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-400">
+                  {grupo.titulo}
+                </div>
+              )}
+              {grupo.itens.map((item) => {
+                const ativo = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                return (
+                  <a key={item.href} href={item.href} title={recolhido ? item.label : undefined}
+                    className={`flex items-center gap-3 rounded-lg py-2.5 text-sm transition ${recolhido ? 'justify-center px-0' : 'px-3'} ${
+                      ativo ? 'bg-white/10 font-medium text-white' : 'text-indigo-200 hover:bg-white/5 hover:text-white'
+                    }`}>
+                    <Icon name={item.icon} />
+                    {!recolhido && item.label}
+                  </a>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className={`rounded-lg bg-white/5 ${recolhido ? 'm-2 p-2' : 'm-3 p-3'}`}>

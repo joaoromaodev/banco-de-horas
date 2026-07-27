@@ -5,13 +5,42 @@
  *  `cliente` é o administrativo da empresa-cliente (vê só a empresa dele). */
 export type Papel = 'master' | 'usuario' | 'cliente';
 
+/** Os dois módulos da plataforma. Cada contador é liberado por módulo. */
+export type Modulo = 'ponto' | 'caixa';
+export const MODULOS: Modulo[] = ['ponto', 'caixa'];
+
 export interface Sessao {
   email: string;
   nome: string;
   role: Papel;
   /** Empresa vinculada — obrigatória no papel `cliente`, ausente nos demais. */
   empresa?: string;
+  /** Módulos liberados para esta sessão. Já resolvido no login (ver `resolverModulos`). */
+  modulos?: Modulo[];
   exp: number; // epoch ms
+}
+
+/**
+ * Módulos efetivos de um usuário, resolvidos no login e gravados na sessão para
+ * a checagem sair sem I/O (proxy e rotas leem `sessao.modulos`).
+ *
+ * - `master` tem tudo.
+ * - `cliente` é sempre só o caixa (nem enxerga a folha de ponto).
+ * - `usuario` (contador) usa o que o master habilitou; **vazio = legado = tudo**,
+ *   para não tirar acesso de quem já usava o sistema antes deste campo existir.
+ *   Contador novo nasce com o padrão do cadastro (só caixa).
+ */
+export function resolverModulos(role: Papel, guardados?: Modulo[] | null): Modulo[] {
+  if (role === 'cliente') return ['caixa'];
+  if (role === 'master') return [...MODULOS];
+  return guardados && guardados.length ? guardados : [...MODULOS];
+}
+
+/** A sessão tem acesso ao módulo? Master sempre; demais pelo que foi resolvido. */
+export function temModulo(s: Sessao | null | undefined, m: Modulo): boolean {
+  if (!s) return false;
+  if (s.role === 'master') return true;
+  return (s.modulos ?? MODULOS).includes(m);
 }
 
 const DURACAO_MS = 1000 * 60 * 60 * 12; // 12h

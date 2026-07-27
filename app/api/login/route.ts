@@ -1,7 +1,7 @@
 // POST /api/login — valida credenciais e cria a sessão em cookie.
 import { NextRequest, NextResponse } from 'next/server';
 import { getMaster } from '@/lib/config';
-import { criarSessao, conferirSenha, COOKIE_SESSAO, Sessao } from '@/lib/auth';
+import { criarSessao, conferirSenha, COOKIE_SESSAO, Sessao, resolverModulos } from '@/lib/auth';
 import { buscarUsuario } from '@/lib/sheets';
 
 export const runtime = 'nodejs';
@@ -22,17 +22,19 @@ export async function POST(req: NextRequest) {
   let sessao: Omit<Sessao, 'exp'> | null = null;
 
   if (email === master.email && senha === master.senha) {
-    sessao = { email, nome: 'Administrador', role: 'master' };
+    sessao = { email, nome: 'Administrador', role: 'master', modulos: resolverModulos('master') };
   } else {
     try {
       const u = await buscarUsuario(email);
       if (u && u.salt && u.hash && (await conferirSenha(senha, u.salt, u.hash))) {
         // O vínculo com empresa entra na sessão para o papel `cliente`; nos demais
         // seria ruído (gestor enxerga todas) e poderia virar um filtro indevido.
+        // Os módulos já são resolvidos aqui para o proxy checar sem I/O.
         sessao = {
           email: u.email,
           nome: u.nome,
           role: u.role,
+          modulos: resolverModulos(u.role, u.modulos),
           ...(u.role === 'cliente' ? { empresa: u.empresa ?? '' } : {}),
         };
       }

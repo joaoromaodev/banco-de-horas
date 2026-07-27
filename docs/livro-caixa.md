@@ -4,7 +4,7 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **26/07/2026**
+Última atualização: **26/07/2026** (Fase 5 concluída — plataforma modular)
 
 ## Por que este módulo existe
 
@@ -249,56 +249,80 @@ dele vêm sem a sugestão. Verificado: cliente vê 8 contas, master vê 118.
 - **Filtro de empresa/exercício persiste entre as abas** (Lançamentos ↔ Resumo),
   via `localStorage` (`caixa.empresa`, `caixa.ano`).
 
-### ⬜ Fase 5 — Plataforma: módulos por contador e cadastro separado (próxima)
+### ✅ Fase 5 — Plataforma: módulos por contador e cadastro por seções (26/07/2026)
 
-Decidido em **26/07/2026** (João). O projeto passa a ser tratado como **plataforma
-com dois módulos distintos** — Folha de Ponto e Livro Caixa —, com **liberação por
-contador**. Isso entra **antes dos documentos** (que viraram a Fase 6): o Termo de
-Abertura precisa dos campos fiscais da empresa, e é esta etapa que os organiza. Sem
-ela, a Fase 6 seria feita no cadastro antigo e refeita depois.
+Decidido e implementado em **26/07/2026** (João). O projeto passa a ser uma
+**plataforma com dois módulos distintos** — Folha de Ponto e Livro Caixa —, com
+**liberação por contador**. Entrou **antes dos documentos** (Fase 6): o Termo de
+Abertura precisa dos campos fiscais da empresa, e é esta etapa que os organiza.
 
 Motivação: só a Edilse usa a Folha de Ponto. Um contador que só tem o Livro Caixa
-não deveria nem ver jornadas/funcionários/feriados — é trabalho que não importa
-pra ele.
+não precisa ver jornadas/funcionários/feriados. **A Folha de Ponto NÃO foi
+"produtizada" para multiempresa** — a decisão foi *isolá-la* atrás do gating e
+tratar a produtização como projeto futuro, iniciado por descoberta com um segundo
+contador (a realidade de jornadas/convenção/feriados hoje só é conhecida pela
+Edilse).
 
-**Parte A — Módulos por contador (feature gating)**
-- Coluna `modulos` na aba **Usuarios** (ex.: `caixa` ou `caixa,ponto`). O master
-  habilita ao criar/editar o usuário (checkboxes em Configurações).
-- A **sessão** (cookie assinado) passa a carregar `modulos` → checagem sem I/O.
-  `master` tem tudo; `cliente` é sempre só caixa.
-- `lib/acesso.ts` ganha `temModulo`; `proxy.ts` gateia rotas de ponto (`/`,
-  `/folhas`, `/api/folha*`, `/api/funcionarios`, `/api/gerar*`, `/api/extrair`,
-  `/api/feriados`) atrás de `ponto`, e as do caixa atrás de `caixa`.
-- Sidebar mostra só os módulos habilitados.
+**Parte A — Módulos por contador (feature gating) ✅**
+- Coluna `modulos` na aba **Usuarios** (coluna **G**, ex.: `caixa` ou
+  `caixa,ponto`). No fim, como as anteriores, para não quebrar linhas antigas.
+- `lib/auth.ts`: tipo `Modulo`, `resolverModulos(role, guardados)` e `temModulo`.
+  A **sessão** (cookie assinado) carrega `modulos` → checagem sem I/O.
+- **Regra do legado (importante):** `usuario` com `modulos` vazio = **tudo
+  liberado** (mesmo espírito de "empresa sem dono"). Assim a Edilse e contas
+  antigas **não perdem** a Folha de Ponto. Contador **novo** nasce só com `caixa`
+  (padrão do formulário). `master` tem tudo; `cliente` é sempre só `caixa`.
+- `proxy.ts` gateia as rotas de ponto (`/`, `/folhas`, `/api/salvar`,
+  `/api/extrair`, `/api/gerar*`, `/api/folha*`, `/api/funcionarios`,
+  `/api/feriados`) atrás de `ponto` e as do caixa atrás de `caixa`. `/cadastros` e
+  `/api/empresas` ficam **fora** das listas de propósito (são compartilhados).
+- Sidebar (`layout.tsx`) mostra só os módulos habilitados e **agrupa Timesheet +
+  Folhas em branco sob o rótulo "Folha de Ponto"** (as duas telas do mesmo módulo).
+- Configurações: checkboxes de módulo ao criar contador; a lista mostra os módulos
+  efetivos de cada `usuario`.
 
-**Parte B — Cadastro numa página, com seções por módulo**
-- `Identidade` (razão social, CNPJ) sempre; bloco **Livro Caixa** (fiscal) se tem
-  caixa; bloco **Folha de Ponto** (trabalha sábado, jornadas, **funcionários**) se
-  tem ponto; **feriados** são de ponto. Um contador só-caixa vê o cadastro enxuto.
+**Parte B — Cadastro por seções ✅**
+- `app/(app)/cadastros/page.tsx` reescrita. **Empresas-clientes** (identidade)
+  sempre; as colunas de ponto (trabalha sábado, jornadas) só aparecem com o módulo
+  `ponto`. **Dados fiscais · Livro Caixa** (por empresa) se tem `caixa`.
+  **Funcionários** e **Feriados** só com `ponto`. Um contador só-caixa vê o
+  cadastro enxuto (identidade + fiscal).
 
-**Parte C — Dados fiscais no Postgres (decisão de 26/07/2026)**
-- Nova tabela no Supabase (ex.: `empresa_fiscal`), **1:1 com a empresa** por
-  `empresa_id`, com os campos do Termo: endereço+nº, município/UF, inscrição
-  estadual e municipal, registro na Junta+nº, prefeitura, cidade do termo
-  (Belém/Castanhal), nº do livro, nº de ordem, contabilista/CRC.
-- A **identidade** da empresa continua no Sheets (compartilhada pelos dois
-  módulos); o **fiscal** vive com o caixa, no mesmo banco dos lançamentos — é dele
-  que a Fase 6 monta o Termo. Custo aceito: o cadastro grava em dois lugares.
+**Parte C — Dados fiscais no Postgres ✅**
+- Migração **`0003_empresa_fiscal.sql`** (aplicada no remoto): tabela
+  `empresa_fiscal`, **1:1 com a empresa** por `empresa_id` (texto, sem FID entre
+  bancos, como o resto do módulo). Guarda o fiscal **estável**: endereço+nº,
+  município/UF, inscrições estadual e municipal, registro na Junta+nº, prefeitura,
+  cidade do termo (Belém/Castanhal), contabilista/CRC (default Edilse, editável).
+- **Por que tabela nova e não as colunas de `exercicios`:** `exercicios` já tinha
+  campos fiscais (0001), mas são **por ano**. O que é estável (não muda de um ano
+  pro outro) vive em `empresa_fiscal` para não ser redigitado a cada exercício. O
+  que é **por livro** — nº do livro, nº de ordem, qtd de folhas, data do termo —
+  continua em `exercicios`. Identidade (razão social/CNPJ) segue no Sheets.
+- `lib/caixa.ts`: `DadosFiscais`, `lerFiscal`, `salvarFiscal`. Rota
+  `app/api/caixa/fiscal` (GET/POST), **só gestor** e só das empresas dele.
 
-**Sequência:** A → B+C → coletar os dados fiscais com a Edilse → Fase 6.
+**Sequência:** A → B+C ✅ → **coletar os dados fiscais com a Edilse (reunião)** →
+Fase 6.
 
 ### ⬜ Fase 6 — Documentos
 
 - PDF do **livro inteiro** com folhas numeradas (reusa o padrão de `lib/folhaPonto.ts`)
-- Termos de abertura e encerramento (lê o fiscal da tabela da Fase 5, Parte C)
+- Termos de abertura e encerramento. Fontes: **`empresa_fiscal`** (endereço,
+  inscrições, junta, prefeitura, cidade do termo, contabilista/CRC — Fase 5-C),
+  **`exercicios`** (nº do livro, nº de ordem, qtd de folhas, data do termo — por
+  ano) e a **identidade** no Sheets (razão social, CNPJ). Obs.: `exercicios` ainda
+  carrega colunas fiscais herdadas da 0001 que agora são redundantes com
+  `empresa_fiscal` — ao montar o Termo, use `empresa_fiscal` para o estável.
 - `.xlsx` no formato da planilha dela (reusa o padrão de `lib/planilha.ts`)
 
 ## Estado do banco
 
-Migrações `0000`, `0001` e `0002` aplicadas; `supabase migration list` bate com a
-pasta. O CLI está **logado na conta certa e linkado** ao projeto
-`zxjeibkttmacpuukvyzo`, então daqui para a frente `npx supabase db push` resolve
-— não precisa mais colar SQL no dashboard.
+Migrações `0000`, `0001`, `0002` e `0003` aplicadas; `supabase migration list`
+bate com a pasta (checado antes do push da `0003`, sem desync). O CLI está
+**logado na conta certa e linkado** ao projeto `zxjeibkttmacpuukvyzo`, então daqui
+para a frente `npx supabase db push` resolve — não precisa mais colar SQL no
+dashboard. A `0003` criou `empresa_fiscal` (fiscal estável 1:1 por empresa).
 
 Conteúdo: 118 contas no catálogo, 24 históricos padrão, e **nenhum lançamento
 ainda** — as Fases 3 e 4 foram testadas de ponta a ponta na empresa `TESTE` e os
@@ -320,10 +344,13 @@ criar conta, saldo inicial, fila) — além do recorte por prefixo do resumo.
    link "editar" ao lado de "Saldo inicial do exercício", na própria tela do
    caixa.
 2. **Dados cadastrais das 5 empresas** para o Termo de Abertura — trava a **Fase 6**
-   (documentos). Serão guardados no Postgres pela Fase 5 (Parte C). Razão social,
-   endereço e número, município/UF, registro na Junta e sob qual número, CNPJ,
-   inscrição estadual, inscrição municipal, prefeitura, cidade do termo (Belém ou
-   Castanhal), número do livro e número de ordem.
+   (documentos). A Fase 5 (Parte C) já entregou o **lugar** de guardar: a seção
+   "Dados fiscais · Livro Caixa" em `/cadastros` grava em `empresa_fiscal`. Falta
+   **preencher** com os dados reais (é o objetivo da reunião): endereço e número,
+   município/UF, inscrição estadual, inscrição municipal, registro na Junta e sob
+   qual número, prefeitura, cidade do termo (Belém ou Castanhal). Razão social e
+   CNPJ ficam na identidade (aba Empresas do Sheets); número do livro e de ordem
+   são por exercício (ficam em `exercicios`, preenchidos na tela do caixa).
 
 ### ✅ Resolvida: o de-para
 
