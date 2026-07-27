@@ -6,7 +6,7 @@ import { IconePainel } from './icones';
 
 type Modulo = 'ponto' | 'caixa';
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; modulos: Modulo[]; }
-interface Item { href: string; label: string; icon: string; }
+interface Item { href: string; label: string; icon: string; ativoEm?: string[]; }
 interface Grupo { titulo?: string; itens: Item[]; }
 
 const ROTULO_PAPEL: Record<Me['role'], string> = {
@@ -52,11 +52,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const grupos: Grupo[] = me?.role === 'cliente'
     ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }] }]
     : [
+        // Folha de Ponto é um módulo só: um item na barra, e Timesheet / Folhas em
+        // branco viram abas dentro dele (ver AbasPonto), como o Livro Caixa faz.
         ...(temModulo('ponto')
-          ? [{ titulo: 'Folha de Ponto', itens: [
-              { href: '/', label: 'Timesheet', icon: 'timesheet' },
-              { href: '/folhas', label: 'Folhas em branco', icon: 'folha' },
-            ] } as Grupo]
+          ? [{ itens: [{ href: '/', label: 'Folha de Ponto', icon: 'timesheet', ativoEm: ['/', '/folhas'] }] } as Grupo]
           : []),
         ...(temModulo('caixa')
           ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }] } as Grupo]
@@ -101,7 +100,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               )}
               {grupo.itens.map((item) => {
-                const ativo = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                const casa = (p: string) => (p === '/' ? pathname === '/' : pathname.startsWith(p));
+                const ativo = item.ativoEm ? item.ativoEm.some(casa) : casa(item.href);
                 return (
                   <a key={item.href} href={item.href} title={recolhido ? item.label : undefined}
                     className={`flex items-center gap-3 rounded-lg py-2.5 text-sm transition ${recolhido ? 'justify-center px-0' : 'px-3'} ${

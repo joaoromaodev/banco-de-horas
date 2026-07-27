@@ -6,6 +6,7 @@ import { MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, JORNADA_PADRAO } f
 import { validar, Alerta } from '@/lib/validacao';
 import { dataBR } from '@/lib/data';
 import LupaImagem from './LupaImagem';
+import { AbasPonto } from './AbasPonto';
 
 type Campo = 'entradaManha' | 'saidaAlmoco' | 'retornoAlmoco' | 'saidaTarde';
 const CAMPOS: Campo[] = ['entradaManha', 'saidaAlmoco', 'retornoAlmoco', 'saidaTarde'];
@@ -256,6 +257,7 @@ export default function Home() {
         <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">{dataBR()}</span>
       </header>
       <div className="space-y-6 p-6">
+      <AbasPonto ativa="timesheet" />
 
       <section className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-4">
         <label className="flex flex-col gap-1 md:col-span-2">

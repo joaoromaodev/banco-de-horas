@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Empresa, Funcionario } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
+import { AbasPonto } from '../AbasPonto';
 
 export default function Folhas() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -75,6 +76,7 @@ export default function Folhas() {
       </header>
 
       <div className="space-y-6 p-6">
+        <AbasPonto ativa="folhas" />
         {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
 
         <section className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-4">
