@@ -97,6 +97,9 @@ export default function Cadastro() {
 
   const nomeEmpresa = (id: string | null) => empresas.find((e) => e.id === id)?.nome ?? 'empresa removida';
   const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100';
+  // Célula de tabela: input discreto que só ganha contorno no hover/foco (some a
+  // grade dura, no padrão dos cards do site).
+  const cell = 'w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-200 focus:border-petroleo-500 focus:bg-white focus:ring-2 focus:ring-petroleo-100';
   const colsEmpresa = 2 + (ehMaster ? 1 : 0) + 1;
 
   return (
@@ -121,37 +124,38 @@ export default function Cadastro() {
               ? ' Como administrador, você vê as empresas de todos os contadores e define o responsável de cada uma.'
               : ' Você vê e edita apenas as suas empresas.'}
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50">
-                  <th className="border px-1 py-1 text-left">Razão social</th>
-                  <th className="border px-1 py-1 text-left">CNPJ</th>
-                  {ehMaster && <th className="border px-1 py-1 text-left">Contador responsável</th>}
-                  <th className="border px-1 py-1"></th>
+                <tr className="border-b border-slate-200 bg-petroleo-50/70 text-left text-[11px] font-semibold uppercase tracking-wide text-petroleo-800">
+                  <th className="px-3 py-2.5">Razão social</th>
+                  <th className="px-3 py-2.5">CNPJ</th>
+                  {ehMaster && <th className="px-3 py-2.5">Contador responsável</th>}
+                  <th className="w-12 px-3 py-2.5"></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {empresas.map((e, i) => (
-                  <tr key={i}>
-                    <td className="border px-0.5"><input className="w-full px-1 py-0.5" value={e.nome}
+                  <tr key={i} className="group transition-colors hover:bg-slate-50/70">
+                    <td className="px-2 py-1"><input className={cell} value={e.nome}
                       onChange={(ev) => setE(i, 'nome', ev.target.value)} /></td>
-                    <td className="border px-0.5"><input className="w-full px-1 py-0.5" value={e.cnpj ?? ''}
+                    <td className="px-2 py-1"><input className={cell} value={e.cnpj ?? ''}
                       onChange={(ev) => setE(i, 'cnpj', ev.target.value)} /></td>
                     {ehMaster && (
-                      <td className="border px-0.5"><input className="w-full px-1 py-0.5" value={e.contador ?? ''}
+                      <td className="px-2 py-1"><input className={cell} value={e.contador ?? ''}
                         placeholder="e-mail do contador" onChange={(ev) => setE(i, 'contador', ev.target.value)} /></td>
                     )}
-                    <td className="border px-1 text-center">
+                    <td className="px-2 py-1 text-center">
                       <button onClick={() => setEmpresas((p) => p.filter((_, j) => j !== i))}
-                        title="Remover" aria-label="Remover empresa" className="text-red-600 hover:text-red-700">
-                        <IconeExcluir size={15} className="inline" />
+                        title="Remover" aria-label="Remover empresa"
+                        className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600 group-hover:text-slate-400">
+                        <IconeExcluir size={16} className="inline" />
                       </button>
                     </td>
                   </tr>
                 ))}
                 {empresas.length === 0 && (
-                  <tr><td colSpan={colsEmpresa} className="border px-2 py-3 text-center text-slate-400">Nenhuma empresa cadastrada.</td></tr>
+                  <tr><td colSpan={colsEmpresa} className="px-3 py-8 text-center text-slate-400">Nenhuma empresa cadastrada.</td></tr>
                 )}
               </tbody>
             </table>
