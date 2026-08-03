@@ -38,9 +38,8 @@ export default function Login() {
       {/* Painel lateral */}
       <div className="relative hidden w-1/2 flex-col justify-between p-12 text-white lg:flex hero">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-verde-600 text-base font-bold">
-            {BRAND.nome.trim()[0] ?? 'M'}
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.svg" alt={BRAND.nome} className="h-9 w-9 rounded-lg" />
           <div className="leading-tight">
             <div className="text-sm font-semibold tracking-tight">{BRAND.nome}</div>
             <div className="text-xs text-petroleo-100">{BRAND.subtitulo}</div>
@@ -57,9 +56,8 @@ export default function Login() {
       <div className="flex flex-1 items-center justify-center p-6">
         <form onSubmit={entrar} className="w-full max-w-sm">
           <div className="mb-6 flex items-center gap-2.5 lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-petroleo-900 text-base font-bold text-white">
-              {BRAND.nome.trim()[0] ?? 'M'}
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt={BRAND.nome} className="h-9 w-9 rounded-lg" />
             <span className="text-sm font-semibold text-petroleo-900">{BRAND.nome}</span>
           </div>
           <h2 className="text-2xl font-semibold text-petroleo-900">Entrar no painel</h2>

@@ -79,5 +79,9 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Exclui também os assets estáticos de imagem (logo-*.svg, favicon etc.): sem
+  // isso o proxy redireciona a logo ao /login quando não há sessão, e ela não
+  // carrega na própria tela de login. Rotas de API não têm extensão de arquivo,
+  // então continuam passando pelo proxy normalmente.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 };

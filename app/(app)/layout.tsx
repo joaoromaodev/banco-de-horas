@@ -81,9 +81,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className={`flex items-center py-6 ${recolhido ? 'justify-center px-2' : 'justify-between px-6'}`}>
           {!recolhido && (
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-verde-600 text-sm font-bold text-white">
-                {BRAND.nome.trim()[0] ?? 'M'}
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-mark.svg" alt={BRAND.nome} className="h-8 w-8 shrink-0 rounded-lg" />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold tracking-tight">{BRAND.nome}</span>
                 <span className="block truncate text-xs text-petroleo-100">{BRAND.subtitulo}</span>
