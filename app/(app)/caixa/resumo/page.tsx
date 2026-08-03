@@ -222,6 +222,7 @@ function Moldura({ ehGestor, empresas, empresaSel, setEmpresaSel, ano, setAno, a
         <nav className="flex gap-1 text-xs">
           <a href="/caixa" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Lançamentos</a>
           <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Resumo</span>
+          {ehGestor && <a href="/caixa/cadastros" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Cadastros</a>}
         </nav>
         {children}
       </div>

@@ -345,6 +345,7 @@ export default function Caixa() {
         <nav className="flex gap-1 text-xs">
           <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Lançamentos</span>
           <a href="/caixa/resumo" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Resumo</a>
+          {ehGestor && <a href="/caixa/cadastros" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Cadastros</a>}
         </nav>
 
         {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}

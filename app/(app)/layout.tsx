@@ -62,7 +62,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }] } as Grupo]
           : []),
         { itens: [
-          { href: '/cadastros', label: 'Cadastros', icon: 'cadastros' },
+          { href: '/cadastros', label: 'Cadastro', icon: 'cadastros' },
           ...(me?.role === 'master' ? [{ href: '/configuracoes', label: 'Configurações', icon: 'config' }] : []),
         ] },
       ];

@@ -45,7 +45,10 @@ const ABA_USERS = 'Usuarios';
 // `empresa` (F) e `modulos` (G) foram adicionadas no fim: linhas antigas seguem
 // válidas — sem F o vínculo fica vazio (só importa ao `cliente`) e sem G os
 // módulos ficam vazios, que `resolverModulos` trata como legado (tudo liberado).
-const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash', 'empresa', 'modulos'];
+// `dono` (coluna H) foi adicionada no fim para não quebrar linhas antigas: um
+// `cliente` sem dono é legado (criado pelo master antes deste campo) — o master
+// o vê e o contador dono da empresa vinculada também (ver lib/acesso).
+const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash', 'empresa', 'modulos', 'dono'];
 
 /** Serializa/parseia a coluna `modulos` ("caixa,ponto"), ignorando lixo. */
 function parseModulos(valor: unknown): Modulo[] {
@@ -70,6 +73,12 @@ export interface UsuarioRec {
   empresa?: string | null;
   /** Módulos habilitados pelo master. Vazio = legado (ver `resolverModulos`). */
   modulos?: Modulo[];
+  /**
+   * E-mail do contador (papel `usuario`) que criou este usuário. Só se aplica ao
+   * papel `cliente`: cada contador só gerencia os administradores que cadastrou;
+   * o master vê todos. Vazio = legado (criado pelo master) ou não-cliente.
+   */
+  dono?: string | null;
 }
 
 export interface SheetsCtx {
@@ -377,13 +386,13 @@ export async function salvarConfig(entradas: Record<string, string>): Promise<vo
 
 // ---- Usuários ----
 function linhaUsuario(u: UsuarioRec): (string | number)[] {
-  return [u.email, u.nome, u.role, u.salt, u.hash, u.empresa ?? '', (u.modulos ?? []).join(',')];
+  return [u.email, u.nome, u.role, u.salt, u.hash, u.empresa ?? '', (u.modulos ?? []).join(','), u.dono ?? ''];
 }
 
 export async function lerUsuarios(): Promise<UsuarioRec[]> {
   const ctx = getSheets();
   await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
-  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:G` });
+  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:H` });
   return (res.data.values ?? []).map((r) => ({
     email: String(r[0] ?? '').toLowerCase(),
     nome: String(r[1] ?? ''),
@@ -392,6 +401,7 @@ export async function lerUsuarios(): Promise<UsuarioRec[]> {
     hash: String(r[4] ?? ''),
     empresa: r[5] ? String(r[5]).trim() : null,
     modulos: parseModulos(r[6]),
+    dono: String(r[7] ?? '').trim().toLowerCase() || null,
   })).filter((u) => u.email);
 }
 

@@ -5,7 +5,7 @@ const base = 'rounded-lg border px-3 py-1.5';
 const ativoCls = 'border-petroleo-700 bg-petroleo-900 text-white';
 const inativoCls = 'border-slate-300 bg-white hover:border-petroleo-500';
 
-export function AbasPonto({ ativa }: { ativa: 'timesheet' | 'folhas' }) {
+export function AbasPonto({ ativa }: { ativa: 'timesheet' | 'folhas' | 'cadastros' }) {
   return (
     <nav className="flex gap-1 text-xs">
       {ativa === 'timesheet'
@@ -14,6 +14,9 @@ export function AbasPonto({ ativa }: { ativa: 'timesheet' | 'folhas' }) {
       {ativa === 'folhas'
         ? <span className={`${base} ${ativoCls}`}>Folhas em branco</span>
         : <a href="/folhas" className={`${base} ${inativoCls}`}>Folhas em branco</a>}
+      {ativa === 'cadastros'
+        ? <span className={`${base} ${ativoCls}`}>Cadastros</span>
+        : <a href="/ponto-cadastros" className={`${base} ${inativoCls}`}>Cadastros</a>}
     </nav>
   );
 }

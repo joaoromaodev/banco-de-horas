@@ -7,7 +7,6 @@ import { DialogoConfirmacao } from '../Dialogo';
 type Papel = 'master' | 'usuario' | 'cliente';
 type Modulo = 'ponto' | 'caixa';
 interface Usuario { email: string; nome: string; role: Papel; empresa: string | null; modulos: Modulo[]; }
-interface Empresa { id: string; nome: string; }
 
 const ROTULO_PAPEL: Record<Papel, string> = {
   master: 'Administrador',
@@ -30,8 +29,7 @@ export default function Configuracoes() {
 
   // --- Usuários ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', role: 'usuario' as Papel, empresa: '', modulos: ['caixa'] as Modulo[] });
+  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', role: 'usuario' as Papel, modulos: ['caixa'] as Modulo[] });
   const [savingUser, setSavingUser] = useState(false);
   const [msgUser, setMsgUser] = useState<string | null>(null);
 
@@ -46,14 +44,11 @@ export default function Configuracoes() {
   async function carregarUsuarios() {
     const res = await fetch('/api/usuarios');
     const d = await res.json();
-    if (res.ok) setUsuarios(d.usuarios ?? []);
+    // Os administradores (cliente) são geridos no módulo Cadastro; aqui ficam só
+    // os contadores e outros administradores do sistema.
+    if (res.ok) setUsuarios((d.usuarios ?? []).filter((u: Usuario) => u.role !== 'cliente'));
   }
-  async function carregarEmpresas() {
-    const res = await fetch('/api/empresas');
-    const d = await res.json();
-    if (res.ok) setEmpresas(d.empresas ?? []);
-  }
-  useEffect(() => { carregarCfg(); carregarUsuarios(); carregarEmpresas(); }, []);
+  useEffect(() => { carregarCfg(); carregarUsuarios(); }, []);
 
   async function salvarCfg() {
     setErro(null); setMsgCfg(null); setSavingCfg(true);
@@ -75,7 +70,7 @@ export default function Configuracoes() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.erro);
       setMsgUser('Usuário salvo.');
-      setNovo({ nome: '', email: '', senha: '', role: 'usuario', empresa: '', modulos: ['caixa'] });
+      setNovo({ nome: '', email: '', senha: '', role: 'usuario', modulos: ['caixa'] });
       carregarUsuarios();
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     finally { setSavingUser(false); }
@@ -138,8 +133,9 @@ export default function Configuracoes() {
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="font-semibold text-slate-900">Usuários</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Cadastre quem pode acessar o sistema. <strong>Contabilidade</strong> enxerga apenas as empresas
-            que cadastrar; <strong>Empresa cliente</strong> só lança no Livro Caixa da empresa vinculada.
+            Cadastre contadores e outros administradores. <strong>Contabilidade</strong> enxerga apenas as
+            empresas que cadastrar. Os <strong>administradores das empresas</strong> (papel cliente) são
+            criados pelo próprio contador no módulo <strong>Cadastro</strong>.
           </p>
 
           <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
@@ -153,7 +149,6 @@ export default function Configuracoes() {
                 <div className="flex items-center gap-3">
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
                     {ROTULO_PAPEL[u.role]}
-                    {u.role === 'cliente' && ` · ${empresas.find((e) => e.id === u.empresa)?.nome ?? 'empresa removida'}`}
                   </span>
                   {u.role === 'usuario' && (
                     <span className="hidden text-xs text-slate-500 sm:inline">
@@ -173,17 +168,10 @@ export default function Configuracoes() {
             <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Nome" className={input} />
             <input value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} placeholder="E-mail" className={input} />
             <input type="password" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} placeholder="Senha (mín. 4)" className={input} />
-            <select value={novo.role} onChange={(e) => setNovo({ ...novo, role: e.target.value as Papel, empresa: '' })} className={input}>
+            <select value={novo.role} onChange={(e) => setNovo({ ...novo, role: e.target.value as Papel })} className={input}>
               <option value="usuario">Contabilidade</option>
-              <option value="cliente">Empresa cliente</option>
               <option value="master">Administrador</option>
             </select>
-            {novo.role === 'cliente' && (
-              <select value={novo.empresa} onChange={(e) => setNovo({ ...novo, empresa: e.target.value })} className={input}>
-                <option value="">Escolha a empresa…</option>
-                {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-              </select>
-            )}
           </div>
 
           {/* Módulos — só para a contabilidade. Master tem tudo; cliente é só caixa. */}

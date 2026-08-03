@@ -6,7 +6,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { lerSessao, temModulo, COOKIE_SESSAO } from '@/lib/auth';
 
 const PUBLICO = ['/login', '/api/login', '/api/logout'];
-const SOMENTE_MASTER = ['/configuracoes', '/api/usuarios', '/api/config'];
+// `/api/usuarios` NÃO entra aqui de propósito: ela agora atende master e contador
+// e faz o recorte fino por papel/dono internamente (ver a rota). O `cliente` já é
+// barrado por não constar em CLIENTE_PODE.
+const SOMENTE_MASTER = ['/configuracoes', '/api/config'];
 /** Único caminho do papel `cliente`. Negar por padrão: o que não está aqui, ele não vê.
  *  `/api/empresas` entra porque devolve só a empresa da própria sessão (ver lib/acesso). */
 const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas'];
@@ -16,7 +19,7 @@ const HOME_CLIENTE = '/caixa';
 /** Rotas do módulo Folha de Ponto (timesheet + folhas em branco). `/` é o
  *  timesheet: casa só na raiz exata, não vira prefixo de tudo. */
 const ROTAS_PONTO = [
-  '/', '/folhas',
+  '/', '/folhas', '/ponto-cadastros',
   '/api/salvar', '/api/extrair', '/api/gerar', '/api/gerar-lote',
   '/api/folha', '/api/folha-lote', '/api/funcionarios', '/api/feriados',
 ];
