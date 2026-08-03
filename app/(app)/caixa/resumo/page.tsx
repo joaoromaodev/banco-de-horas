@@ -50,25 +50,32 @@ export default function ResumoCaixa() {
 
   // Mantém o filtro em sincronia com a tela de Lançamentos (mesmas chaves).
   useEffect(() => {
-    const e = localStorage.getItem('caixa.empresa');
-    if (e) setEmpresaSel(e);
     const a = Number(localStorage.getItem('caixa.ano'));
     if (a >= PRIMEIRO_EXERCICIO) setAno(a);
   }, []);
-  useEffect(() => { if (empresaSel) localStorage.setItem('caixa.empresa', empresaSel); }, [empresaSel]);
+  // Não persiste o filtro do cliente: ele é fixo na própria empresa; salvar
+  // poluiria a próxima sessão de gestor no mesmo navegador.
+  useEffect(() => { if (empresaSel && me?.role !== 'cliente') localStorage.setItem('caixa.empresa', empresaSel); }, [empresaSel, me]);
   useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
 
   useEffect(() => {
     fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d?.autenticado) return;
       setMe(d);
-      // Cliente não escolhe empresa: fixa na dele e ignora filtro salvo de outra
+      // O cliente é fixo na própria empresa e NUNCA herda o filtro salvo de outra
       // sessão no mesmo navegador (senão a API recebe o id de outra empresa → 403).
-      if (d.role === 'cliente' && d.empresa) setEmpresaSel(d.empresa);
+      // O gestor, sim, retoma o último filtro.
+      if (d.role === 'cliente') {
+        if (d.empresa) setEmpresaSel(d.empresa);
+      } else {
+        const e = localStorage.getItem('caixa.empresa');
+        if (e) setEmpresaSel((atual) => atual || e);
+      }
     }).catch(() => {});
     fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((d) => {
       const lista: Empresa[] = d?.empresas ?? [];
       setEmpresas(lista);
+      // Fallback: para o cliente, /api/empresas já devolve só a empresa dele.
       setEmpresaSel((atual) => atual || lista[0]?.id || '');
     }).catch(() => {});
   }, []);
