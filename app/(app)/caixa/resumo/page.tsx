@@ -59,7 +59,13 @@ export default function ResumoCaixa() {
   useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
 
   useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => d?.autenticado && setMe(d)).catch(() => {});
+    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d?.autenticado) return;
+      setMe(d);
+      // Cliente não escolhe empresa: fixa na dele e ignora filtro salvo de outra
+      // sessão no mesmo navegador (senão a API recebe o id de outra empresa → 403).
+      if (d.role === 'cliente' && d.empresa) setEmpresaSel(d.empresa);
+    }).catch(() => {});
     fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((d) => {
       const lista: Empresa[] = d?.empresas ?? [];
       setEmpresas(lista);
