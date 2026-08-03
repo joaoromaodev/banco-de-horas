@@ -167,7 +167,7 @@ export default function Cadastros() {
 
   // nº de colunas da tabela de empresas (ponto acrescenta 3; master, +1)
   const colsEmpresa = 3 + (temPonto ? 3 : 0) + (ehMaster ? 1 : 0);
-  const fInput = 'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+  const fInput = 'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100';
 
   const seletorEmpresa = (
     <label className="flex items-center gap-2 text-xs">
@@ -254,7 +254,7 @@ export default function Cadastros() {
         </div>
         <div className="mt-2 flex gap-2">
           <button onClick={() => setEmpresas((p) => [...p, { id: '', nome: '', cnpj: '', trabalhaSabado: false }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Empresa</button>
-          <button onClick={salvarEmpresas} className="rounded-lg bg-indigo-600 px-3 py-1 text-white">Salvar empresas</button>
+          <button onClick={salvarEmpresas} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white">Salvar empresas</button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Dica: evite renomear uma empresa depois de cadastrar funcionários — o vínculo é pelo nome.</p>
       </section>
@@ -330,7 +330,7 @@ export default function Cadastros() {
                 </div>
               </div>
               <div className="mt-3">
-                <button onClick={salvarFiscal} className="rounded-lg bg-indigo-600 px-3 py-1 text-white">Salvar dados fiscais</button>
+                <button onClick={salvarFiscal} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white">Salvar dados fiscais</button>
               </div>
             </>
           )}
@@ -383,7 +383,7 @@ export default function Cadastros() {
         <div className="mt-2 flex gap-2">
           <button onClick={() => setFuncs((p) => [...p, { empresa: empresaSel, nome: '', cargo: '' }])}
             disabled={!empresaSel} className="rounded-lg border border-slate-300 px-3 py-1 disabled:opacity-50">+ Linha</button>
-          <button onClick={salvarFuncs} disabled={!empresaSel} className="rounded-lg bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">Salvar funcionários</button>
+          <button onClick={salvarFuncs} disabled={!empresaSel} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white disabled:opacity-50">Salvar funcionários</button>
         </div>
       </section>
       )}
@@ -420,7 +420,7 @@ export default function Cadastros() {
         </table>
         <div className="mt-2 flex gap-2">
           <button onClick={() => setFeriados((p) => [...p, { data: '', descricao: '' }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Linha</button>
-          <button onClick={salvarFeriados} className="rounded-lg bg-indigo-600 px-3 py-1 text-white">Salvar feriados</button>
+          <button onClick={salvarFeriados} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white">Salvar feriados</button>
         </div>
       </section>
       )}

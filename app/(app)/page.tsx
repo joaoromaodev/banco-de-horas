@@ -262,7 +262,7 @@ export default function Home() {
       <section className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-4">
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="font-medium">Empresa</span>
-          <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={empresa}
+          <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={empresa}
             onChange={(e) => { setEmpresa(e.target.value); setFuncionario(''); }}>
             {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
             {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
@@ -270,7 +270,7 @@ export default function Home() {
         </label>
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="font-medium">Funcionário</span>
-          <input className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={funcionario} list="lista-funcs"
+          <input className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={funcionario} list="lista-funcs"
             onChange={(e) => setFuncionario(e.target.value)} placeholder={empresa ? 'Nome completo (ou selecione)' : 'Selecione a empresa primeiro'} />
           <datalist id="lista-funcs">
             {funcList.map((f) => <option key={f.nome} value={f.nome} />)}
@@ -278,30 +278,30 @@ export default function Home() {
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-medium">Mês</span>
-          <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={mes}
+          <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={mes}
             onChange={(e) => setMes(Number(e.target.value))}>
             {MESES.slice(1).map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-medium">Ano</span>
-          <input type="number" className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={ano}
+          <input type="number" className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={ano}
             onChange={(e) => setAno(Number(e.target.value))} />
         </label>
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="font-medium">Foto da folha</span>
-          <input type="file" accept="image/*" className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500"
+          <input type="file" accept="image/*" className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600"
             onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
         </label>
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="font-medium">Feriados extras (opcional)</span>
-          <input className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" value={feriadosTxt}
+          <input className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={feriadosTxt}
             onChange={(e) => setFeriadosTxt(e.target.value)}
             placeholder={feriadosCad.length ? `${feriadosCad.length} do cadastro + extras aqui` : 'AAAA-MM-DD, ex.: 2026-06-19'} />
         </label>
         <div className="flex items-end gap-2 md:col-span-4">
           <button onClick={lerFolha} disabled={carregando}
-            className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+            className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
             {carregando ? 'Lendo…' : 'Ler folha (OCR)'}
           </button>
           <button onClick={preencherManual}
@@ -315,7 +315,7 @@ export default function Home() {
         <span className="font-medium">Gerar em lote:</span>
         <span className="text-slate-500">todas as planilhas de {empresaSel?.nome || 'empresa'} em {MESES[mes]}/{ano} salvas no banco →</span>
         <button onClick={gerarLote} disabled={carregando}
-          className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+          className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
           Baixar todas (.zip)
         </button>
       </section>
@@ -401,17 +401,17 @@ export default function Home() {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <button onClick={baixar} disabled={carregando || nErros > 0}
-                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50"
+                className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50"
                 title={nErros > 0 ? 'Corrija os erros antes de baixar' : ''}>
                 Baixar planilha (.xlsx)
               </button>
               <button onClick={salvarSheets} disabled={carregando || nErros > 0}
-                className="rounded border border-indigo-600 px-4 py-2 font-medium text-indigo-700 disabled:opacity-50"
+                className="rounded border border-petroleo-700 px-4 py-2 font-medium text-petroleo-700 disabled:opacity-50"
                 title={nErros > 0 ? 'Corrija os erros antes de salvar' : ''}>
                 Salvar no banco (Sheets)
               </button>
             </div>
-            {aviso && <p className="mt-2 rounded bg-green-50 p-2 text-indigo-700">{aviso}</p>}
+            {aviso && <p className="mt-2 rounded bg-green-50 p-2 text-petroleo-700">{aviso}</p>}
           </div>
         </section>
       )}

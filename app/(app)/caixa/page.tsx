@@ -343,8 +343,8 @@ export default function Caixa() {
 
       <div className="space-y-4 p-6">
         <nav className="flex gap-1 text-xs">
-          <span className="rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-white">Lançamentos</span>
-          <a href="/caixa/resumo" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-indigo-400">Resumo</a>
+          <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Lançamentos</span>
+          <a href="/caixa/resumo" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Resumo</a>
         </nav>
 
         {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
@@ -354,14 +354,14 @@ export default function Caixa() {
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
             <span>Lançamento excluído — {diaMes(desfazer.data)} · {desfazer.historico}.</span>
             <button onClick={desfazerExclusao}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-2.5 py-1 font-medium text-indigo-700 hover:border-indigo-400">
+              className="inline-flex items-center gap-1.5 rounded-lg border border-petroleo-300 bg-white px-2.5 py-1 font-medium text-petroleo-700 hover:border-petroleo-500">
               <IconeDesfazer size={15} /> Desfazer
             </button>
           </div>
         )}
 
         {ehGestor && pendencias.length > 0 && (
-          <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-indigo-900">
+          <div className="rounded-lg border border-petroleo-200 bg-petroleo-50 px-3 py-2 text-petroleo-900">
             <span className="font-medium">Lançamentos novos para conferir:</span>{' '}
             {pendencias.map((p) => (
               <button key={p.empresaId} onClick={() => { setEmpresaSel(p.empresaId); irPara(ano, p.ultimo.mes); }}
@@ -381,9 +381,9 @@ export default function Caixa() {
             return (
               <button key={m} onClick={() => irPara(ano, m)}
                 className={`rounded-lg border px-3 py-1.5 uppercase ${
-                  m === mes ? 'border-indigo-600 bg-indigo-600 text-white'
-                    : temMovimento ? 'border-slate-300 bg-white text-slate-700 hover:border-indigo-400'
-                    : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-indigo-300'
+                  m === mes ? 'border-petroleo-700 bg-petroleo-900 text-white'
+                    : temMovimento ? 'border-slate-300 bg-white text-slate-700 hover:border-petroleo-500'
+                    : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-petroleo-300'
                 }`}>
                 {rotulo}
                 {confirmados.includes(m) && <span className={m === mes ? 'ml-1' : 'ml-1 text-emerald-600'}>✓</span>}
@@ -408,7 +408,7 @@ export default function Caixa() {
               Saldo inicial do exercício: <strong className="text-slate-700">{dinheiro(saldoInicial)}</strong>
               {ehGestor && (
                 <button onClick={() => setEditandoSaldo(true)} title="Editar saldo inicial" aria-label="Editar saldo inicial"
-                  className="ml-1 inline-flex items-center rounded p-1 align-middle text-indigo-600 hover:bg-indigo-50">
+                  className="ml-1 inline-flex items-center rounded p-1 align-middle text-petroleo-700 hover:bg-petroleo-50">
                   <IconeLapis size={14} />
                 </button>
               )}
@@ -470,12 +470,12 @@ export default function Caixa() {
               </tr>
 
               {linhas.map(({ l, saldo }) => editandoId === l.id ? (
-                <tr key={l.id} className="bg-indigo-50/40">
+                <tr key={l.id} className="bg-petroleo-50/40">
                   <Celulas campos={edicao} setCampos={setEdicao} contas={contas} historicos={historicos}
                     podeCriar={ehGestor} onCriar={criarConta} />
                   <td className="border-b px-2 py-1 text-right text-slate-400">—</td>
                   <td className="whitespace-nowrap border-b px-2 py-1 text-center">
-                    <button onClick={salvarEdicao} disabled={salvando} className="text-indigo-600 hover:underline disabled:opacity-50">Salvar</button>
+                    <button onClick={salvarEdicao} disabled={salvando} className="text-petroleo-700 hover:underline disabled:opacity-50">Salvar</button>
                     <button onClick={() => setEditandoId(null)} className="ml-2 text-slate-500 hover:underline">Cancelar</button>
                   </td>
                 </tr>
@@ -508,7 +508,7 @@ export default function Caixa() {
                         contaId: l.contaId, entrada: l.entrada > 0 ? String(l.entrada) : '',
                         saida: l.saida > 0 ? String(l.saida) : '',
                       });
-                    }} title="Editar" aria-label="Editar lançamento" className="mr-1 inline-flex items-center rounded p-1 text-indigo-600 hover:bg-indigo-50">
+                    }} title="Editar" aria-label="Editar lançamento" className="mr-1 inline-flex items-center rounded p-1 text-petroleo-700 hover:bg-petroleo-50">
                       <IconeLapis size={15} />
                     </button>
                     <button onClick={() => setAExcluir(l)} title="Excluir" aria-label="Excluir lançamento"
@@ -533,7 +533,7 @@ export default function Caixa() {
                 <td className="px-2 py-1 text-right font-medium text-slate-700">{dinheiro(dados?.saldoFinal ?? 0)}</td>
                 <td className="px-2 py-1 text-center">
                   <button onClick={lancar} disabled={salvando || !empresaSel}
-                    className="rounded-lg bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">
+                    className="rounded-lg bg-petroleo-900 px-3 py-1 text-white disabled:opacity-50">
                     {salvando ? '…' : 'Lançar'}
                   </button>
                 </td>
@@ -632,7 +632,7 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar }: 
 
 function Cartao({ titulo, valor, cor, destaque }: { titulo: string; valor: number; cor?: string; destaque?: boolean }) {
   return (
-    <div className={`rounded-xl border bg-white p-3 ${destaque ? 'border-indigo-300' : 'border-slate-200'}`}>
+    <div className={`rounded-xl border bg-white p-3 ${destaque ? 'border-petroleo-300' : 'border-slate-200'}`}>
       <div className="text-xs text-slate-500">{titulo}</div>
       <div className={`text-lg font-semibold ${valor < 0 ? 'text-red-600' : cor ?? 'text-slate-900'}`}>{dinheiro(valor)}</div>
     </div>

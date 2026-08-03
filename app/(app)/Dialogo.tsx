@@ -40,7 +40,7 @@ export function DialogoConfirmacao({
           Cancelar
         </button>
         <button onClick={onConfirmar}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white ${perigo ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white ${perigo ? 'bg-red-600 hover:bg-red-700' : 'bg-petroleo-900 hover:bg-petroleo-800'}`}>
           {textoConfirmar}
         </button>
       </div>
@@ -67,14 +67,14 @@ export function DialogoValor({
           {descricao && <p className="mt-2 text-sm text-slate-600">{descricao}</p>}
           {rotulo && <label className="mt-3 mb-1 block text-xs font-medium text-slate-600">{rotulo}</label>}
           <input ref={ref} value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100" />
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
           <button type="button" onClick={onCancelar}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
             Cancelar
           </button>
-          <button type="submit" className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+          <button type="submit" className="rounded-lg bg-petroleo-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-petroleo-800">
             Salvar
           </button>
         </div>

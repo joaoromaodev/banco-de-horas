@@ -92,7 +92,7 @@ export default function SeletorConta({ contas, valor, onEscolher, podeCriar, onC
         title={rotuloConta(contas, valor)}
         className={`w-full truncate rounded border px-1.5 text-left ${compacto ? 'py-0.5' : 'py-1'} ${
           semConta ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-300 bg-white text-slate-700'
-        } hover:border-indigo-400`}
+        } hover:border-petroleo-500`}
       >
         {valor ? rotuloConta(contas, valor) : 'Escolher conta…'}
       </button>
@@ -114,7 +114,7 @@ export default function SeletorConta({ contas, valor, onEscolher, podeCriar, onC
                   }
                 }}
                 placeholder="Buscar por código, nome ou grupo…"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600"
               />
             </div>
 
@@ -152,14 +152,14 @@ export default function SeletorConta({ contas, valor, onEscolher, podeCriar, onC
                   </select>
                   {erro && <p className="text-xs text-red-600">{erro}</p>}
                   <div className="flex gap-2">
-                    <button type="button" onClick={criar} className="rounded bg-indigo-600 px-3 py-1 text-xs text-white">Criar e usar</button>
+                    <button type="button" onClick={criar} className="rounded bg-petroleo-900 px-3 py-1 text-xs text-white">Criar e usar</button>
                     <button type="button" onClick={() => setCriando(false)} className="rounded border border-slate-300 px-3 py-1 text-xs">Cancelar</button>
                   </div>
                   <p className="text-xs text-slate-400">O código sai do grupo escolhido.</p>
                 </div>
               ) : (
                 <button type="button" onClick={() => setCriando(true)}
-                  className="text-xs text-indigo-600 hover:underline">+ Criar conta no catálogo</button>
+                  className="text-xs text-petroleo-700 hover:underline">+ Criar conta no catálogo</button>
               ))}
             </div>
           </div>
@@ -181,7 +181,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 function Item({ conta, sel, onClick }: { conta: Conta; sel: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
-      className={`flex w-full items-baseline gap-2 px-4 py-1.5 text-left hover:bg-indigo-50 ${sel ? 'bg-indigo-50' : ''}`}>
+      className={`flex w-full items-baseline gap-2 px-4 py-1.5 text-left hover:bg-petroleo-50 ${sel ? 'bg-petroleo-50' : ''}`}>
       <span className="w-16 shrink-0 font-mono text-xs text-slate-500">{conta.codigo}</span>
       <span className="flex-1 truncate">{conta.nome}</span>
       <span className={`shrink-0 text-xs ${conta.natureza === 'receita' ? 'text-emerald-600' : 'text-slate-400'}`}>

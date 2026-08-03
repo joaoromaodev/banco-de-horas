@@ -66,7 +66,7 @@ export default function Folhas() {
     baixar(url, `folhas_${empresaSel?.nome ?? 'empresa'}_${MESES[mes]}_${ano}.zip`);
   }
 
-  const input = 'rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500';
+  const input = 'rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600';
 
   return (
     <div className="text-sm">
@@ -113,7 +113,7 @@ export default function Folhas() {
               </datalist>
             </label>
             <button onClick={baixarFuncionario} disabled={carregando}
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+              className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
               {carregando ? 'Gerando…' : 'Baixar folha (PDF)'}
             </button>
           </div>
@@ -124,7 +124,7 @@ export default function Folhas() {
           <span className="font-medium">Em lote:</span>
           <span className="text-slate-500">folhas de todos os funcionários de {empresaSel?.nome || 'empresa'} em {MESES[mes]}/{ano} →</span>
           <button onClick={baixarLote} disabled={carregando}
-            className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+            className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
             Baixar todas (.zip)
           </button>
         </section>

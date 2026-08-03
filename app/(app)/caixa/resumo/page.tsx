@@ -110,7 +110,7 @@ export default function ResumoCaixa() {
       {nenhumLiberado && !ehGestor && (
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
           O resumo aparece aqui quando a contabilidade confirmar o mês. Seus lançamentos continuam
-          disponíveis em <a href="/caixa" className="text-indigo-600 hover:underline">Lançamentos</a>.
+          disponíveis em <a href="/caixa" className="text-petroleo-700 hover:underline">Lançamentos</a>.
         </p>
       )}
 
@@ -220,8 +220,8 @@ function Moldura({ ehGestor, empresas, empresaSel, setEmpresaSel, ano, setAno, a
 
       <div className="space-y-4 p-6">
         <nav className="flex gap-1 text-xs">
-          <a href="/caixa" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-indigo-400">Lançamentos</a>
-          <span className="rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-white">Resumo</span>
+          <a href="/caixa" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Lançamentos</a>
+          <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Resumo</span>
         </nav>
         {children}
       </div>
@@ -231,7 +231,7 @@ function Moldura({ ehGestor, empresas, empresaSel, setEmpresaSel, ano, setAno, a
 
 function Cartao({ titulo, valor, cor, destaque }: { titulo: string; valor: number; cor?: string; destaque?: boolean }) {
   return (
-    <div className={`rounded-xl border bg-white p-3 ${destaque ? 'border-indigo-300' : 'border-slate-200'}`}>
+    <div className={`rounded-xl border bg-white p-3 ${destaque ? 'border-petroleo-300' : 'border-slate-200'}`}>
       <div className="text-xs text-slate-500">{titulo}</div>
       <div className={`text-lg font-semibold ${valor < 0 ? 'text-red-600' : cor ?? 'text-slate-900'}`}>{dinheiro(valor)}</div>
     </div>

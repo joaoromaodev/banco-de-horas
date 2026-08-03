@@ -91,7 +91,7 @@ export default function Configuracoes() {
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
-  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100';
 
   return (
     <div className="text-sm">
@@ -126,7 +126,7 @@ export default function Configuracoes() {
             </div>
             <div className="flex items-center gap-3">
               <button onClick={salvarCfg} disabled={savingCfg}
-                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+                className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
                 {savingCfg ? 'Salvando…' : 'Salvar'}
               </button>
               {msgCfg && <span className="text-green-700">{msgCfg}</span>}
@@ -207,7 +207,7 @@ export default function Configuracoes() {
           )}
           <div className="mt-3 flex items-center gap-3">
             <button onClick={addUsuario} disabled={savingUser}
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+              className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
               {savingUser ? 'Salvando…' : 'Adicionar usuário'}
             </button>
             {msgUser && <span className="text-green-700">{msgUser}</span>}

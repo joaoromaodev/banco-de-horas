@@ -2,8 +2,8 @@
 // e Folhas em branco são as duas telas do mesmo módulo — aqui viram abas, no
 // mesmo padrão de "Lançamentos | Resumo" do Livro Caixa.
 const base = 'rounded-lg border px-3 py-1.5';
-const ativoCls = 'border-indigo-600 bg-indigo-600 text-white';
-const inativoCls = 'border-slate-300 bg-white hover:border-indigo-400';
+const ativoCls = 'border-petroleo-700 bg-petroleo-900 text-white';
+const inativoCls = 'border-slate-300 bg-white hover:border-petroleo-500';
 
 export function AbasPonto({ ativa }: { ativa: 'timesheet' | 'folhas' }) {
   return (

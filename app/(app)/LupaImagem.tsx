@@ -64,7 +64,7 @@ export default function LupaImagem({
 
       {ativo && (
         <div
-          className="pointer-events-none absolute z-20 rounded-full border-2 border-indigo-500 shadow-xl ring-2 ring-white"
+          className="pointer-events-none absolute z-20 rounded-full border-2 border-petroleo-600 shadow-xl ring-2 ring-white"
           style={{
             width: tam,
             height: tam,
