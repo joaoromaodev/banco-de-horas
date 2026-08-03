@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { BRAND } from '@/lib/brand';
 
 export default function Login() {
   const router = useRouter();
@@ -35,23 +36,33 @@ export default function Login() {
   return (
     <div className="flex min-h-screen">
       {/* Painel lateral */}
-      <div className="hidden w-1/2 flex-col justify-between bg-[#1b2559] p-12 text-white lg:flex">
-        <div className="text-lg font-semibold tracking-tight">Banco de Horas</div>
-        <div>
-          <h1 className="text-3xl font-semibold leading-tight">
-            Da folha de ponto<br />à planilha, em minutos.
-          </h1>
-          <p className="mt-4 max-w-sm text-sm text-indigo-200">
-            Leitura automática das folhas manuscritas, revisão assistida e geração das planilhas de horas.
-          </p>
+      <div className="relative hidden w-1/2 flex-col justify-between p-12 text-white lg:flex hero">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-verde-600 text-base font-bold">
+            {BRAND.nome.trim()[0] ?? 'M'}
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold tracking-tight">{BRAND.nome}</div>
+            <div className="text-xs text-petroleo-100">{BRAND.subtitulo}</div>
+          </div>
         </div>
-        <div className="text-xs text-indigo-300">© {new Date().getFullYear()}</div>
+        <div>
+          <h1 className="whitespace-pre-line text-3xl font-semibold leading-tight">{BRAND.chamada}</h1>
+          <p className="mt-4 max-w-sm text-sm text-petroleo-100">{BRAND.descricao}</p>
+        </div>
+        <div className="text-xs text-petroleo-100">© {new Date().getFullYear()} · {BRAND.nome}</div>
       </div>
 
       {/* Formulário */}
       <div className="flex flex-1 items-center justify-center p-6">
         <form onSubmit={entrar} className="w-full max-w-sm">
-          <h2 className="text-2xl font-semibold text-slate-900">Entrar</h2>
+          <div className="mb-6 flex items-center gap-2.5 lg:hidden">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-petroleo-900 text-base font-bold text-white">
+              {BRAND.nome.trim()[0] ?? 'M'}
+            </span>
+            <span className="text-sm font-semibold text-petroleo-900">{BRAND.nome}</span>
+          </div>
+          <h2 className="text-2xl font-semibold text-petroleo-900">Entrar no painel</h2>
           <p className="mt-1 text-sm text-slate-500">Acesse com seu e-mail e senha.</p>
 
           <div className="mt-8 space-y-4">
@@ -59,14 +70,14 @@ export default function Login() {
               <label className="mb-1 block text-sm font-medium text-slate-700">E-mail</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                 autoComplete="username"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100"
                 placeholder="voce@empresa.com" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Senha</label>
               <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required
                 autoComplete="current-password"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100"
                 placeholder="••••••••" />
             </div>
           </div>
@@ -74,8 +85,8 @@ export default function Login() {
           {erro && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
 
           <button type="submit" disabled={carregando}
-            className="mt-6 w-full rounded-lg bg-[#1b2559] py-2.5 text-sm font-medium text-white transition hover:bg-[#243066] disabled:opacity-50">
-            {carregando ? 'Entrando…' : 'Entrar'}
+            className="mt-6 w-full rounded-lg bg-petroleo-900 py-2.5 text-sm font-medium text-white transition hover:bg-petroleo-800 disabled:opacity-50">
+            {carregando ? 'Entrando…' : 'Entrar no painel'}
           </button>
         </form>
       </div>

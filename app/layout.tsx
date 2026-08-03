@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { BRAND } from "@/lib/brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Banco de Horas — Folha de Ponto",
-  description: "Leitura de folha de ponto e geração de planilhas",
+  title: `${BRAND.nome} — ${BRAND.subtitulo}`,
+  description: BRAND.descricao,
 };
 
 export default function RootLayout({

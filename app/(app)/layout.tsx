@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { IconePainel } from './icones';
+import { BRAND } from '@/lib/brand';
 
 type Modulo = 'ponto' | 'caixa';
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; modulos: Modulo[]; }
@@ -76,17 +77,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      <aside className={`flex shrink-0 flex-col bg-[#1b2559] text-white transition-all duration-200 ${recolhido ? 'w-16' : 'w-60'}`}>
+      <aside className={`flex shrink-0 flex-col bg-petroleo-900 text-white transition-all duration-200 ${recolhido ? 'w-16' : 'w-60'}`}>
         <div className={`flex items-center py-6 ${recolhido ? 'justify-center px-2' : 'justify-between px-6'}`}>
           {!recolhido && (
-            <div className="min-w-0">
-              <div className="truncate text-lg font-semibold tracking-tight">Banco de Horas</div>
-              <div className="text-xs text-indigo-300">Folha de ponto</div>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-verde-600 text-sm font-bold text-white">
+                {BRAND.nome.trim()[0] ?? 'M'}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold tracking-tight">{BRAND.nome}</span>
+                <span className="block truncate text-xs text-petroleo-100">{BRAND.subtitulo}</span>
+              </span>
             </div>
           )}
           <button onClick={alternarBarra} title={recolhido ? 'Expandir menu' : 'Recolher menu'}
             aria-label={recolhido ? 'Expandir menu' : 'Recolher menu'}
-            className="rounded-lg p-1.5 text-indigo-200 hover:bg-white/10 hover:text-white">
+            className="rounded-lg p-1.5 text-petroleo-100 hover:bg-white/10 hover:text-white">
             <IconePainel recolhido={recolhido} />
           </button>
         </div>
@@ -95,7 +101,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {grupos.map((grupo, gi) => (
             <div key={gi} className="space-y-1">
               {grupo.titulo && !recolhido && (
-                <div className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-400">
+                <div className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider text-petroleo-500">
                   {grupo.titulo}
                 </div>
               )}
@@ -105,7 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 return (
                   <a key={item.href} href={item.href} title={recolhido ? item.label : undefined}
                     className={`flex items-center gap-3 rounded-lg py-2.5 text-sm transition ${recolhido ? 'justify-center px-0' : 'px-3'} ${
-                      ativo ? 'bg-white/10 font-medium text-white' : 'text-indigo-200 hover:bg-white/5 hover:text-white'
+                      ativo ? 'bg-white/10 font-medium text-white' : 'text-petroleo-100 hover:bg-white/5 hover:text-white'
                     }`}>
                     <Icon name={item.icon} />
                     {!recolhido && item.label}
@@ -118,16 +124,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className={`rounded-lg bg-white/5 ${recolhido ? 'm-2 p-2' : 'm-3 p-3'}`}>
           <div className={`flex items-center gap-3 ${recolhido ? 'justify-center' : ''}`}>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-sm font-semibold">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-verde-600 text-sm font-semibold">
               {iniciais}
             </div>
             {!recolhido && (
               <>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{me?.nome ?? '—'}</div>
-                  <div className="truncate text-xs text-indigo-300">{me ? ROTULO_PAPEL[me.role] : '—'}</div>
+                  <div className="truncate text-xs text-petroleo-100">{me ? ROTULO_PAPEL[me.role] : '—'}</div>
                 </div>
-                <button onClick={sair} title="Sair" className="text-indigo-200 hover:text-white">
+                <button onClick={sair} title="Sair" className="text-petroleo-100 hover:text-white">
                   <Icon name="logout" />
                 </button>
               </>
@@ -135,7 +141,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           {recolhido && (
             <button onClick={sair} title="Sair" aria-label="Sair"
-              className="mt-2 flex w-full justify-center text-indigo-200 hover:text-white">
+              className="mt-2 flex w-full justify-center text-petroleo-100 hover:text-white">
               <Icon name="logout" />
             </button>
           )}
