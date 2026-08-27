@@ -115,7 +115,9 @@ export async function POST(req: NextRequest) {
   if (!g.ok) return g.resposta;
   try {
     const body = await req.json();
-    return g.sessao.role === 'master' ? postMaster(body) : postContador(g.sessao, body);
+    // await aqui é essencial: sem ele, um erro do Sheets dentro do helper escaparia
+    // do try/catch (500 vazio → "Unexpected end of JSON input" no cliente).
+    return g.sessao.role === 'master' ? await postMaster(body) : await postContador(g.sessao, body);
   } catch (e) {
     return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao salvar.' }, { status: 502 });
   }
