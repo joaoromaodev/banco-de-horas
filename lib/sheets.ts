@@ -1,15 +1,13 @@
 // Persistência no Google Sheets. Abas: "Frequencias" (registro por dia),
 // "Funcionarios", "Feriados" e "Config" (chave/valor).
-import { randomUUID } from 'crypto';
 import { google, sheets_v4 } from 'googleapis';
 import { getContaServico, getSpreadsheetId } from './config';
-import { Papel, Modulo, MODULOS } from './auth';
 import { Empresa, Frequencia, Funcionario } from './tipos';
-import { Jornada, JORNADA_PADRAO } from './calendario';
-
-// Empresa/ID atribuídos às linhas antigas (antes do multiempresa), para não perder dados.
-export const EMPRESA_PADRAO = 'VAZ E VOUZELA';
-export const EMPRESA_PADRAO_ID = 'empresa-vaz-e-vouzela';
+// Empresas e usuários migraram para o Supabase (lib/cadastro, Fase 6). Aqui só se
+// usa `lerEmpresas` (para resolver o vínculo legado de funcionários/frequências)
+// e as constantes da empresa padrão; as demais funções são reexportadas no fim
+// do arquivo, então os call sites que importam de '@/lib/sheets' não mudam.
+import { lerEmpresas, EMPRESA_PADRAO, EMPRESA_PADRAO_ID } from './cadastro';
 
 /** Resolve o valor gravado na coluna `empresa` para um id de empresa.
  *  Aceita: id novo, razão social (deploy anterior) ou vazio (dados originais). */
@@ -33,52 +31,13 @@ const HEADER = [
 const ABA_FUNC = 'Funcionarios';
 // `empresa` também no fim (coluna F) pela mesma razão.
 const HEADER_FUNC = ['nome', 'cargo', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem', 'empresa'];
-const ABA_EMP = 'Empresas';
-// `id` (coluna G) e `contador` (coluna H) foram adicionados no fim para não
-// quebrar as linhas antigas: linha sem H fica sem dono (visível a toda contabilidade).
-const HEADER_EMP = ['nome', 'cnpj', 'trabalhaSabado', 'jornadaUtilMin', 'jornadaSabadoMin', 'ordem', 'id', 'contador'];
 const ABA_FER = 'Feriados';
 const HEADER_FER = ['data', 'descricao'];
 const ABA_CFG = 'Config';
 const HEADER_CFG = ['chave', 'valor'];
-const ABA_USERS = 'Usuarios';
-// `empresa` (F) e `modulos` (G) foram adicionadas no fim: linhas antigas seguem
-// válidas — sem F o vínculo fica vazio (só importa ao `cliente`) e sem G os
-// módulos ficam vazios, que `resolverModulos` trata como legado (tudo liberado).
-// `dono` (coluna H) foi adicionada no fim para não quebrar linhas antigas: um
-// `cliente` sem dono é legado (criado pelo master antes deste campo) — o master
-// o vê e o contador dono da empresa vinculada também (ver lib/acesso).
-const HEADER_USERS = ['email', 'nome', 'role', 'salt', 'hash', 'empresa', 'modulos', 'dono'];
-
-/** Serializa/parseia a coluna `modulos` ("caixa,ponto"), ignorando lixo. */
-function parseModulos(valor: unknown): Modulo[] {
-  return String(valor ?? '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter((s): s is Modulo => (MODULOS as string[]).includes(s));
-}
-
 export interface Feriado {
   data: string; // AAAA-MM-DD
   descricao: string;
-}
-
-export interface UsuarioRec {
-  email: string;
-  nome: string;
-  role: Papel;
-  salt: string;
-  hash: string;
-  /** Id da empresa que o usuário enxerga. Só se aplica ao papel `cliente`. */
-  empresa?: string | null;
-  /** Módulos habilitados pelo master. Vazio = legado (ver `resolverModulos`). */
-  modulos?: Modulo[];
-  /**
-   * E-mail do contador (papel `usuario`) que criou este usuário. Só se aplica ao
-   * papel `cliente`: cada contador só gerencia os administradores que cadastrou;
-   * o master vê todos. Vazio = legado (criado pelo master) ou não-cliente.
-   */
-  dono?: string | null;
 }
 
 export interface SheetsCtx {
@@ -265,88 +224,6 @@ export async function salvarFuncionarios(empresaId: string, lista: Funcionario[]
   return desta.length;
 }
 
-// ---- Empresas ----
-// Cache curto em memória: a autorização por dono (lib/acesso) lê as empresas a
-// cada request de contador, e cada leitura são ~3 chamadas ao Sheets. O TTL baixo
-// segura uma rajada (uma tela do caixa dispara várias rotas de uma vez) sem
-// deixar o cadastro defasado. `salvarEmpresas` invalida na hora.
-let cacheEmpresas: { em: number; lista: Empresa[] } | null = null;
-const TTL_EMPRESAS_MS = 8_000;
-
-export async function lerEmpresas(): Promise<Empresa[]> {
-  if (cacheEmpresas && Date.now() - cacheEmpresas.em < TTL_EMPRESAS_MS) return cacheEmpresas.lista;
-  const ctx = getSheets();
-  await garantirAbaHeader(ctx, ABA_EMP, HEADER_EMP);
-  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_EMP}!A2:H` });
-  const lista: Empresa[] = (res.data.values ?? []).map((r) => ({
-    nome: String(r[0] ?? ''),
-    cnpj: r[1] ? String(r[1]) : null,
-    trabalhaSabado: r[2] === 'true' || r[2] === '1',
-    jornadaUtilMin: r[3] ? Number(r[3]) : undefined,
-    jornadaSabadoMin: r[4] ? Number(r[4]) : undefined,
-    ordem: r[5] ? Number(r[5]) : null,
-    id: String(r[6] ?? '').trim(),
-    contador: String(r[7] ?? '').trim().toLowerCase() || null,
-  })).filter((e) => e.nome);
-
-  // Primeira execução: semeia a empresa padrão, herdando o ajuste global antigo.
-  if (lista.length === 0) {
-    let trabalhaSabado = false;
-    try {
-      const cfg = await lerConfig();
-      trabalhaSabado = cfg['trabalha_sabado'] === 'true' || cfg['trabalha_sabado'] === '1';
-    } catch { /* sem planilha de config ainda */ }
-    const padrao: Empresa = { id: EMPRESA_PADRAO_ID, nome: EMPRESA_PADRAO, cnpj: null, trabalhaSabado, ordem: 1 };
-    await salvarEmpresas([padrao]);
-    cacheEmpresas = { em: Date.now(), lista: [padrao] };
-    return [padrao];
-  }
-
-  // Cura ids faltantes (aba criada no deploy anterior não tinha coluna id).
-  let precisaSalvar = false;
-  for (const e of lista) {
-    if (!e.id) {
-      e.id = e.nome === EMPRESA_PADRAO ? EMPRESA_PADRAO_ID : randomUUID();
-      precisaSalvar = true;
-    }
-  }
-  if (precisaSalvar) await salvarEmpresas(lista);
-  cacheEmpresas = { em: Date.now(), lista };
-  return lista;
-}
-
-export async function salvarEmpresas(lista: Empresa[]): Promise<number> {
-  const ctx = getSheets();
-  await garantirAbaHeader(ctx, ABA_EMP, HEADER_EMP);
-  const linhas = lista
-    .filter((e) => e.nome?.trim())
-    .map((e, i) => [
-      e.nome.trim(), e.cnpj ?? '', e.trabalhaSabado ? 'true' : 'false',
-      e.jornadaUtilMin ?? '', e.jornadaSabadoMin ?? '', e.ordem ?? i + 1,
-      // id imutável: mantém o existente; gera para empresas novas.
-      e.id?.trim() || (e.nome.trim() === EMPRESA_PADRAO ? EMPRESA_PADRAO_ID : randomUUID()),
-      e.contador?.trim().toLowerCase() ?? '',
-    ]);
-  await reescreverCorpo(ctx, ABA_EMP, HEADER_EMP.length, linhas);
-  cacheEmpresas = null; // cadastro mudou: força releitura na próxima
-  return linhas.length;
-}
-
-export async function lerEmpresa(id: string): Promise<Empresa | null> {
-  return (await lerEmpresas()).find((e) => e.id === id) ?? null;
-}
-
-/** Jornada de uma empresa (por id; inclui "trabalha aos sábados"). */
-export async function lerJornadaEmpresa(id: string): Promise<Jornada> {
-  const e = await lerEmpresa(id);
-  if (!e) return { ...JORNADA_PADRAO };
-  return {
-    utilMin: e.jornadaUtilMin ?? JORNADA_PADRAO.utilMin,
-    sabadoMin: e.jornadaSabadoMin ?? JORNADA_PADRAO.sabadoMin,
-    trabalhaSabado: e.trabalhaSabado,
-  };
-}
-
 // ---- Feriados ----
 export async function lerFeriados(): Promise<Feriado[]> {
   const ctx = getSheets();
@@ -384,50 +261,15 @@ export async function salvarConfig(entradas: Record<string, string>): Promise<vo
   await reescreverCorpo(ctx, ABA_CFG, HEADER_CFG.length, linhas);
 }
 
-// ---- Usuários ----
-function linhaUsuario(u: UsuarioRec): (string | number)[] {
-  return [u.email, u.nome, u.role, u.salt, u.hash, u.empresa ?? '', (u.modulos ?? []).join(','), u.dono ?? ''];
-}
-
-export async function lerUsuarios(): Promise<UsuarioRec[]> {
-  const ctx = getSheets();
-  await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
-  const res = await ctx.sheets.spreadsheets.values.get({ spreadsheetId: ctx.spreadsheetId, range: `${ABA_USERS}!A2:H` });
-  return (res.data.values ?? []).map((r) => ({
-    email: String(r[0] ?? '').toLowerCase(),
-    nome: String(r[1] ?? ''),
-    role: (r[2] === 'master' ? 'master' : r[2] === 'cliente' ? 'cliente' : 'usuario') as Papel,
-    salt: String(r[3] ?? ''),
-    hash: String(r[4] ?? ''),
-    empresa: r[5] ? String(r[5]).trim() : null,
-    modulos: parseModulos(r[6]),
-    dono: String(r[7] ?? '').trim().toLowerCase() || null,
-  })).filter((u) => u.email);
-}
-
-export async function buscarUsuario(email: string): Promise<UsuarioRec | null> {
-  const alvo = email.trim().toLowerCase();
-  return (await lerUsuarios()).find((u) => u.email === alvo) ?? null;
-}
-
-/** Adiciona/atualiza um usuário (upsert por email). */
-export async function salvarUsuario(u: UsuarioRec): Promise<void> {
-  const ctx = getSheets();
-  await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
-  const atuais = await lerUsuarios();
-  const email = u.email.trim().toLowerCase();
-  const mantidos = atuais.filter((x) => x.email !== email);
-  const linhas = [...mantidos, { ...u, email }].map(linhaUsuario);
-  await reescreverCorpo(ctx, ABA_USERS, HEADER_USERS.length, linhas);
-}
-
-export async function removerUsuario(email: string): Promise<void> {
-  const ctx = getSheets();
-  await garantirAbaHeader(ctx, ABA_USERS, HEADER_USERS);
-  const alvo = email.trim().toLowerCase();
-  const linhas = (await lerUsuarios()).filter((x) => x.email !== alvo).map(linhaUsuario);
-  await reescreverCorpo(ctx, ABA_USERS, HEADER_USERS.length, linhas);
-}
+// ---- Cadastro (empresas + usuários) — migrado para o Supabase ----
+// As implementações vivem em ./cadastro; reexportadas aqui para os call sites que
+// importam de '@/lib/sheets' continuarem funcionando sem alteração.
+export { lerEmpresas, EMPRESA_PADRAO, EMPRESA_PADRAO_ID }; // já importados no topo
+export {
+  lerEmpresa, salvarEmpresas, lerJornadaEmpresa,
+  lerUsuarios, buscarUsuario, salvarUsuario, removerUsuario,
+} from './cadastro';
+export type { UsuarioRec } from './cadastro';
 
 /** Lê a chave do Gemini da aba Config (se houver planilha configurada). */
 export async function getGeminiKeyDaConfig(): Promise<string | null> {
