@@ -330,6 +330,38 @@ campos de inscrição estadual/municipal e registro na Junta **somem** quando a
 empresa é pessoa física. O **Termo de Abertura** já ramifica por `tipoPessoa` na
 Fase 6 (PF sem Junta/inscrições, com CPF) — falta só a Edilse validar a redação PF.
 
+### ✅ Identificação do pagador/paciente nas entradas (migração 0007)
+
+Pedido do João para a clínica do dentista **Nélio Dias dos Santos** (da Edilse):
+lançar o **nome e o CPF de quem pagou**, que o IRPF do profissional de saúde exige
+(**Carnê-Leão** e **DMED**, que alimenta a dedução de despesa médica do paciente).
+A tensão que ele levantou: uma **loja** vende no balcão e não identifica cliente —
+então o campo **não pode ser fixo** no livro de todos.
+
+**Decisão de modelo:** a necessidade é da **atividade**, não do tipo de pessoa —
+uma **clínica pessoa jurídica** também identifica o paciente. Por isso é uma **flag
+por empresa** (`identifica_pagador`), ligada a dedo no cadastro, e **não derivada de
+`tipo_pessoa`** (foi o contra-exemplo do João — clínica PJ — que fechou isso).
+
+- Migração **0007**: `identifica_pagador boolean` em `empresas`; `pagador_nome` e
+  `pagador_documento` (nulos) em `lancamentos`.
+- Documento é **CPF ou CNPJ** (o pagador pode ser convênio/empresa) — guardado só
+  com os **dígitos**, para exportar depois. **Não bloqueia**: dígito verificador
+  inválido só **avisa** (âmbar), no espírito do resto do módulo. Validador
+  client-safe em `caixa/formato.ts` (`documentoValido`/`formatarDocumento`).
+- As colunas **Cliente/Paciente** e **CPF/CNPJ** só aparecem na tela do caixa
+  quando a empresa tem a flag (depois de Complemento, antes de Conta). A contagem
+  de colunas virou `nCols` (10 ou 12) para os `colSpan`.
+- **Só nas entradas** na prática: as pernas do **cheque** (transferência +
+  pagamento) e a saída comum não recebem pagador.
+- Cadastro: checkbox **"Identifica pagador"** na tabela de Empresas-clientes
+  (`/cadastros`). `lib/tipos` (`Empresa.identificaPagador`), `lib/cadastro` (mapa
+  ida/volta), `lib/caixa` (tipos, validação, os dois selects e `montarLivro`), a
+  rota `lancamentos` (POST/PATCH).
+- **Pendente:** `npx supabase db push --linked` da 0007 (ainda não aplicada). E,
+  quando quiser, decidir se o pagador entra no PDF/.xlsx do livro (o dado já viaja
+  em `LinhaLivro`) e confirmar com a Edilse o rótulo da coluna.
+
 ### ✅ Fase 6 — Documentos (04/09/2026)
 
 O **livro inteiro** — Termo de Abertura + os 12 meses + Termo de Encerramento —
@@ -393,8 +425,10 @@ grátis), `Restore` no dashboard primeiro.
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e
 **usuarios** do Sheets para cá (tabelas novas, `lib/cadastro.ts`); `0005` juros/multa
-nos lançamentos; `0006` `tipo_pessoa` nas empresas. `supabase migration list`
-batia com a pasta. O CLI está
+nos lançamentos; `0006` `tipo_pessoa` nas empresas. A **`0007`** (flag
+`identifica_pagador` + `pagador_nome`/`pagador_documento`) está **criada mas ainda
+não aplicada** — rode `npx supabase db push --linked`. `supabase migration list`
+batia com a pasta até a 0006. O CLI está
 **logado na conta certa e linkado** ao projeto `zxjeibkttmacpuukvyzo`, então daqui
 para a frente `npx supabase db push` resolve — não precisa mais colar SQL no
 dashboard. A `0003` criou `empresa_fiscal` (fiscal estável 1:1 por empresa).
