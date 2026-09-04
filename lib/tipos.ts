@@ -51,7 +51,9 @@ export interface Funcionario {
 export interface Empresa {
   id: string; // identificador interno imutável (vínculo estável, sobrevive a renomear)
   nome: string;
-  cnpj?: string | null;
+  /** Jurídica (padrão) ou física (autônomo). Física usa CPF e não tem inscrições/Junta. */
+  tipoPessoa?: 'juridica' | 'fisica';
+  cnpj?: string | null; // CNPJ (jurídica) ou CPF (física)
   /** A empresa trabalha aos sábados? Quando false, sábado vira folga. */
   trabalhaSabado: boolean;
   // jornada padrão da empresa em minutos (funcionário pode sobrescrever)

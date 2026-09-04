@@ -100,7 +100,7 @@ export default function Cadastro() {
   // Célula de tabela: input discreto que só ganha contorno no hover/foco (some a
   // grade dura, no padrão dos cards do site).
   const cell = 'w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-200 focus:border-petroleo-500 focus:bg-white focus:ring-2 focus:ring-petroleo-100';
-  const colsEmpresa = 2 + (ehMaster ? 1 : 0) + 1;
+  const colsEmpresa = 3 + (ehMaster ? 1 : 0) + 1; // razão + tipo + doc (+contador) + ações
 
   return (
     <div className="text-sm">
@@ -128,8 +128,9 @@ export default function Cadastro() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-petroleo-50/70 text-left text-[11px] font-semibold uppercase tracking-wide text-petroleo-800">
-                  <th className="px-3 py-2.5">Razão social</th>
-                  <th className="px-3 py-2.5">CNPJ</th>
+                  <th className="px-3 py-2.5">Razão social / Nome</th>
+                  <th className="px-3 py-2.5">Tipo</th>
+                  <th className="px-3 py-2.5">CNPJ / CPF</th>
                   {ehMaster && <th className="px-3 py-2.5">Contador responsável</th>}
                   <th className="w-12 px-3 py-2.5"></th>
                 </tr>
@@ -139,7 +140,15 @@ export default function Cadastro() {
                   <tr key={i} className="group transition-colors hover:bg-slate-50/70">
                     <td className="px-2 py-1"><input className={cell} value={e.nome}
                       onChange={(ev) => setE(i, 'nome', ev.target.value)} /></td>
+                    <td className="px-2 py-1">
+                      <select className={`${cell} cursor-pointer`} value={e.tipoPessoa ?? 'juridica'}
+                        onChange={(ev) => setE(i, 'tipoPessoa', ev.target.value)}>
+                        <option value="juridica">Jurídica</option>
+                        <option value="fisica">Física</option>
+                      </select>
+                    </td>
                     <td className="px-2 py-1"><input className={cell} value={e.cnpj ?? ''}
+                      placeholder={e.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}
                       onChange={(ev) => setE(i, 'cnpj', ev.target.value)} /></td>
                     {ehMaster && (
                       <td className="px-2 py-1"><input className={cell} value={e.contador ?? ''}
@@ -161,7 +170,7 @@ export default function Cadastro() {
             </table>
           </div>
           <div className="mt-2 flex gap-2">
-            <button onClick={() => setEmpresas((p) => [...p, { id: '', nome: '', cnpj: '', trabalhaSabado: false }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Empresa</button>
+            <button onClick={() => setEmpresas((p) => [...p, { id: '', nome: '', tipoPessoa: 'juridica', cnpj: '', trabalhaSabado: false }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Empresa</button>
             <button onClick={salvarEmpresas} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white">Salvar empresas</button>
           </div>
           <p className="mt-2 text-xs text-slate-400">Dica: evite renomear uma empresa depois de cadastrar funcionários — o vínculo é pelo id interno.</p>

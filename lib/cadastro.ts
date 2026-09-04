@@ -45,6 +45,7 @@ function linhaParaEmpresa(r: any): Empresa {
   return {
     id: String(r.id ?? '').trim(),
     nome: String(r.nome ?? ''),
+    tipoPessoa: r.tipo_pessoa === 'fisica' ? 'fisica' : 'juridica',
     cnpj: r.cnpj ? String(r.cnpj) : null,
     trabalhaSabado: Boolean(r.trabalha_sabado),
     jornadaUtilMin: r.jornada_util_min ?? undefined,
@@ -80,6 +81,7 @@ export async function salvarEmpresas(lista: Empresa[]): Promise<number> {
     .map((e, i) => ({
       id: e.id?.trim() || (e.nome.trim() === EMPRESA_PADRAO ? EMPRESA_PADRAO_ID : randomUUID()),
       nome: e.nome.trim(),
+      tipo_pessoa: e.tipoPessoa === 'fisica' ? 'fisica' : 'juridica',
       cnpj: e.cnpj?.trim() || null,
       trabalha_sabado: Boolean(e.trabalhaSabado),
       jornada_util_min: e.jornadaUtilMin ?? null,

@@ -89,6 +89,8 @@ export default function CaixaCadastros() {
 
   const setFi = (campo: keyof Fiscal, v: string) => setFiscal((p) => ({ ...p, [campo]: v }));
   const fInput = 'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100';
+  // Pessoa física (autônomo) não tem inscrição estadual/municipal nem registro na Junta.
+  const ehFisica = empresas.find((e) => e.id === empresaSel)?.tipoPessoa === 'fisica';
 
   return (
     <div className="text-sm">
@@ -147,6 +149,8 @@ export default function CaixaCadastros() {
                     <input className={fInput} maxLength={2} value={fiscal.estado ?? ''} onChange={(e) => setFi('estado', e.target.value.toUpperCase())} />
                   </div>
                 </div>
+                {/* Inscrições e Junta não se aplicam a pessoa física (autônomo). */}
+                {!ehFisica && (<>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Inscrição estadual</label>
                   <input className={fInput} value={fiscal.inscricaoEstadual ?? ''} onChange={(e) => setFi('inscricaoEstadual', e.target.value)} />
@@ -163,6 +167,7 @@ export default function CaixaCadastros() {
                   <label className="mb-1 block text-xs font-medium text-slate-600">Sob o número</label>
                   <input className={fInput} value={fiscal.registroNumero ?? ''} onChange={(e) => setFi('registroNumero', e.target.value)} />
                 </div>
+                </>)}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Prefeitura</label>
                   <input className={fInput} value={fiscal.prefeitura ?? ''} onChange={(e) => setFi('prefeitura', e.target.value)} />
