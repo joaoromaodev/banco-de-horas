@@ -3,6 +3,7 @@
 // Tudo aqui é de servidor (usa lib/db). A autorização não mora aqui: cada rota
 // chama a guarda de lib/acesso antes de encostar nestas funções.
 import { getDb } from './db';
+import { lerEmpresa } from './cadastro';
 
 /** Conta do catálogo, com a marca de já ser usada por aquela empresa. */
 export interface ContaCaixa {
@@ -24,6 +25,10 @@ export interface LancamentoCaixa {
   saida: number;
   juros: number;
   multa: number;
+  // Quem pagou (nome + CPF/CNPJ). Só preenchidos nas empresas que identificam o
+  // pagador (Carnê-Leão/DMED); nulos no resto. Ver migração 0007.
+  pagadorNome: string | null;
+  pagadorDocumento: string | null;
   criadoPor: string;
   criadoEm: string;
   atualizadoPor: string | null;
@@ -103,6 +108,55 @@ export async function salvarFiscal(empresaId: string, d: DadosFiscais, por: stri
     atualizado_por: por, atualizado_em: new Date().toISOString(),
   }, { onConflict: 'empresa_id' });
   if (error) throw new ErroCaixa(`empresa_fiscal: ${error.message}`, 502);
+}
+
+/**
+ * Dados do termo que são **por livro** (mudam a cada exercício) e ficam em
+ * `exercicios`: número do livro, número de ordem e a data do termo. A qtd de
+ * folhas é calculada na hora de montar o PDF (é o total de páginas numeradas) e
+ * gravada aqui para o Termo poder citá-la.
+ */
+export interface DadosTermo {
+  numeroLivro: number | null;
+  numeroOrdem: number | null;
+  dataTermo: string | null; // AAAA-MM-DD
+  qtdFolhas: number | null;
+}
+
+/** Campos por-livro do termo (nº do livro, nº de ordem, data). */
+export async function lerTermo(exercicioId: string): Promise<DadosTermo> {
+  const db = getDb();
+  const { data, error } = await db
+    .from('exercicios')
+    .select('numero_livro, numero_ordem, data_termo, qtd_folhas')
+    .eq('id', exercicioId).maybeSingle();
+  if (error) throw new ErroCaixa(`exercicios: ${error.message}`, 502);
+  return {
+    numeroLivro: data?.numero_livro ?? null,
+    numeroOrdem: data?.numero_ordem ?? null,
+    dataTermo: data?.data_termo ?? null,
+    qtdFolhas: data?.qtd_folhas ?? null,
+  };
+}
+
+/** Grava os campos por-livro do termo. `qtdFolhas`, quando informado, é o total de páginas do PDF. */
+export async function salvarTermo(exercicioId: string, d: Partial<DadosTermo>): Promise<void> {
+  const db = getDb();
+  const inteiro = (v: unknown) => {
+    const n = Number(v);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+  const patch: Record<string, unknown> = {};
+  if ('numeroLivro' in d) patch.numero_livro = inteiro(d.numeroLivro);
+  if ('numeroOrdem' in d) patch.numero_ordem = inteiro(d.numeroOrdem);
+  if ('qtdFolhas' in d) patch.qtd_folhas = inteiro(d.qtdFolhas);
+  if ('dataTermo' in d) {
+    const s = String(d.dataTermo ?? '').trim();
+    patch.data_termo = /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  }
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await db.from('exercicios').update(patch).eq('id', exercicioId);
+  if (error) throw new ErroCaixa(`exercicios: ${error.message}`, 502);
 }
 
 /** Histórico que a UI oferece pronto, já com a conta que ele sugere. */
@@ -198,7 +252,7 @@ export async function lancamentosDoMes(exercicioId: string, mes: number): Promis
   const db = getDb();
   const { data, error } = await db
     .from('lancamentos')
-    .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, criado_por, criado_em, atualizado_por, conferido_por, conferido_em')
+    .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, pagador_nome, pagador_documento, criado_por, criado_em, atualizado_por, conferido_por, conferido_em')
     .eq('exercicio_id', exercicioId).eq('mes', mes)
     .order('data').order('criado_em');
   if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
@@ -206,6 +260,7 @@ export async function lancamentosDoMes(exercicioId: string, mes: number): Promis
     id: l.id, data: l.data, historico: l.historico, complemento: l.complemento,
     contaId: l.conta_id, entrada: num(l.entrada), saida: num(l.saida),
     juros: num(l.juros), multa: num(l.multa),
+    pagadorNome: l.pagador_nome, pagadorDocumento: l.pagador_documento,
     criadoPor: l.criado_por, criadoEm: l.criado_em, atualizadoPor: l.atualizado_por,
     conferidoPor: l.conferido_por, conferidoEm: l.conferido_em,
   }));
@@ -277,6 +332,8 @@ export interface EntradaLancamento {
   saida: number;
   juros: number;
   multa: number;
+  pagadorNome: string | null;
+  pagadorDocumento: string | null;
 }
 
 /** Valida o que o formulário mandou. O banco reforça o resto (xor, ano, sinal). */
@@ -303,9 +360,16 @@ export function validarLancamento(body: Record<string, unknown>, ano: number): E
   const cent = (v: number) => Math.round(v * 100) / 100;
   const complemento = String(body.complemento ?? '').trim() || null;
   const contaId = String(body.contaId ?? '').trim() || null;
+  // Pagador é opcional e não bloqueia: guarda o que veio (nome + CPF/CNPJ). Não
+  // validamos o dígito aqui de propósito — o aviso é na tela, no espírito do
+  // "só avisa" do módulo. O documento fica só com os dígitos, para exportar depois.
+  const pagadorNome = String(body.pagadorNome ?? '').trim() || null;
+  const doc = String(body.pagadorDocumento ?? '').replace(/\D/g, '');
+  const pagadorDocumento = doc || null;
   return {
     data, historico, complemento, contaId,
     entrada: cent(entrada), saida: cent(saida), juros: cent(juros), multa: cent(multa),
+    pagadorNome, pagadorDocumento,
   };
 }
 
@@ -319,3 +383,105 @@ export function validarLancamento(body: Record<string, unknown>, ano: number): E
  * isso (é por isso que os históricos de depósito e retirada também não têm).
  */
 export const HISTORICO_RETIRADA_CHEQUE = 'Retirada de conta corrente';
+
+// ------------------------------------------------------------------ livro (Fase 6)
+
+/** Um lançamento já com o código/nome da conta resolvidos (para o documento). */
+export interface LinhaLivro extends LancamentoCaixa {
+  contaCodigo: string | null;
+  contaNome: string | null;
+}
+
+/** Um mês do livro, com o saldo transportado e o saldo corrido em cada linha. */
+export interface MesLivro {
+  mes: number;
+  saldoTransportado: number;
+  linhas: LinhaLivro[];
+  entradas: number;
+  saidas: number;
+  saldoFinal: number;
+}
+
+/**
+ * Tudo o que os documentos (PDF/xlsx) do livro precisam, montado numa estrutura
+ * só e independente de banco: identidade da empresa, fiscal estável, campos do
+ * termo e os 12 meses com saldo corrido. As funções de geração recebem isto e
+ * não tocam no Postgres.
+ */
+export interface LivroCaixaDados {
+  empresa: { id: string; nome: string; documento: string | null; tipoPessoa: 'juridica' | 'fisica' };
+  fiscal: DadosFiscais;
+  termo: DadosTermo;
+  exercicioId: string;
+  ano: number;
+  saldoInicial: number;
+  meses: MesLivro[];
+  totalEntradas: number;
+  totalSaidas: number;
+  saldoFinalAno: number;
+}
+
+/** A saída efetiva de uma linha: juros e multa são saídas adicionais. */
+export const saidaEfetiva = (l: { saida: number; juros: number; multa: number }): number =>
+  l.saida + l.juros + l.multa;
+
+/** Monta o livro inteiro de uma empresa num ano — a fonte única dos documentos. */
+export async function montarLivro(empresaId: string, ano: number): Promise<LivroCaixaDados> {
+  const [emp, fiscal, ex, contas] = await Promise.all([
+    lerEmpresa(empresaId),
+    lerFiscal(empresaId),
+    garantirExercicio(empresaId, ano),
+    contasDaEmpresa(empresaId),
+  ]);
+  const termo = await lerTermo(ex.id);
+  const mapaConta = new Map(contas.map((c) => [c.id, c]));
+
+  // Um só SELECT dos lançamentos do exercício, na ordem do livro; agrupa por mês.
+  const db = getDb();
+  const { data, error } = await db
+    .from('lancamentos')
+    .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, pagador_nome, pagador_documento, criado_por, criado_em, atualizado_por, conferido_por, conferido_em, mes')
+    .eq('exercicio_id', ex.id).order('data').order('criado_em');
+  if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
+
+  const porMes = new Map<number, LinhaLivro[]>();
+  for (const l of data ?? []) {
+    const conta = l.conta_id ? mapaConta.get(l.conta_id) : undefined;
+    const linha: LinhaLivro = {
+      id: l.id, data: l.data, historico: l.historico, complemento: l.complemento,
+      contaId: l.conta_id, entrada: num(l.entrada), saida: num(l.saida),
+      juros: num(l.juros), multa: num(l.multa),
+      pagadorNome: l.pagador_nome, pagadorDocumento: l.pagador_documento,
+      criadoPor: l.criado_por, criadoEm: l.criado_em, atualizadoPor: l.atualizado_por,
+      conferidoPor: l.conferido_por, conferidoEm: l.conferido_em,
+      contaCodigo: conta?.codigo ?? null, contaNome: conta?.nome ?? null,
+    };
+    const arr = porMes.get(l.mes as number) ?? [];
+    arr.push(linha);
+    porMes.set(l.mes as number, arr);
+  }
+
+  const meses: MesLivro[] = [];
+  let saldo = ex.saldoInicial;
+  for (let m = 1; m <= 12; m++) {
+    const linhas = porMes.get(m) ?? [];
+    const saldoTransportado = saldo;
+    const entradas = linhas.reduce((s, l) => s + l.entrada, 0);
+    const saidas = linhas.reduce((s, l) => s + saidaEfetiva(l), 0);
+    saldo = saldoTransportado + entradas - saidas;
+    meses.push({ mes: m, saldoTransportado, linhas, entradas, saidas, saldoFinal: saldo });
+  }
+
+  return {
+    empresa: {
+      id: empresaId,
+      nome: emp?.nome ?? '',
+      documento: emp?.cnpj ?? null,
+      tipoPessoa: emp?.tipoPessoa === 'fisica' ? 'fisica' : 'juridica',
+    },
+    fiscal, termo, exercicioId: ex.id, ano, saldoInicial: ex.saldoInicial, meses,
+    totalEntradas: meses.reduce((s, m) => s + m.entradas, 0),
+    totalSaidas: meses.reduce((s, m) => s + m.saidas, 0),
+    saldoFinalAno: saldo,
+  };
+}

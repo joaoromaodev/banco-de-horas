@@ -10,18 +10,19 @@
 // disso trava a edição: lançamento é sempre editável e excluível, inclusive
 // retroativo — decisão dela.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { diaMes, dinheiro, MESES } from './formato';
+import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import { IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeExcluir, IconeLapis, IconeSino } from '../icones';
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
-interface Empresa { id: string; nome: string; }
+interface Empresa { id: string; nome: string; identificaPagador?: boolean; }
 interface Historico { texto: string; natureza: 'receita' | 'despesa'; contaId: string | null; }
 
 interface Lancamento {
   id: string; data: string; historico: string; complemento: string | null; contaId: string | null;
   entrada: number; saida: number; juros: number; multa: number;
+  pagadorNome: string | null; pagadorDocumento: string | null;
   criadoPor: string; criadoEm: string; atualizadoPor: string | null;
   conferidoPor: string | null; conferidoEm: string | null;
 }
@@ -31,6 +32,7 @@ interface RespostaMes {
   confirmado: boolean;
 }
 interface ResumoMes { mes: number; entradas: number; saidas: number; saldoFinal: number; }
+interface Termo { numeroLivro: number | null; numeroOrdem: number | null; dataTermo: string | null; qtdFolhas: number | null; }
 interface Pendencia { empresaId: string; pendentes: number; meses: number[]; ultimo: { historico: string; criadoEm: string; criadoPor: string; mes: number }; }
 
 const PRIMEIRO_EXERCICIO = 2026; // a contadora começa o sistema em janeiro/2026
@@ -39,10 +41,10 @@ const PRIMEIRO_EXERCICIO = 2026; // a contadora começa o sistema em janeiro/202
 const faltaMigracao = (msg: string) =>
   /could not find the table|does not exist|schema cache/i.test(msg);
 
-interface Campos { data: string; historico: string; complemento: string; contaId: string | null; entrada: string; saida: string; juros: string; multa: string; }
+interface Campos { data: string; historico: string; complemento: string; contaId: string | null; entrada: string; saida: string; juros: string; multa: string; pagadorNome: string; pagadorDocumento: string; }
 
 const vazio = (data: string): Campos =>
-  ({ data, historico: '', complemento: '', contaId: null, entrada: '', saida: '', juros: '', multa: '' });
+  ({ data, historico: '', complemento: '', contaId: null, entrada: '', saida: '', juros: '', multa: '', pagadorNome: '', pagadorDocumento: '' });
 
 /** Data que o formulário sugere: hoje, se hoje cair no mês aberto; senão o dia 1º. */
 function dataPadrao(ano: number, mes: number): string {
@@ -67,6 +69,8 @@ export default function Caixa() {
   const [saldoInicial, setSaldoInicial] = useState(0);
   const [dados, setDados] = useState<RespostaMes | null>(null);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
+  const [termo, setTermo] = useState<Termo | null>(null);
+  const [mostrarDocs, setMostrarDocs] = useState(false);
 
   const [novo, setNovo] = useState<Campos>(() => vazio(dataPadrao(ano, mes)));
   const [cheque, setCheque] = useState(false);
@@ -142,6 +146,7 @@ export default function Caixa() {
     setResumo(d.resumo ?? []);
     setConfirmados(d.confirmados ?? []);
     setSaldoInicial(d.exercicio?.saldoInicial ?? 0);
+    setTermo(d.termo ?? null);
   }, [empresaSel, ano]);
 
   const carregarMes = useCallback(async () => {
@@ -259,6 +264,7 @@ export default function Caixa() {
           saida: l.saida > 0 ? String(l.saida) : '',
           juros: l.juros > 0 ? String(l.juros) : '',
           multa: l.multa > 0 ? String(l.multa) : '',
+          pagadorNome: l.pagadorNome ?? '', pagadorDocumento: l.pagadorDocumento ?? '',
         }),
       });
       setMsg('Exclusão desfeita.');
@@ -330,6 +336,10 @@ export default function Caixa() {
   const aConferir = linhas.filter((x) => !x.l.conferidoEm).length;
   const minhaEmpresa = empresas.find((e) => e.id === (me?.role === 'cliente' ? me.empresa : empresaSel))?.nome;
   const nomeEmpresa = (id: string) => empresas.find((e) => e.id === id)?.nome ?? id;
+  // Empresa que identifica o pagador (clínica/dentista) ganha duas colunas na
+  // entrada: Cliente/Paciente e CPF/CNPJ — para Carnê-Leão/DMED. As demais não.
+  const identificaPagador = !!empresas.find((e) => e.id === empresaSel)?.identificaPagador;
+  const nCols = identificaPagador ? 12 : 10; // colunas da tabela (com pagador, +2)
 
   if (erro && faltaMigracao(erro)) return <BancoIncompleto erro={erro} />;
 
@@ -362,7 +372,21 @@ export default function Caixa() {
           <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Lançamentos</span>
           <a href="/caixa/resumo" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Resumo</a>
           {ehGestor && <a href="/caixa/cadastros" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Cadastros</a>}
+          {ehGestor && (
+            <button onClick={() => setMostrarDocs((v) => !v)}
+              className={`rounded-lg border px-3 py-1.5 ${mostrarDocs ? 'border-petroleo-700 bg-petroleo-900 text-white' : 'border-slate-300 bg-white hover:border-petroleo-500'}`}>
+              Documentos
+            </button>
+          )}
         </nav>
+
+        {ehGestor && mostrarDocs && (
+          <PainelDocumentos
+            empresaId={empresaSel} ano={ano} termo={termo}
+            onErro={setErro} onMsg={setMsg}
+            onSalvo={() => { void recarregar(); }}
+          />
+        )}
 
         {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
         {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
@@ -472,6 +496,8 @@ export default function Caixa() {
                 <th className="border-b px-2 py-2 text-left">Data</th>
                 <th className="border-b px-2 py-2 text-left">Histórico</th>
                 <th className="border-b px-2 py-2 text-left">Complemento</th>
+                {identificaPagador && <th className="border-b px-2 py-2 text-left">Cliente/Paciente</th>}
+                {identificaPagador && <th className="border-b px-2 py-2 text-left">CPF/CNPJ</th>}
                 <th className="border-b px-2 py-2 text-left">Conta</th>
                 <th className="border-b px-2 py-2 text-right">Entrada</th>
                 <th className="border-b px-2 py-2 text-right">Saída</th>
@@ -483,7 +509,7 @@ export default function Caixa() {
             </thead>
             <tbody>
               <tr className="text-slate-500">
-                <td className="border-b px-2 py-1.5" colSpan={8}>Saldo transportado do mês anterior</td>
+                <td className="border-b px-2 py-1.5" colSpan={nCols - 2}>Saldo transportado do mês anterior</td>
                 <td className="border-b px-2 py-1.5 text-right font-medium">{dinheiro(dados?.saldoTransportado ?? 0)}</td>
                 <td className="border-b"></td>
               </tr>
@@ -491,7 +517,7 @@ export default function Caixa() {
               {linhas.map(({ l, saldo }) => editandoId === l.id ? (
                 <tr key={l.id} className="bg-petroleo-50/40">
                   <Celulas campos={edicao} setCampos={setEdicao} contas={contas} historicos={historicos}
-                    podeCriar={ehGestor} onCriar={criarConta} />
+                    podeCriar={ehGestor} onCriar={criarConta} identificaPagador={identificaPagador} />
                   <td className="border-b px-2 py-1 text-right text-slate-400">—</td>
                   <td className="whitespace-nowrap border-b px-2 py-1 text-center">
                     <button onClick={salvarEdicao} disabled={salvando} className="text-petroleo-700 hover:underline disabled:opacity-50">Salvar</button>
@@ -503,6 +529,15 @@ export default function Caixa() {
                   <td className="whitespace-nowrap border-b px-2 py-1.5">{diaMes(l.data)}</td>
                   <td className="border-b px-2 py-1.5">{l.historico}</td>
                   <td className="border-b px-2 py-1.5 text-slate-500">{l.complemento}</td>
+                  {identificaPagador && <td className="border-b px-2 py-1.5 text-slate-600">{l.pagadorNome}</td>}
+                  {identificaPagador && (
+                    <td className={`whitespace-nowrap border-b px-2 py-1.5 ${
+                      l.pagadorDocumento && !documentoValido(l.pagadorDocumento) ? 'text-amber-700' : 'text-slate-500'
+                    }`}
+                      title={l.pagadorDocumento && !documentoValido(l.pagadorDocumento) ? 'CPF/CNPJ com dígito inválido — confira' : undefined}>
+                      {formatarDocumento(l.pagadorDocumento)}
+                    </td>
+                  )}
                   <td className={`border-b px-2 py-1.5 ${l.contaId ? 'text-slate-600' : 'text-amber-700'}`}>
                     {rotuloConta(contas, l.contaId)}
                   </td>
@@ -530,6 +565,7 @@ export default function Caixa() {
                         saida: l.saida > 0 ? String(l.saida) : '',
                         juros: l.juros > 0 ? String(l.juros) : '',
                         multa: l.multa > 0 ? String(l.multa) : '',
+                        pagadorNome: l.pagadorNome ?? '', pagadorDocumento: l.pagadorDocumento ?? '',
                       });
                     }} title="Editar" aria-label="Editar lançamento" className="mr-1 inline-flex items-center rounded p-1 text-petroleo-700 hover:bg-petroleo-50">
                       <IconeLapis size={15} />
@@ -543,7 +579,7 @@ export default function Caixa() {
               ))}
 
               {!carregando && linhas.length === 0 && (
-                <tr><td colSpan={10} className="px-2 py-6 text-center text-slate-400">
+                <tr><td colSpan={nCols} className="px-2 py-6 text-center text-slate-400">
                   Nenhum lançamento em {MESES[mes - 1]}/{ano}. Comece pela linha abaixo.
                 </td></tr>
               )}
@@ -552,7 +588,7 @@ export default function Caixa() {
             <tfoot>
               <tr className="bg-slate-50">
                 <Celulas campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
-                  podeCriar={ehGestor} onCriar={criarConta} />
+                  podeCriar={ehGestor} onCriar={criarConta} identificaPagador={identificaPagador} />
                 <td className="px-2 py-1 text-right font-medium text-slate-700">{dinheiro(dados?.saldoFinal ?? 0)}</td>
                 <td className="px-2 py-1 text-center">
                   <button onClick={lancar} disabled={salvando || !empresaSel}
@@ -562,7 +598,7 @@ export default function Caixa() {
                 </td>
               </tr>
               <tr className="bg-slate-50">
-                <td colSpan={10} className="px-2 pb-2 text-xs text-slate-500">
+                <td colSpan={nCols} className="px-2 pb-2 text-xs text-slate-500">
                   <label className="inline-flex items-center gap-1.5">
                     <input type="checkbox" checked={cheque} onChange={(e) => setCheque(e.target.checked)} />
                     Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
@@ -606,10 +642,13 @@ export default function Caixa() {
 }
 
 /** As células editáveis, iguais na linha nova e na linha em edição. */
-function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar }: {
+function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, identificaPagador }: {
   campos: Campos; setCampos: (c: Campos) => void; contas: Conta[]; historicos: Historico[];
   podeCriar: boolean; onCriar: (nome: string, grupo: string) => Promise<Conta | null>;
+  identificaPagador: boolean;
 }) {
+  // Aviso, não trava: documento com dígito verificador inválido fica em âmbar.
+  const docInvalido = !!campos.pagadorDocumento && !documentoValido(campos.pagadorDocumento);
   /** Escolher um histórico padrão já traz a conta que ele sugere. */
   function mudarHistorico(texto: string) {
     const sugestao = historicos.find((h) => h.texto === texto);
@@ -633,6 +672,20 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar }: 
         <input value={campos.complemento} onChange={(e) => setCampos({ ...campos, complemento: e.target.value })}
           placeholder="Complemento" className="w-full min-w-32 rounded border border-slate-300 px-1 py-0.5" />
       </td>
+      {identificaPagador && (
+        <td className="border-b px-1 py-1">
+          <input value={campos.pagadorNome} onChange={(e) => setCampos({ ...campos, pagadorNome: e.target.value })}
+            placeholder="Cliente/Paciente" className="w-full min-w-36 rounded border border-slate-300 px-1 py-0.5" />
+        </td>
+      )}
+      {identificaPagador && (
+        <td className="border-b px-1 py-1">
+          <input value={campos.pagadorDocumento} onChange={(e) => setCampos({ ...campos, pagadorDocumento: e.target.value })}
+            inputMode="numeric" placeholder="CPF/CNPJ"
+            title={docInvalido ? 'CPF/CNPJ com dígito inválido — confira (não bloqueia)' : undefined}
+            className={`w-full min-w-32 rounded border px-1 py-0.5 ${docInvalido ? 'border-amber-400 bg-amber-50' : 'border-slate-300'}`} />
+        </td>
+      )}
       <td className="border-b px-1 py-1 min-w-48">
         <SeletorConta contas={contas} valor={campos.contaId} compacto
           onEscolher={(id) => setCampos({ ...campos, contaId: id })}
@@ -661,6 +714,103 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar }: 
           className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right" />
       </td>
     </>
+  );
+}
+
+/**
+ * Painel de documentos do livro (Fase 6). Grava os campos por-livro do termo
+ * (nº do livro, nº de ordem, data) e baixa o livro inteiro em PDF ou .xlsx —
+ * termo de abertura + 12 meses + termo de encerramento.
+ */
+function PainelDocumentos({ empresaId, ano, termo, onErro, onMsg, onSalvo }: {
+  empresaId: string; ano: number; termo: Termo | null;
+  onErro: (m: string | null) => void; onMsg: (m: string | null) => void; onSalvo: () => void;
+}) {
+  const [salvando, setSalvando] = useState(false);
+
+  // Inputs não-controlados: `key` no <form> o remonta quando o termo carrega ou o
+  // exercício muda, então os defaultValue refletem o dado atual sem setState-em-effect.
+  const chave = `${empresaId}:${ano}:${termo?.numeroLivro ?? ''}:${termo?.numeroOrdem ?? ''}:${termo?.dataTermo ?? ''}`;
+
+  async function salvar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!empresaId) return;
+    const fd = new FormData(e.currentTarget);
+    setSalvando(true); onErro(null); onMsg(null);
+    try {
+      const r = await fetch('/api/caixa/livro', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empresa: empresaId, ano,
+          numeroLivro: fd.get('numeroLivro'), numeroOrdem: fd.get('numeroOrdem'), dataTermo: fd.get('dataTermo'),
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || 'Falha ao salvar.');
+      onMsg('Dados do termo salvos.');
+      onSalvo();
+    } catch (err) {
+      onErro(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  const baixar = (formato: 'pdf' | 'xlsx') =>
+    `/api/caixa/livro?empresa=${encodeURIComponent(empresaId)}&ano=${ano}&formato=${formato}`;
+
+  return (
+    <form key={chave} onSubmit={salvar} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900">Livro Caixa {ano} — documentos</h2>
+        <p className="text-xs text-slate-500">
+          Termo de abertura + os 12 meses + termo de encerramento, com as folhas numeradas.
+          Os campos abaixo saem nos termos.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="text-xs text-slate-600">
+          Nº do livro
+          <input name="numeroLivro" defaultValue={termo?.numeroLivro?.toString() ?? ''} inputMode="numeric"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-slate-900" placeholder="ex.: 1" />
+        </label>
+        <label className="text-xs text-slate-600">
+          Nº de ordem
+          <input name="numeroOrdem" defaultValue={termo?.numeroOrdem?.toString() ?? ''} inputMode="numeric"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-slate-900" placeholder="ex.: 1" />
+        </label>
+        <label className="text-xs text-slate-600">
+          Data do termo
+          <input type="date" name="dataTermo" defaultValue={termo?.dataTermo ?? ''}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-slate-900" />
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="submit" disabled={salvando || !empresaId}
+          className="rounded-lg border border-petroleo-300 bg-petroleo-50 px-3 py-1.5 font-medium text-petroleo-700 hover:border-petroleo-500 disabled:opacity-50">
+          {salvando ? 'Salvando…' : 'Salvar dados do termo'}
+        </button>
+        <span className="mx-1 h-5 w-px bg-slate-200" />
+        <a href={baixar('pdf')}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:border-petroleo-500">
+          Baixar livro (PDF)
+        </a>
+        <a href={baixar('xlsx')}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:border-petroleo-500">
+          Baixar livro (.xlsx)
+        </a>
+        {termo?.qtdFolhas ? (
+          <span className="text-xs text-slate-500">Último PDF: {termo.qtdFolhas} folhas.</span>
+        ) : null}
+      </div>
+
+      <p className="text-xs text-amber-700">
+        O texto dos termos é o padrão do Livro Caixa e ainda depende de validação da contadora
+        (inclusive a variante de pessoa física). Onde faltar dado cadastral, o termo sai com um espaço em branco.
+      </p>
+    </form>
   );
 }
 

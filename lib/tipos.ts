@@ -54,6 +54,13 @@ export interface Empresa {
   /** Jurídica (padrão) ou física (autônomo). Física usa CPF e não tem inscrições/Junta. */
   tipoPessoa?: 'juridica' | 'fisica';
   cnpj?: string | null; // CNPJ (jurídica) ou CPF (física)
+  /**
+   * A empresa identifica o pagador/paciente nas entradas do Livro Caixa (nome +
+   * CPF/CNPJ)? Necessário para Carnê-Leão/DMED de profissionais de saúde (ex.:
+   * clínica, dentista). **Independe de `tipoPessoa`** — uma clínica jurídica
+   * também precisa; é a atividade que manda, não o tipo de pessoa.
+   */
+  identificaPagador?: boolean;
   /** A empresa trabalha aos sábados? Quando false, sábado vira folga. */
   trabalhaSabado: boolean;
   // jornada padrão da empresa em minutos (funcionário pode sobrescrever)

@@ -3,8 +3,8 @@
 // O GET **abre o exercício se ele ainda não existir**: a contadora não quer
 // etapa de configuração antes do primeiro lançamento.
 import { NextRequest } from 'next/server';
-import { exigirEmpresa, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
-import { ErroCaixa, garantirExercicio, mesesConfirmados, paraValor, resumoDoExercicio } from '@/lib/caixa';
+import { ehGestor, exigirEmpresa, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { ErroCaixa, garantirExercicio, lerTermo, mesesConfirmados, paraValor, resumoDoExercicio } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -28,12 +28,17 @@ export async function GET(req: NextRequest) {
   try {
     const ano = anoDe(req.nextUrl.searchParams.get('ano'));
     const ex = await garantirExercicio(empresa, ano);
-    const [resumo, confirmados] = await Promise.all([resumoDoExercicio(ex.id), mesesConfirmados(ex.id)]);
+    const [resumo, confirmados, termo] = await Promise.all([
+      resumoDoExercicio(ex.id), mesesConfirmados(ex.id),
+      // Campos por-livro do termo (só interessam ao gestor, na Fase 6 — documentos).
+      ehGestor(g.sessao) ? lerTermo(ex.id) : Promise.resolve(null),
+    ]);
 
     return Response.json({
       exercicio: { id: ex.id, ano: ex.ano, saldoInicial: ex.saldoInicial },
       resumo,
       confirmados,
+      termo,
     });
   } catch (e) {
     return falha(e);

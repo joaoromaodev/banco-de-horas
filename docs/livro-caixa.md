@@ -4,7 +4,7 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **26/07/2026** (Fase 5 concluída — plataforma modular)
+Última atualização: **04/09/2026** (Fase 6 concluída — documentos: livro em PDF e .xlsx)
 
 ## Por que este módulo existe
 
@@ -327,40 +327,67 @@ tem CNPJ, inscrição estadual/municipal nem registro na Junta. Coluna
 em `lib/tipos`. No **Cadastro** há a coluna Tipo (Jurídica/Física) e o documento
 vira **CPF** na física; no formulário **fiscal** (Livro Caixa · Cadastros) os
 campos de inscrição estadual/municipal e registro na Junta **somem** quando a
-empresa é pessoa física. **Falta:** adaptar o **Termo de Abertura** (Fase 6) para
-PF (sem Junta/inscrições).
+empresa é pessoa física. O **Termo de Abertura** já ramifica por `tipoPessoa` na
+Fase 6 (PF sem Junta/inscrições, com CPF) — falta só a Edilse validar a redação PF.
 
-### ⬜ Fase 6 — Documentos
+### ✅ Fase 6 — Documentos (04/09/2026)
 
-- PDF do **livro inteiro** com folhas numeradas (reusa o padrão de `lib/folhaPonto.ts`)
-- Termos de abertura e encerramento. Fontes: **`empresa_fiscal`** (endereço,
-  inscrições, junta, prefeitura, cidade do termo, contabilista/CRC — Fase 5-C),
-  **`exercicios`** (nº do livro, nº de ordem, qtd de folhas, data do termo — por
-  ano) e a **identidade** no Sheets (razão social, CNPJ). Obs.: `exercicios` ainda
-  carrega colunas fiscais herdadas da 0001 que agora são redundantes com
-  `empresa_fiscal` — ao montar o Termo, use `empresa_fiscal` para o estável.
-- `.xlsx` no formato da planilha dela (reusa o padrão de `lib/planilha.ts`)
+O **livro inteiro** — Termo de Abertura + os 12 meses + Termo de Encerramento —
+em **PDF** e em **.xlsx**, para a contadora entregar. Nenhuma migração nova:
+`exercicios` já tinha os campos por-livro do termo (0001).
 
-**Plano de ataque para a próxima sessão (Fase 6):**
+- `lib/livroCaixa.ts` — o PDF (pdf-lib, padrão visual de `lib/folhaPonto.ts`).
+  Páginas em **paisagem** (é como um razão se lê). Miolo no formato da planilha —
+  DATA · HISTÓRICO · COMPLEMENTO · CONTA · ENTRADA · SAÍDA · SALDO —, saldo anterior
+  na 1ª linha, **saldo corrido** por lançamento, totais + saldo a transportar no fim
+  do mês. **Cada mês começa em página nova** (as 12 abas dela); mês grande **pagina
+  sozinho** (sem o teto de 51 linhas do Excel), com "Saldo transportado" no topo da
+  continuação. **Todas as folhas numeradas** no rodapé ("Folha N de T").
+- `lib/planilhaCaixa.ts` — o .xlsx (exceljs, padrão de `lib/planilha.ts`): uma aba
+  por mês com o **saldo corrido por fórmula** (`G = G_ant + E − F`), aba **Resumo**
+  (os 12 meses + total) e as abas dos dois termos.
+- `lib/formatoLivro.ts` — `MESES_LONGOS` server-side (a tela tem a sua própria cópia
+  em `app/(app)/caixa/formato.ts`, que roda no navegador).
+- `lib/caixa.ts` — `lerTermo`/`salvarTermo` (campos por-livro em `exercicios`) e
+  **`montarLivro(empresa, ano)`**: a **fonte única** dos dois documentos, montada
+  fora do banco (identidade + fiscal + termo + 12 meses com saldo corrido). Os
+  geradores recebem `LivroCaixaDados` e **não tocam no Postgres**.
+- `app/api/caixa/livro/route.ts` — **GET** `?empresa=&ano=&formato=pdf|xlsx` devolve
+  o arquivo; **POST** grava os campos por-livro do termo. Só gestor, e só das
+  empresas dele; o **cliente não baixa** o livro fechado (403). O GET do PDF grava a
+  `qtd_folhas` (total de páginas) de volta em `exercicios` — é o número que o termo cita.
+- `app/(app)/caixa/page.tsx` — aba **"Documentos"** (só gestor) com um painel para
+  o nº do livro, nº de ordem e data do termo, e os botões de baixar PDF/.xlsx. O GET
+  de `/api/caixa/exercicio` passou a devolver `termo` (só para gestor) para pré-preencher.
 
-1. **Identidade agora está no Supabase, não no Sheets.** Razão social/nome, CNPJ/CPF
-   e o **`tipo_pessoa`** saem da tabela `empresas` (via `lerEmpresa`), não mais do
-   Sheets — atualizar a menção acima. O fiscal estável vem de `empresa_fiscal`; o
-   por-livro (nº do livro, nº de ordem, qtd de folhas, data do termo) de `exercicios`.
-2. **Duas variantes do Termo de Abertura:** jurídica (com Junta + inscrições) e
-   **física/autônomo** (sem Junta, sem inscrições, com CPF). Ramificar por
-   `empresa.tipoPessoa`. Confirmar o texto do termo PF com a Edilse.
-3. **Onde falta dado**, o termo deve sair com um espaço/placeholder claro, não
-   quebrar (nem toda empresa terá o fiscal 100% preenchido — ver pendência 2).
-4. **Numeração de folhas do livro:** reusar o padrão visual/numeração de
-   `lib/folhaPonto.ts` (que já numera folhas em PDF) e o layout de `lib/planilha.ts`
-   para o miolo dos 12 meses.
-5. **Entrega:** a contadora quer o **livro inteiro em PDF** (termo de abertura + 12
-   meses + termo de encerramento). Provável rota nova `app/api/caixa/livro` (gestor,
-   por empresa+ano), montando o PDF server-side.
-6. **Antes de push de migração:** `npx supabase db push --linked` (CLI linkado ao
-   `zxjeibkttmacpuukvyzo`). Se o Supabase estiver **pausado** (plano grátis), nada
-   funciona — `Restore` no dashboard primeiro. Migrações já aplicadas: até **0006**.
+Como cada decisão virou código:
+
+| Decisão / fonte | Onde |
+|---|---|
+| Identidade (nome, CNPJ/CPF, `tipoPessoa`) | tabela `empresas` via `lerEmpresa` (não mais Sheets) |
+| Fiscal estável (endereço, inscrições, junta, cidade do termo, CRC) | `empresa_fiscal` via `lerFiscal` |
+| Por-livro (nº do livro, nº de ordem, data, qtd de folhas) | `exercicios` via `lerTermo`/`salvarTermo` |
+| Duas variantes do Termo | ramifica por `empresa.tipoPessoa`: PF sai **sem Junta/inscrições**, com **CPF** |
+| Falta de dado cadastral | o termo sai com **placeholder** (`____`), não quebra |
+| Juros/multa | a saída de cada linha é a **efetiva** (`saida+juros+multa`), via `saidaEfetiva` |
+
+**Obs.:** `exercicios` ainda carrega colunas fiscais herdadas da 0001, redundantes
+com `empresa_fiscal`. Os documentos **ignoram** essas colunas e usam `empresa_fiscal`
+para o estável — as da 0001 seguem mortas (limpeza opcional numa migração futura).
+
+**Pendências desta fase (não travam o código, travam a entrega real):**
+
+1. **Texto legal dos termos.** A redação em `lib/livroCaixa.ts`/`lib/planilhaCaixa.ts`
+   é o padrão do Livro Caixa — a **Edilse ainda precisa validar**, em especial a
+   **variante de pessoa física** (redação nossa). O painel avisa isso na tela.
+2. **Dados cadastrais reais** das 5 empresas (é a pendência 2 lá embaixo): sem o
+   fiscal preenchido, os termos saem com placeholder.
+3. **Campos por-livro** (nº do livro, nº de ordem, data) precisam ser preenchidos no
+   painel "Documentos" antes de gerar o livro definitivo.
+
+**Antes de push de migração** (segue valendo): `npx supabase db push --linked`
+(CLI linkado ao `zxjeibkttmacpuukvyzo`). Se o Supabase estiver **pausado** (plano
+grátis), `Restore` no dashboard primeiro.
 
 ## Estado do banco
 

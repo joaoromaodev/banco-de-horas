@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
       linhas.push({
         exercicio_id: ex.id, data: l.data, historico: l.historico, complemento: l.complemento,
         conta_id: l.contaId, entrada: l.entrada, saida: l.saida, juros: l.juros, multa: l.multa,
+        pagador_nome: l.pagadorNome, pagador_documento: l.pagadorDocumento,
         criado_por: autor,
       });
     }
@@ -162,6 +163,7 @@ export async function PATCH(req: NextRequest) {
     const { error } = await db.from('lancamentos').update({
       data: l.data, historico: l.historico, complemento: l.complemento, conta_id: l.contaId,
       entrada: l.entrada, saida: l.saida, juros: l.juros, multa: l.multa,
+      pagador_nome: l.pagadorNome, pagador_documento: l.pagadorDocumento,
       atualizado_por: g.sessao.email, atualizado_em: new Date().toISOString(),
       // O que ela conferiu mudou: a conferência cai e o lançamento volta para a fila.
       conferido_por: null, conferido_em: null,

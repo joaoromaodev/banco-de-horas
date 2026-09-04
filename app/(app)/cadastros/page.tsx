@@ -100,7 +100,7 @@ export default function Cadastro() {
   // Célula de tabela: input discreto que só ganha contorno no hover/foco (some a
   // grade dura, no padrão dos cards do site).
   const cell = 'w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-200 focus:border-petroleo-500 focus:bg-white focus:ring-2 focus:ring-petroleo-100';
-  const colsEmpresa = 3 + (ehMaster ? 1 : 0) + 1; // razão + tipo + doc (+contador) + ações
+  const colsEmpresa = 4 + (ehMaster ? 1 : 0) + 1; // razão + tipo + doc + pagador (+contador) + ações
 
   return (
     <div className="text-sm">
@@ -131,6 +131,7 @@ export default function Cadastro() {
                   <th className="px-3 py-2.5">Razão social / Nome</th>
                   <th className="px-3 py-2.5">Tipo</th>
                   <th className="px-3 py-2.5">CNPJ / CPF</th>
+                  <th className="px-3 py-2.5" title="Identificar o pagador/paciente (nome + CPF/CNPJ) nas entradas do Livro Caixa — para Carnê-Leão/DMED. Ligue em clínicas e profissionais de saúde.">Identifica pagador</th>
                   {ehMaster && <th className="px-3 py-2.5">Contador responsável</th>}
                   <th className="w-12 px-3 py-2.5"></th>
                 </tr>
@@ -150,6 +151,11 @@ export default function Cadastro() {
                     <td className="px-2 py-1"><input className={cell} value={e.cnpj ?? ''}
                       placeholder={e.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}
                       onChange={(ev) => setE(i, 'cnpj', ev.target.value)} /></td>
+                    <td className="px-2 py-1 text-center">
+                      <input type="checkbox" checked={!!e.identificaPagador}
+                        aria-label="Identifica pagador/paciente nas entradas"
+                        onChange={(ev) => setEmpresas((p) => p.map((x, j) => j === i ? { ...x, identificaPagador: ev.target.checked } : x))} />
+                    </td>
                     {ehMaster && (
                       <td className="px-2 py-1"><input className={cell} value={e.contador ?? ''}
                         placeholder="e-mail do contador" onChange={(ev) => setE(i, 'contador', ev.target.value)} /></td>
