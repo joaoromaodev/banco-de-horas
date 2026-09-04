@@ -319,14 +319,16 @@ Colunas Juros/Multa na tabela e no formulário (`caixa/page.tsx`, componente
 Financeiras) + histórico "Pago tarifa bancária" — em `lib/planoContasPadrao.ts` e
 já inseridos no banco.
 
-### ⬜ Pessoa física / autônomo (em aberto)
+### ✅ Pessoa física / autônomo (migração 0006)
 
 Cliente **pessoa física/autônomo** (ex.: **NÉLIO DIAS DOS SANTOS**, da Edilse) não
-tem CNPJ, inscrição estadual/municipal nem registro na Junta. Os campos fiscais já
-são **opcionais** (nullable, migração 0003), então dá para cadastrar deixando-os
-em branco. Falta decidir/implementar o tratamento "de verdade": um tipo
-física/jurídica que mostre **CPF** no lugar de CNPJ, esconda os campos que não se
-aplicam e adapte o **Termo de Abertura** (Fase 6) para PF.
+tem CNPJ, inscrição estadual/municipal nem registro na Junta. Coluna
+`tipo_pessoa` em `empresas` (`juridica` padrão | `fisica`), `Empresa.tipoPessoa`
+em `lib/tipos`. No **Cadastro** há a coluna Tipo (Jurídica/Física) e o documento
+vira **CPF** na física; no formulário **fiscal** (Livro Caixa · Cadastros) os
+campos de inscrição estadual/municipal e registro na Junta **somem** quando a
+empresa é pessoa física. **Falta:** adaptar o **Termo de Abertura** (Fase 6) para
+PF (sem Junta/inscrições).
 
 ### ⬜ Fase 6 — Documentos
 
