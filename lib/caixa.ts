@@ -22,6 +22,8 @@ export interface LancamentoCaixa {
   contaId: string | null;
   entrada: number;
   saida: number;
+  juros: number;
+  multa: number;
   criadoPor: string;
   criadoEm: string;
   atualizadoPor: string | null;
@@ -196,13 +198,14 @@ export async function lancamentosDoMes(exercicioId: string, mes: number): Promis
   const db = getDb();
   const { data, error } = await db
     .from('lancamentos')
-    .select('id, data, historico, complemento, conta_id, entrada, saida, criado_por, criado_em, atualizado_por, conferido_por, conferido_em')
+    .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, criado_por, criado_em, atualizado_por, conferido_por, conferido_em')
     .eq('exercicio_id', exercicioId).eq('mes', mes)
     .order('data').order('criado_em');
   if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
   return (data ?? []).map((l) => ({
     id: l.id, data: l.data, historico: l.historico, complemento: l.complemento,
     contaId: l.conta_id, entrada: num(l.entrada), saida: num(l.saida),
+    juros: num(l.juros), multa: num(l.multa),
     criadoPor: l.criado_por, criadoEm: l.criado_em, atualizadoPor: l.atualizado_por,
     conferidoPor: l.conferido_por, conferidoEm: l.conferido_em,
   }));
@@ -216,9 +219,9 @@ export async function saldoTransportado(ex: ExercicioCaixa, mes: number): Promis
   if (mes <= 1) return ex.saldoInicial;
   const db = getDb();
   const { data, error } = await db
-    .from('lancamentos').select('entrada, saida').eq('exercicio_id', ex.id).lt('mes', mes);
+    .from('lancamentos').select('entrada, saida, juros, multa').eq('exercicio_id', ex.id).lt('mes', mes);
   if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
-  return (data ?? []).reduce((s, l) => s + num(l.entrada) - num(l.saida), ex.saldoInicial);
+  return (data ?? []).reduce((s, l) => s + num(l.entrada) - num(l.saida) - num(l.juros) - num(l.multa), ex.saldoInicial);
 }
 
 /** Os 12 meses da view `resumo_mensal` — entradas, saídas e saldo acumulado. */
@@ -272,6 +275,8 @@ export interface EntradaLancamento {
   contaId: string | null;
   entrada: number;
   saida: number;
+  juros: number;
+  multa: number;
 }
 
 /** Valida o que o formulário mandou. O banco reforça o resto (xor, ano, sinal). */
@@ -285,17 +290,22 @@ export function validarLancamento(body: Record<string, unknown>, ano: number): E
 
   const entrada = paraValor(body.entrada);
   const saida = paraValor(body.saida);
-  if (Number.isNaN(entrada) || Number.isNaN(saida)) throw new ErroCaixa('Valor inválido.');
-  if (entrada < 0 || saida < 0) throw new ErroCaixa('O valor não pode ser negativo.');
-  if (entrada > 0 && saida > 0) throw new ErroCaixa('O lançamento é entrada ou saída, não os dois.');
-  if (entrada === 0 && saida === 0) throw new ErroCaixa('Informe o valor da entrada ou da saída.');
+  const juros = paraValor(body.juros);
+  const multa = paraValor(body.multa);
+  if ([entrada, saida, juros, multa].some(Number.isNaN)) throw new ErroCaixa('Valor inválido.');
+  if ([entrada, saida, juros, multa].some((v) => v < 0)) throw new ErroCaixa('O valor não pode ser negativo.');
+  // Juros e multa são saídas adicionais: a saída efetiva é saida+juros+multa. Uma
+  // linha é entrada OU saída (de qualquer natureza), nunca as duas.
+  const saidaTotal = saida + juros + multa;
+  if (entrada > 0 && saidaTotal > 0) throw new ErroCaixa('O lançamento é entrada ou saída, não os dois.');
+  if (entrada === 0 && saidaTotal === 0) throw new ErroCaixa('Informe o valor da entrada ou da saída.');
 
+  const cent = (v: number) => Math.round(v * 100) / 100;
   const complemento = String(body.complemento ?? '').trim() || null;
   const contaId = String(body.contaId ?? '').trim() || null;
   return {
     data, historico, complemento, contaId,
-    entrada: Math.round(entrada * 100) / 100,
-    saida: Math.round(saida * 100) / 100,
+    entrada: cent(entrada), saida: cent(saida), juros: cent(juros), multa: cent(multa),
   };
 }
 

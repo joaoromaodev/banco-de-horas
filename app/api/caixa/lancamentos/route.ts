@@ -50,7 +50,8 @@ export async function GET(req: NextRequest) {
     ]);
 
     const entradas = lancamentos.reduce((s, l) => s + l.entrada, 0);
-    const saidas = lancamentos.reduce((s, l) => s + l.saida, 0);
+    // Saída efetiva inclui juros e multa (ver migração 0005).
+    const saidas = lancamentos.reduce((s, l) => s + l.saida + l.juros + l.multa, 0);
 
     return Response.json({
       exercicio: { id: ex.id, ano: ex.ano, saldoInicial: ex.saldoInicial },
@@ -95,20 +96,25 @@ export async function POST(req: NextRequest) {
       // o now() sairia idêntico — a retirada precisa vir antes do pagamento na
       // ordenação do livro, senão o saldo corrido mergulha sem motivo.
       const t = Date.now();
+      // A retirada traz do banco o valor TOTAL do pagamento (principal + juros +
+      // multa), para o par ficar neutro no caixa; as penalidades ficam na perna
+      // do pagamento.
       linhas.push({
         exercicio_id: ex.id, data: l.data, historico: HISTORICO_RETIRADA_CHEQUE,
         complemento: `Cheque — ${l.complemento || l.historico}`, conta_id: null,
-        entrada: l.saida, saida: 0, criado_por: autor, criado_em: new Date(t).toISOString(),
+        entrada: l.saida + l.juros + l.multa, saida: 0, juros: 0, multa: 0,
+        criado_por: autor, criado_em: new Date(t).toISOString(),
       });
       linhas.push({
         exercicio_id: ex.id, data: l.data, historico: l.historico, complemento: l.complemento,
-        conta_id: l.contaId, entrada: 0, saida: l.saida,
+        conta_id: l.contaId, entrada: 0, saida: l.saida, juros: l.juros, multa: l.multa,
         criado_por: autor, criado_em: new Date(t + 1).toISOString(),
       });
     } else {
       linhas.push({
         exercicio_id: ex.id, data: l.data, historico: l.historico, complemento: l.complemento,
-        conta_id: l.contaId, entrada: l.entrada, saida: l.saida, criado_por: autor,
+        conta_id: l.contaId, entrada: l.entrada, saida: l.saida, juros: l.juros, multa: l.multa,
+        criado_por: autor,
       });
     }
 
@@ -155,7 +161,7 @@ export async function PATCH(req: NextRequest) {
     const l = validarLancamento(body, dono.ano);
     const { error } = await db.from('lancamentos').update({
       data: l.data, historico: l.historico, complemento: l.complemento, conta_id: l.contaId,
-      entrada: l.entrada, saida: l.saida,
+      entrada: l.entrada, saida: l.saida, juros: l.juros, multa: l.multa,
       atualizado_por: g.sessao.email, atualizado_em: new Date().toISOString(),
       // O que ela conferiu mudou: a conferência cai e o lançamento volta para a fila.
       conferido_por: null, conferido_em: null,

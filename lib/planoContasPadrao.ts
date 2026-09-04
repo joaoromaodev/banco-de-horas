@@ -191,6 +191,7 @@ const DEFS: Def[] = [
     ['Despesas Bancárias', 'Despesas Bancarias'],
     ['Multas e Juros Pagos', 'Multas e Juros Pagos'],
     ['Despesas c/ Créditos de liquidação Duvidosa', null],
+    ['Tarifas Bancárias', 'Despesas Bancarias'],
   ]],
   ['DESPESAS GERAIS', 'despesa', '2.11', [
     ['Brindes e Presentes', null],
@@ -236,6 +237,7 @@ export const HISTORICOS_PADRAO: { texto: string; natureza: 'receita' | 'despesa'
   { texto: 'Pago combustível', natureza: 'despesa', codigoConta: '2.02.10' },
   { texto: 'Pago multa e juros', natureza: 'despesa', codigoConta: '2.10.03' },
   { texto: 'Despesa bancária', natureza: 'despesa', codigoConta: '2.10.02' },
+  { texto: 'Pago tarifa bancária', natureza: 'despesa', codigoConta: '2.10.05' },
   { texto: 'Depósito em conta corrente', natureza: 'despesa' },
   { texto: 'Cheque devolvido', natureza: 'despesa' },
 ];

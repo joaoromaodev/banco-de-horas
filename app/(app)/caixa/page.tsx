@@ -21,7 +21,8 @@ interface Historico { texto: string; natureza: 'receita' | 'despesa'; contaId: s
 
 interface Lancamento {
   id: string; data: string; historico: string; complemento: string | null; contaId: string | null;
-  entrada: number; saida: number; criadoPor: string; criadoEm: string; atualizadoPor: string | null;
+  entrada: number; saida: number; juros: number; multa: number;
+  criadoPor: string; criadoEm: string; atualizadoPor: string | null;
   conferidoPor: string | null; conferidoEm: string | null;
 }
 interface RespostaMes {
@@ -38,10 +39,10 @@ const PRIMEIRO_EXERCICIO = 2026; // a contadora começa o sistema em janeiro/202
 const faltaMigracao = (msg: string) =>
   /could not find the table|does not exist|schema cache/i.test(msg);
 
-interface Campos { data: string; historico: string; complemento: string; contaId: string | null; entrada: string; saida: string; }
+interface Campos { data: string; historico: string; complemento: string; contaId: string | null; entrada: string; saida: string; juros: string; multa: string; }
 
 const vazio = (data: string): Campos =>
-  ({ data, historico: '', complemento: '', contaId: null, entrada: '', saida: '' });
+  ({ data, historico: '', complemento: '', contaId: null, entrada: '', saida: '', juros: '', multa: '' });
 
 /** Data que o formulário sugere: hoje, se hoje cair no mês aberto; senão o dia 1º. */
 function dataPadrao(ano: number, mes: number): string {
@@ -256,6 +257,8 @@ export default function Caixa() {
           complemento: l.complemento ?? '', contaId: l.contaId,
           entrada: l.entrada > 0 ? String(l.entrada) : '',
           saida: l.saida > 0 ? String(l.saida) : '',
+          juros: l.juros > 0 ? String(l.juros) : '',
+          multa: l.multa > 0 ? String(l.multa) : '',
         }),
       });
       setMsg('Exclusão desfeita.');
@@ -316,7 +319,7 @@ export default function Caixa() {
   const linhas = useMemo(() => {
     let saldo = dados?.saldoTransportado ?? 0;
     return (dados?.lancamentos ?? []).map((l) => {
-      saldo += l.entrada - l.saida;
+      saldo += l.entrada - l.saida - l.juros - l.multa;
       return { l, saldo };
     });
   }, [dados]);
@@ -472,13 +475,15 @@ export default function Caixa() {
                 <th className="border-b px-2 py-2 text-left">Conta</th>
                 <th className="border-b px-2 py-2 text-right">Entrada</th>
                 <th className="border-b px-2 py-2 text-right">Saída</th>
+                <th className="border-b px-2 py-2 text-right">Juros</th>
+                <th className="border-b px-2 py-2 text-right">Multa</th>
                 <th className="border-b px-2 py-2 text-right">Saldo</th>
                 <th className="border-b px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
               <tr className="text-slate-500">
-                <td className="border-b px-2 py-1.5" colSpan={6}>Saldo transportado do mês anterior</td>
+                <td className="border-b px-2 py-1.5" colSpan={8}>Saldo transportado do mês anterior</td>
                 <td className="border-b px-2 py-1.5 text-right font-medium">{dinheiro(dados?.saldoTransportado ?? 0)}</td>
                 <td className="border-b"></td>
               </tr>
@@ -503,6 +508,8 @@ export default function Caixa() {
                   </td>
                   <td className="border-b px-2 py-1.5 text-right text-emerald-700">{l.entrada > 0 ? dinheiro(l.entrada) : ''}</td>
                   <td className="border-b px-2 py-1.5 text-right text-red-700">{l.saida > 0 ? dinheiro(l.saida) : ''}</td>
+                  <td className="border-b px-2 py-1.5 text-right text-red-700">{l.juros > 0 ? dinheiro(l.juros) : ''}</td>
+                  <td className="border-b px-2 py-1.5 text-right text-red-700">{l.multa > 0 ? dinheiro(l.multa) : ''}</td>
                   <td className={`border-b px-2 py-1.5 text-right font-medium ${saldo < 0 ? 'text-red-600' : 'text-slate-700'}`}>{dinheiro(saldo)}</td>
                   <td className="whitespace-nowrap border-b px-2 py-1.5 text-right">
                     {ehGestor && (
@@ -521,6 +528,8 @@ export default function Caixa() {
                         data: l.data, historico: l.historico, complemento: l.complemento ?? '',
                         contaId: l.contaId, entrada: l.entrada > 0 ? String(l.entrada) : '',
                         saida: l.saida > 0 ? String(l.saida) : '',
+                        juros: l.juros > 0 ? String(l.juros) : '',
+                        multa: l.multa > 0 ? String(l.multa) : '',
                       });
                     }} title="Editar" aria-label="Editar lançamento" className="mr-1 inline-flex items-center rounded p-1 text-petroleo-700 hover:bg-petroleo-50">
                       <IconeLapis size={15} />
@@ -534,7 +543,7 @@ export default function Caixa() {
               ))}
 
               {!carregando && linhas.length === 0 && (
-                <tr><td colSpan={8} className="px-2 py-6 text-center text-slate-400">
+                <tr><td colSpan={10} className="px-2 py-6 text-center text-slate-400">
                   Nenhum lançamento em {MESES[mes - 1]}/{ano}. Comece pela linha abaixo.
                 </td></tr>
               )}
@@ -553,7 +562,7 @@ export default function Caixa() {
                 </td>
               </tr>
               <tr className="bg-slate-50">
-                <td colSpan={8} className="px-2 pb-2 text-xs text-slate-500">
+                <td colSpan={10} className="px-2 pb-2 text-xs text-slate-500">
                   <label className="inline-flex items-center gap-1.5">
                     <input type="checkbox" checked={cheque} onChange={(e) => setCheque(e.target.checked)} />
                     Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
@@ -639,6 +648,17 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar }: 
         <input inputMode="decimal" value={campos.saida} placeholder="0,00"
           onChange={(e) => setCampos({ ...campos, saida: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
           className="w-24 rounded border border-slate-300 px-1 py-0.5 text-right" />
+      </td>
+      {/* juros e multa são saídas adicionais: digitar num deles limpa a entrada */}
+      <td className="border-b px-1 py-1">
+        <input inputMode="decimal" value={campos.juros} placeholder="0,00"
+          onChange={(e) => setCampos({ ...campos, juros: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
+          className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right" />
+      </td>
+      <td className="border-b px-1 py-1">
+        <input inputMode="decimal" value={campos.multa} placeholder="0,00"
+          onChange={(e) => setCampos({ ...campos, multa: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
+          className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right" />
       </td>
     </>
   );
