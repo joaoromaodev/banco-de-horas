@@ -341,10 +341,33 @@ PF (sem Junta/inscrições).
   `empresa_fiscal` — ao montar o Termo, use `empresa_fiscal` para o estável.
 - `.xlsx` no formato da planilha dela (reusa o padrão de `lib/planilha.ts`)
 
+**Plano de ataque para a próxima sessão (Fase 6):**
+
+1. **Identidade agora está no Supabase, não no Sheets.** Razão social/nome, CNPJ/CPF
+   e o **`tipo_pessoa`** saem da tabela `empresas` (via `lerEmpresa`), não mais do
+   Sheets — atualizar a menção acima. O fiscal estável vem de `empresa_fiscal`; o
+   por-livro (nº do livro, nº de ordem, qtd de folhas, data do termo) de `exercicios`.
+2. **Duas variantes do Termo de Abertura:** jurídica (com Junta + inscrições) e
+   **física/autônomo** (sem Junta, sem inscrições, com CPF). Ramificar por
+   `empresa.tipoPessoa`. Confirmar o texto do termo PF com a Edilse.
+3. **Onde falta dado**, o termo deve sair com um espaço/placeholder claro, não
+   quebrar (nem toda empresa terá o fiscal 100% preenchido — ver pendência 2).
+4. **Numeração de folhas do livro:** reusar o padrão visual/numeração de
+   `lib/folhaPonto.ts` (que já numera folhas em PDF) e o layout de `lib/planilha.ts`
+   para o miolo dos 12 meses.
+5. **Entrega:** a contadora quer o **livro inteiro em PDF** (termo de abertura + 12
+   meses + termo de encerramento). Provável rota nova `app/api/caixa/livro` (gestor,
+   por empresa+ano), montando o PDF server-side.
+6. **Antes de push de migração:** `npx supabase db push --linked` (CLI linkado ao
+   `zxjeibkttmacpuukvyzo`). Se o Supabase estiver **pausado** (plano grátis), nada
+   funciona — `Restore` no dashboard primeiro. Migrações já aplicadas: até **0006**.
+
 ## Estado do banco
 
-Migrações `0000`, `0001`, `0002` e `0003` aplicadas; `supabase migration list`
-bate com a pasta (checado antes do push da `0003`, sem desync). O CLI está
+Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e
+**usuarios** do Sheets para cá (tabelas novas, `lib/cadastro.ts`); `0005` juros/multa
+nos lançamentos; `0006` `tipo_pessoa` nas empresas. `supabase migration list`
+batia com a pasta. O CLI está
 **logado na conta certa e linkado** ao projeto `zxjeibkttmacpuukvyzo`, então daqui
 para a frente `npx supabase db push` resolve — não precisa mais colar SQL no
 dashboard. A `0003` criou `empresa_fiscal` (fiscal estável 1:1 por empresa).
