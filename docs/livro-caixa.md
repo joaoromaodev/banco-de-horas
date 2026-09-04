@@ -305,6 +305,29 @@ Edilse).
 **Sequência:** A → B+C ✅ → **coletar os dados fiscais com a Edilse (reunião)** →
 Fase 6.
 
+### ✅ Ajuste — Juros/multa por lançamento e conta Tarifas Bancárias (migração 0005)
+
+Pedido da contadora (via João). **Juros e multa são saídas ADICIONAIS**, não um
+detalhamento da saída (opção aditiva, escolhida pelo João): a saída efetiva de
+uma linha é `saida + juros + multa`, e o saldo corrido, o saldo transportado, os
+totais do mês e a view `resumo_mensal`/`saldo_final_exercicio` somam os três. A
+constraint `entrada_xor_saida` passou a ser `(entrada>0) <> ((saida+juros+multa)>0)`
+— dá para ter linha só de penalidade (saida=0). No **cheque**, a retirada traz o
+total (principal+juros+multa) e as penalidades ficam na perna do pagamento.
+Colunas Juros/Multa na tabela e no formulário (`caixa/page.tsx`, componente
+`Celulas`). Catálogo ganhou **2.10.05 Tarifas Bancárias** (grupo Despesas
+Financeiras) + histórico "Pago tarifa bancária" — em `lib/planoContasPadrao.ts` e
+já inseridos no banco.
+
+### ⬜ Pessoa física / autônomo (em aberto)
+
+Cliente **pessoa física/autônomo** (ex.: **NÉLIO DIAS DOS SANTOS**, da Edilse) não
+tem CNPJ, inscrição estadual/municipal nem registro na Junta. Os campos fiscais já
+são **opcionais** (nullable, migração 0003), então dá para cadastrar deixando-os
+em branco. Falta decidir/implementar o tratamento "de verdade": um tipo
+física/jurídica que mostre **CPF** no lugar de CNPJ, esconda os campos que não se
+aplicam e adapte o **Termo de Abertura** (Fase 6) para PF.
+
 ### ⬜ Fase 6 — Documentos
 
 - PDF do **livro inteiro** com folhas numeradas (reusa o padrão de `lib/folhaPonto.ts`)
