@@ -4,8 +4,8 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **11/09/2026** (Conta Titular / Conta Analítica — o "histórico" virou
-seletor com lista por empresa, migração 0008)
+Última atualização: **11/09/2026** (faxina das analíticas: catálogo recriado do zero
+com "Recebido Atendimento", e correção do "Estado do banco" — há 57 lançamentos)
 
 ## Por que este módulo existe
 
@@ -471,6 +471,32 @@ reordenados — são a entrega oficial dela, então deixei para validar antes de
 aplicada lá). Verificado no banco: `empresa_historicos` responde, catálogo com 25
 analíticas (22 com titular). Falta só a validação visual da tela (login).
 
+### ✅ Limpeza das analíticas e conta "Recebido Atendimento" (dados, 11/09/2026)
+
+Pedido do João. **Não houve migração** — foi tudo operação de dados no remoto, via
+script supabase-js (mesma secret key das rotas, padrão de `lib/db.ts`). Na ordem:
+
+1. **Apagadas todas as analíticas do catálogo** (`historicos_padrao`, 25 linhas) para
+   recriar do zero. O `empresa_historicos` caiu junto por `on delete cascade`. Os
+   lançamentos **não** foram afetados: `lancamentos.historico` é texto solto, sem FK
+   para o catálogo, então cada linha manteve o texto que já tinha.
+2. **Renomeado o histórico dos lançamentos** `"Atendimento"` → `"Recebido Atendimento"`
+   (8 linhas, correspondência exata na coluna `historico`).
+3. **Criada a analítica "Recebido Atendimento"** no catálogo, sob a titular
+   `1.02.05 Receita de Atendimento` (natureza `receita`, herdada da titular — o mesmo
+   que `criarAnalitica` faz).
+4. **Vinculada à empresa dos lançamentos** (`225646d6-47f2-4a35-b9d1-cedc779723ce`,
+   exercício 2026) em `empresa_historicos`, para aparecer no topo do seletor.
+5. **Excluídas duas analíticas duplicadas "Atendimento"** que ainda constavam no
+   catálogo (mesma titular, natureza `receita`) — apareciam repetidas no seletor.
+
+Estado final do catálogo: **uma** analítica, "Recebido Atendimento". Lançamentos
+intactos, agora com o texto novo.
+
+**Descoberta no caminho (o doc estava errado):** o banco tem **57 lançamentos** — não
+"nenhum lançamento ainda", como esta doc afirmava. Ver "Estado do banco" abaixo,
+corrigido.
+
 ## Estado do banco
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e
@@ -485,10 +511,17 @@ a **0007 já aplicada** (a doc antes dizia pendente — estava desatualizada); s
 para a frente `npx supabase db push` resolve — não precisa mais colar SQL no
 dashboard. A `0003` criou `empresa_fiscal` (fiscal estável 1:1 por empresa).
 
-Conteúdo: 118 contas no catálogo, 24 históricos padrão, e **nenhum lançamento
-ainda** — as Fases 3 e 4 foram testadas de ponta a ponta na empresa `TESTE` e os
-dados de teste foram apagados depois. O exercício de janeiro/2026 nasce quando a
-primeira empresa abrir a tela.
+Conteúdo (11/09/2026): 118 contas no catálogo e **1 analítica** em
+`historicos_padrao` — "Recebido Atendimento" — depois da limpeza descrita acima (os
+24 históricos padrão originais do seed foram apagados nessa faxina). Há **57
+lançamentos** no banco, num exercício de 2026 da empresa
+`225646d6-47f2-4a35-b9d1-cedc779723ce`. (Versões anteriores desta doc diziam
+"nenhum lançamento ainda"; estava desatualizado — havia dados reais lá.)
+
+Para repovoar o catálogo padrão: `POST /api/caixa/seed` (master) recarrega as 118
+contas e recria os históricos de `lib/planoContasPadrao.ts` — mas atenção, ele
+**apaga e recria** `historicos_padrao` inteiro, então levaria embora a
+"Recebido Atendimento" criada à mão.
 
 O que o teste cobriu, em 23/07/2026: lançar entrada e saída, o cheque gerando os
 dois lançamentos na ordem certa (retirada antes do pagamento), as quatro recusas
