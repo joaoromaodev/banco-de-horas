@@ -4,8 +4,8 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **11/09/2026** (faxina das analíticas: catálogo recriado do zero
-com "Recebido Atendimento", e correção do "Estado do banco" — há 57 lançamentos)
+Última atualização: **11/09/2026** (padronização das analíticas do NÉLIO — uma por
+titular — e exclusão de 11 lançamentos órfãos de empresas de teste; 46 lançamentos)
 
 ## Por que este módulo existe
 
@@ -497,6 +497,44 @@ intactos, agora com o texto novo.
 "nenhum lançamento ainda", como esta doc afirmava. Ver "Estado do banco" abaixo,
 corrigido.
 
+### ✅ Padronização das analíticas do NÉLIO e faxina dos órfãos (dados, 11/09/2026)
+
+Pedido do João: padronizar as categorias (conta titular × analítica) a partir dos
+lançamentos reais do único cliente em uso, **NÉLIO DIAS DOS SANTOS** (clínica
+odontológica, PF/Carnê-Leão, `225646d6-47f2-4a35-b9d1-cedc779723ce`). De novo, **só
+dados**, sem migração.
+
+**Órfãos.** Dos 57 lançamentos, só **46 eram do NÉLIO**; os outros **11** estavam num
+exercício cujo `empresa_id` não existe mais em `empresas` (resíduo das empresas de
+teste apagadas — eram deles os "Vendas/Mercadorias/Compras de mercadorias/PIS p/
+salário" que pareciam categorias erradas). Excluídos os 11 lançamentos + 4 exercícios
+órfãos + 3 `meses_confirmados`, com **backup** em
+`scratchpad/backup-orfaos-2026-09-11.json` antes de apagar. Restaram os 46 do NÉLIO.
+
+**Decisões da padronização (confirmadas pelo João, em tese calls da Edilse):**
+
+| Conta Titular | Conta Analítica (texto padrão) | Qtd | Nota |
+|---|---|---|---|
+| 1.02.05 Receita de Atendimento | Recebido Atendimento | 8 | receita |
+| 2.02.02 Energia Elétrica | Pago conta de luz | 7 | |
+| 2.02.06 Material de Expediente | Pago material de expediente | 16 | ver Q1 |
+| 2.03.15 Condomínio | Pago aluguel do escritório | 3 | mantido em Condomínio (não movido p/ 2.03.01 Aluguel) |
+| 2.06.02 Serviços Prestados por PJ | Prótese | 9 | laboratório |
+| 2.11.04 Material de Consumo | Pago material de consumo | 2 | era "Consumo"/"Fornecedor" |
+| (sem titular) | Retirada de conta corrente | 1 | transferência; fora do catálogo |
+
+- **Q1 (material de expediente × consumo).** Definição do João: *expediente = material
+  administrativo* (mouse, teclado, papel, caneta); *consumo = insumo da atividade*.
+  Como os 16 tinham o texto "Pago material de expediente", os 15 que estavam em
+  `2.11.04 Material de Consumo` foram **re-apontados para `2.02.06 Material de
+  Expediente`** (`conta_id`). ⚠️ Se algum desses (total R$ 7.333,31) for insumo
+  clínico, é só reclassificar de volta.
+- **Uma analítica por titular, sem colisão.** Antes o mesmo texto aparecia sob duas
+  titulares. Agora cada titular tem um texto único.
+- **Catálogo.** As 6 analíticas padrão foram criadas em `historicos_padrao` (a de
+  Atendimento já existia) e **todas vinculadas a `empresa_historicos` do NÉLIO** —
+  aparecem no topo do seletor "Analíticas desta empresa".
+
 ## Estado do banco
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e
@@ -511,12 +549,13 @@ a **0007 já aplicada** (a doc antes dizia pendente — estava desatualizada); s
 para a frente `npx supabase db push` resolve — não precisa mais colar SQL no
 dashboard. A `0003` criou `empresa_fiscal` (fiscal estável 1:1 por empresa).
 
-Conteúdo (11/09/2026): 118 contas no catálogo e **1 analítica** em
-`historicos_padrao` — "Recebido Atendimento" — depois da limpeza descrita acima (os
-24 históricos padrão originais do seed foram apagados nessa faxina). Há **57
-lançamentos** no banco, num exercício de 2026 da empresa
-`225646d6-47f2-4a35-b9d1-cedc779723ce`. (Versões anteriores desta doc diziam
-"nenhum lançamento ainda"; estava desatualizado — havia dados reais lá.)
+Conteúdo (11/09/2026, após a padronização): 118 contas no catálogo e **6 analíticas**
+em `historicos_padrao`, todas vinculadas ao NÉLIO (Recebido Atendimento, Pago conta de
+luz, Pago material de expediente, Pago aluguel do escritório, Prótese, Pago material de
+consumo). Os 24 históricos padrão originais do seed foram apagados na faxina anterior.
+Há **46 lançamentos**, todos do NÉLIO (`225646d6-47f2-4a35-b9d1-cedc779723ce`),
+exercício 2026 — os 11 órfãos de empresas de teste foram excluídos. (Versões anteriores
+desta doc diziam "nenhum lançamento ainda"; estava desatualizado.)
 
 Para repovoar o catálogo padrão: `POST /api/caixa/seed` (master) recarrega as 118
 contas e recria os históricos de `lib/planoContasPadrao.ts` — mas atenção, ele
