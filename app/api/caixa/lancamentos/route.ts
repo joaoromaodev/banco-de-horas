@@ -8,7 +8,8 @@ import { NextRequest } from 'next/server';
 import { ehGestor, exigirEmpresa, exigirSessao, podeAcessarEmpresa } from '@/lib/acesso';
 import {
   empresaDoLancamento, ErroCaixa, garantirExercicio, HISTORICO_RETIRADA_CHEQUE,
-  lancamentosDoMes, mesesConfirmados, saldoTransportado, validarLancamento, vincularConta,
+  lancamentosDoMes, mesesConfirmados, saldoTransportado, validarLancamento,
+  vincularConta, vincularHistorico,
 } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
 
@@ -122,8 +123,10 @@ export async function POST(req: NextRequest) {
     const { data, error } = await getDb().from('lancamentos').insert(linhas).select('id');
     if (error) throw new ErroCaixa(traduzir(error.message), 400);
 
-    // É isto que mantém a lista de contas aberta: usou, entrou na lista da empresa.
+    // É isto que mantém as listas abertas: usou, entrou na lista da empresa —
+    // tanto a titular (conta) quanto a analítica (histórico).
     if (l.contaId) await vincularConta(empresa, l.contaId);
+    if (l.historicoId) await vincularHistorico(empresa, l.historicoId);
 
     return Response.json({ ok: true, criados: data?.length ?? 0 });
   } catch (e) {
@@ -171,6 +174,7 @@ export async function PATCH(req: NextRequest) {
     if (error) throw new ErroCaixa(traduzir(error.message), 400);
 
     if (l.contaId) await vincularConta(dono.empresaId, l.contaId);
+    if (l.historicoId) await vincularHistorico(dono.empresaId, l.historicoId);
     return Response.json({ ok: true });
   } catch (e) {
     return falha(e);

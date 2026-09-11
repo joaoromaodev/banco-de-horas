@@ -9,7 +9,7 @@
 // sendo só da contadora.
 import { NextRequest } from 'next/server';
 import { exigirEmpresa, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
-import { contasDaEmpresa, ErroCaixa, historicosPadrao, vincularConta } from '@/lib/caixa';
+import { contasDaEmpresa, ErroCaixa, historicosDaEmpresa, vincularConta } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -24,16 +24,19 @@ export async function GET(req: NextRequest) {
   const g = await exigirEmpresa(req, empresa);
   if (!g.ok) return g.resposta;
   try {
-    const [todas, historicosTodos] = await Promise.all([contasDaEmpresa(empresa), historicosPadrao()]);
+    const [todas, historicosTodos] = await Promise.all([contasDaEmpresa(empresa), historicosDaEmpresa(empresa)]);
 
-    // O cliente não navega o catálogo inteiro: ele só pode usar as contas da
-    // própria empresa. A lista aberta (as 118 do catálogo) é só da contabilidade.
+    // O cliente não navega o catálogo inteiro: ele só usa as contas titulares e
+    // as analíticas da própria empresa. A lista aberta (o catálogo completo) é só
+    // da contabilidade.
     if (g.sessao.role === 'cliente') {
       const contas = todas.filter((c) => c.daEmpresa);
       const dela = new Set(contas.map((c) => c.id));
-      // Um histórico padrão pode sugerir conta fora do conjunto dela — não vaza:
-      // some a sugestão, o cliente escolhe entre as próprias.
-      const historicos = historicosTodos.map((h) => (h.contaId && dela.has(h.contaId) ? h : { ...h, contaId: null }));
+      // Só as analíticas dele; e se alguma apontar para titular fora do conjunto
+      // dele, some a titular sugerida (não vaza) — ele escolhe entre as próprias.
+      const historicos = historicosTodos
+        .filter((h) => h.daEmpresa)
+        .map((h) => (h.contaId && dela.has(h.contaId) ? h : { ...h, contaId: null }));
       return Response.json({ contas, historicos });
     }
 

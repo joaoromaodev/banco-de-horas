@@ -12,12 +12,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
+import SeletorAnalitica, { Historico } from './SeletorAnalitica';
 import { IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeExcluir, IconeLapis, IconeSino } from '../icones';
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; identificaPagador?: boolean; }
-interface Historico { texto: string; natureza: 'receita' | 'despesa'; contaId: string | null; }
+// `Historico` (a Conta Analítica) vem de ./SeletorAnalitica.
 
 interface Lancamento {
   id: string; data: string; historico: string; complemento: string | null; contaId: string | null;
@@ -41,10 +42,10 @@ const PRIMEIRO_EXERCICIO = 2026; // a contadora começa o sistema em janeiro/202
 const faltaMigracao = (msg: string) =>
   /could not find the table|does not exist|schema cache/i.test(msg);
 
-interface Campos { data: string; historico: string; complemento: string; contaId: string | null; entrada: string; saida: string; juros: string; multa: string; pagadorNome: string; pagadorDocumento: string; }
+interface Campos { data: string; historico: string; historicoId: string | null; complemento: string; contaId: string | null; entrada: string; saida: string; juros: string; multa: string; pagadorNome: string; pagadorDocumento: string; }
 
 const vazio = (data: string): Campos =>
-  ({ data, historico: '', complemento: '', contaId: null, entrada: '', saida: '', juros: '', multa: '', pagadorNome: '', pagadorDocumento: '' });
+  ({ data, historico: '', historicoId: null, complemento: '', contaId: null, entrada: '', saida: '', juros: '', multa: '', pagadorNome: '', pagadorDocumento: '' });
 
 /** Data que o formulário sugere: hoje, se hoje cair no mês aberto; senão o dia 1º. */
 function dataPadrao(ano: number, mes: number): string {
@@ -311,13 +312,21 @@ export default function Caixa() {
 
   async function recarregarContas() {
     const r = await fetch(`/api/caixa/contas?empresa=${encodeURIComponent(empresaSel)}`);
-    if (r.ok) { const d = await r.json(); setContas(d.contas ?? []); }
+    if (r.ok) { const d = await r.json(); setContas(d.contas ?? []); setHistoricos(d.historicos ?? []); }
   }
 
   async function criarConta(nome: string, grupo: string): Promise<Conta | null> {
     const d = await chamar('/api/caixa/contas', { method: 'POST', body: JSON.stringify({ empresa: empresaSel, nome, grupo }) });
     await recarregarContas();
     return d.conta ?? null;
+  }
+
+  /** Cria uma analítica nova sob a titular corrente (só a contabilidade). */
+  async function criarAnalitica(texto: string, contaId: string | null): Promise<Historico | null> {
+    if (!contaId) throw new Error('Escolha a conta titular antes de criar a analítica.');
+    const d = await chamar('/api/caixa/historicos', { method: 'POST', body: JSON.stringify({ empresa: empresaSel, texto, contaId }) });
+    await recarregarContas();
+    return d.historico ?? null;
   }
 
   // ---------------------------------------------------------------- derivados
@@ -494,11 +503,11 @@ export default function Caixa() {
             <thead>
               <tr className="bg-slate-50 text-slate-600">
                 <th className="border-b px-2 py-2 text-left">Data</th>
-                <th className="border-b px-2 py-2 text-left">Histórico</th>
                 <th className="border-b px-2 py-2 text-left">Complemento</th>
                 {identificaPagador && <th className="border-b px-2 py-2 text-left">Cliente/Paciente</th>}
                 {identificaPagador && <th className="border-b px-2 py-2 text-left">CPF/CNPJ</th>}
-                <th className="border-b px-2 py-2 text-left">Conta</th>
+                <th className="border-b px-2 py-2 text-left">Conta Titular</th>
+                <th className="border-b px-2 py-2 text-left">Conta Analítica</th>
                 <th className="border-b px-2 py-2 text-right">Entrada</th>
                 <th className="border-b px-2 py-2 text-right">Saída</th>
                 <th className="border-b px-2 py-2 text-right">Juros</th>
@@ -517,7 +526,7 @@ export default function Caixa() {
               {linhas.map(({ l, saldo }) => editandoId === l.id ? (
                 <tr key={l.id} className="bg-petroleo-50/40">
                   <Celulas campos={edicao} setCampos={setEdicao} contas={contas} historicos={historicos}
-                    podeCriar={ehGestor} onCriar={criarConta} identificaPagador={identificaPagador} />
+                    podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
                   <td className="border-b px-2 py-1 text-right text-slate-400">—</td>
                   <td className="whitespace-nowrap border-b px-2 py-1 text-center">
                     <button onClick={salvarEdicao} disabled={salvando} className="text-petroleo-700 hover:underline disabled:opacity-50">Salvar</button>
@@ -527,7 +536,6 @@ export default function Caixa() {
               ) : (
                 <tr key={l.id} className={l.conferidoEm ? '' : 'bg-sky-50'}>
                   <td className="whitespace-nowrap border-b px-2 py-1.5">{diaMes(l.data)}</td>
-                  <td className="border-b px-2 py-1.5">{l.historico}</td>
                   <td className="border-b px-2 py-1.5 text-slate-500">{l.complemento}</td>
                   {identificaPagador && <td className="border-b px-2 py-1.5 text-slate-600">{l.pagadorNome}</td>}
                   {identificaPagador && (
@@ -541,6 +549,7 @@ export default function Caixa() {
                   <td className={`border-b px-2 py-1.5 ${l.contaId ? 'text-slate-600' : 'text-amber-700'}`}>
                     {rotuloConta(contas, l.contaId)}
                   </td>
+                  <td className="border-b px-2 py-1.5">{l.historico}</td>
                   <td className="border-b px-2 py-1.5 text-right text-emerald-700">{l.entrada > 0 ? dinheiro(l.entrada) : ''}</td>
                   <td className="border-b px-2 py-1.5 text-right text-red-700">{l.saida > 0 ? dinheiro(l.saida) : ''}</td>
                   <td className="border-b px-2 py-1.5 text-right text-red-700">{l.juros > 0 ? dinheiro(l.juros) : ''}</td>
@@ -559,8 +568,11 @@ export default function Caixa() {
                     )}
                     <button onClick={() => {
                       setEditandoId(l.id);
+                      const hMatch = historicos.find((h) => h.texto === l.historico && h.contaId === l.contaId)
+                        ?? historicos.find((h) => h.texto === l.historico);
                       setEdicao({
-                        data: l.data, historico: l.historico, complemento: l.complemento ?? '',
+                        data: l.data, historico: l.historico, historicoId: hMatch?.id ?? null,
+                        complemento: l.complemento ?? '',
                         contaId: l.contaId, entrada: l.entrada > 0 ? String(l.entrada) : '',
                         saida: l.saida > 0 ? String(l.saida) : '',
                         juros: l.juros > 0 ? String(l.juros) : '',
@@ -588,7 +600,7 @@ export default function Caixa() {
             <tfoot>
               <tr className="bg-slate-50">
                 <Celulas campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
-                  podeCriar={ehGestor} onCriar={criarConta} identificaPagador={identificaPagador} />
+                  podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
                 <td className="px-2 py-1 text-right font-medium text-slate-700">{dinheiro(dados?.saldoFinal ?? 0)}</td>
                 <td className="px-2 py-1 text-center">
                   <button onClick={lancar} disabled={salvando || !empresaSel}
@@ -642,17 +654,28 @@ export default function Caixa() {
 }
 
 /** As células editáveis, iguais na linha nova e na linha em edição. */
-function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, identificaPagador }: {
+function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, onCriarAnalitica, identificaPagador }: {
   campos: Campos; setCampos: (c: Campos) => void; contas: Conta[]; historicos: Historico[];
   podeCriar: boolean; onCriar: (nome: string, grupo: string) => Promise<Conta | null>;
+  onCriarAnalitica: (texto: string, contaId: string | null) => Promise<Historico | null>;
   identificaPagador: boolean;
 }) {
   // Aviso, não trava: documento com dígito verificador inválido fica em âmbar.
   const docInvalido = !!campos.pagadorDocumento && !documentoValido(campos.pagadorDocumento);
-  /** Escolher um histórico padrão já traz a conta que ele sugere. */
-  function mudarHistorico(texto: string) {
-    const sugestao = historicos.find((h) => h.texto === texto);
-    setCampos({ ...campos, historico: texto, contaId: sugestao && !campos.contaId ? sugestao.contaId : campos.contaId });
+
+  /** Trocar a titular limpa a analítica se ela deixou de pertencer à nova titular. */
+  function escolherTitular(id: string | null) {
+    const atual = campos.historicoId ? historicos.find((h) => h.id === campos.historicoId) : null;
+    if (atual && atual.contaId !== id) {
+      setCampos({ ...campos, contaId: id, historico: '', historicoId: null });
+    } else {
+      setCampos({ ...campos, contaId: id });
+    }
+  }
+
+  /** Escolher a analítica preenche a titular à qual ela pertence (subgrupo dela). */
+  function escolherAnalitica(h: Historico) {
+    setCampos({ ...campos, historico: h.texto, historicoId: h.id, contaId: h.contaId ?? campos.contaId });
   }
 
   return (
@@ -660,13 +683,6 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, id
       <td className="border-b px-1 py-1">
         <input type="date" value={campos.data} onChange={(e) => setCampos({ ...campos, data: e.target.value })}
           className="w-full rounded border border-slate-300 px-1 py-0.5" />
-      </td>
-      <td className="border-b px-1 py-1">
-        <input list="historicos-caixa" value={campos.historico} onChange={(e) => mudarHistorico(e.target.value)}
-          placeholder="Histórico" className="w-full min-w-40 rounded border border-slate-300 px-1 py-0.5" />
-        <datalist id="historicos-caixa">
-          {historicos.map((h) => <option key={h.texto} value={h.texto} />)}
-        </datalist>
       </td>
       <td className="border-b px-1 py-1">
         <input value={campos.complemento} onChange={(e) => setCampos({ ...campos, complemento: e.target.value })}
@@ -688,8 +704,13 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, id
       )}
       <td className="border-b px-1 py-1 min-w-48">
         <SeletorConta contas={contas} valor={campos.contaId} compacto
-          onEscolher={(id) => setCampos({ ...campos, contaId: id })}
+          onEscolher={escolherTitular}
           podeCriar={podeCriar} onCriar={onCriar} />
+      </td>
+      <td className="border-b px-1 py-1 min-w-44">
+        <SeletorAnalitica historicos={historicos} valor={campos.historico || null} titularId={campos.contaId} compacto
+          onEscolher={escolherAnalitica}
+          podeCriar={podeCriar} onCriar={(texto) => onCriarAnalitica(texto, campos.contaId)} />
       </td>
       <td className="border-b px-1 py-1">
         {/* entrada e saída se excluem: digitar numa apaga a outra */}

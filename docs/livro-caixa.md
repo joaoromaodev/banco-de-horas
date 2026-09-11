@@ -4,7 +4,8 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **04/09/2026** (Fase 6 concluída — documentos: livro em PDF e .xlsx)
+Última atualização: **11/09/2026** (Conta Titular / Conta Analítica — o "histórico" virou
+seletor com lista por empresa, migração 0008)
 
 ## Por que este módulo existe
 
@@ -421,14 +422,65 @@ para o estável — as da 0001 seguem mortas (limpeza opcional numa migração f
 (CLI linkado ao `zxjeibkttmacpuukvyzo`). Se o Supabase estiver **pausado** (plano
 grátis), `Restore` no dashboard primeiro.
 
+### ✅ Conta Titular / Conta Analítica — histórico virou seletor por empresa (migração 0008)
+
+Pedido do João (11/09/2026). Dois ajustes que andam juntos:
+
+**1. Nomenclatura, para casar com o sistema que a contadora já usa.** O que o
+livro chamava de **Conta** virou **Conta Titular** (a conta do plano, `N.GG.CC`),
+e o que chamava de **Histórico** virou **Conta Analítica** — o subgrupo da
+titular. A ordem das colunas também mudou: a Analítica passou a vir **logo depois**
+da Titular (antes o "histórico" abria a linha). Só rótulo e ordem na **tela**;
+o dado gravado (`lancamentos.historico`) segue sendo o texto da analítica.
+
+**2. A analítica virou seletor rico, igual ao da titular.** Antes era um
+`datalist` global (a mesma lista para toda empresa, sem criar item novo). Agora é
+um modal com **"Analíticas desta empresa"** no topo, o **catálogo completo** e o
+**+ criar** (só a contadora) — o gêmeo de `SeletorConta`.
+
+A relação "analítica é subgrupo da titular" **já existia nos dados**: cada linha
+de `historicos_padrao` aponta para a conta que sugere (`conta_id`). Passou a valer
+de verdade na UI:
+
+- Escolhida uma titular, a lista de analíticas mostra **só os subgrupos dela**
+  (filtra por `conta_id`); sem titular ainda, mostra o catálogo todo.
+- Escolher a analítica **preenche a titular** à qual ela pertence.
+- Trocar a titular **limpa** a analítica se ela deixou de pertencer à nova.
+
+Como cada decisão virou código:
+
+| Decisão / fonte | Onde |
+|---|---|
+| Lista de analíticas **por empresa** | migração `0008`: `empresa_historicos` (empresa_id, historico_id), espelha `empresa_contas`. RLS ligada sem policies |
+| "Usou, entrou na lista da empresa" | `vincularHistorico` na rota de lançamentos (POST/PATCH), como `vincularConta`. O form manda `historicoId` |
+| Catálogo + criar nova (**só a contadora**) | `POST /api/caixa/historicos` (gestor) → `criarAnalitica`: cria sob a titular, natureza herdada dela, e já vincula |
+| Cliente não navega o catálogo | `GET /api/caixa/contas` filtra as analíticas para as `daEmpresa` (igual às contas) |
+| Rótulos e ordem na tela | `app/(app)/caixa/page.tsx` (cabeçalho, `Celulas`) + `app/(app)/caixa/SeletorAnalitica.tsx` (novo) |
+
+**Transição (mesma armadilha das contas):** o cliente só enxerga as analíticas
+`daEmpresa`. Empresa nova nasce sem vínculo em `empresa_historicos`, então quem
+monta a lista dela é a **contabilidade** (usando/criando analíticas), exatamente
+como já acontece com as contas. Não trava nada agora porque **ainda não há
+lançamento**.
+
+**Ainda como estava (follow-up, se a contadora quiser):** o **PDF/.xlsx** do livro
+(Fase 6) ainda rotulam as colunas como "HISTÓRICO"/"CONTA" e não foram
+reordenados — são a entrega oficial dela, então deixei para validar antes de mexer.
+
+**Estado:** a **0008** foi aplicada no remoto em 11/09/2026 (a 0007 já constava
+aplicada lá). Verificado no banco: `empresa_historicos` responde, catálogo com 25
+analíticas (22 com titular). Falta só a validação visual da tela (login).
+
 ## Estado do banco
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e
 **usuarios** do Sheets para cá (tabelas novas, `lib/cadastro.ts`); `0005` juros/multa
-nos lançamentos; `0006` `tipo_pessoa` nas empresas. A **`0007`** (flag
-`identifica_pagador` + `pagador_nome`/`pagador_documento`) está **criada mas ainda
-não aplicada** — rode `npx supabase db push --linked`. `supabase migration list`
-batia com a pasta até a 0006. O CLI está
+nos lançamentos; `0006` `tipo_pessoa` nas empresas; `0007` (flag
+`identifica_pagador` + `pagador_nome`/`pagador_documento`). A **`0008`**
+(`empresa_historicos` — a lista de analíticas por empresa) foi **aplicada em
+11/09/2026** (`db push --linked`). Na ocasião o `migration list` do remoto mostrou
+a **0007 já aplicada** (a doc antes dizia pendente — estava desatualizada); só a
+0008 subiu. `supabase migration list` bate com a pasta até a 0008. O CLI está
 **logado na conta certa e linkado** ao projeto `zxjeibkttmacpuukvyzo`, então daqui
 para a frente `npx supabase db push` resolve — não precisa mais colar SQL no
 dashboard. A `0003` criou `empresa_fiscal` (fiscal estável 1:1 por empresa).

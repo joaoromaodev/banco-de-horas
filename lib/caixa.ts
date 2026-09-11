@@ -159,11 +159,18 @@ export async function salvarTermo(exercicioId: string, d: Partial<DadosTermo>): 
   if (error) throw new ErroCaixa(`exercicios: ${error.message}`, 502);
 }
 
-/** Histórico que a UI oferece pronto, já com a conta que ele sugere. */
+/**
+ * Conta Analítica — o que a planilha da contadora chama de "histórico". É um
+ * subgrupo da Conta Titular (a conta do plano): `contaId` é a titular a que ela
+ * pertence. A UI oferece a lista pronta, com as da empresa marcadas (igual às
+ * contas). Analítica sem titular (`contaId` nulo) é movimentação bancária.
+ */
 export interface HistoricoCaixa {
+  id: string;
   texto: string;
   natureza: 'receita' | 'despesa';
   contaId: string | null;
+  daEmpresa: boolean;
 }
 
 // Numeric do Postgres pode chegar como string dependendo do driver — normaliza.
@@ -240,11 +247,57 @@ export async function vincularConta(empresaId: string, contaId: string): Promise
   if (error) throw new ErroCaixa(`empresa_contas: ${error.message}`, 502);
 }
 
-export async function historicosPadrao(): Promise<HistoricoCaixa[]> {
+/** Catálogo de analíticas, com as da empresa marcadas (e no topo, na UI). */
+export async function historicosDaEmpresa(empresaId: string): Promise<HistoricoCaixa[]> {
   const db = getDb();
-  const { data, error } = await db.from('historicos_padrao').select('texto, natureza, conta_id').order('ordem');
-  if (error) throw new ErroCaixa(`historicos_padrao: ${error.message}`, 502);
-  return (data ?? []).map((h) => ({ texto: h.texto, natureza: h.natureza, contaId: h.conta_id }));
+  const [cat, vinculos] = await Promise.all([
+    db.from('historicos_padrao').select('id, texto, natureza, conta_id').order('ordem'),
+    db.from('empresa_historicos').select('historico_id').eq('empresa_id', empresaId),
+  ]);
+  if (cat.error) throw new ErroCaixa(`historicos_padrao: ${cat.error.message}`, 502);
+  if (vinculos.error) throw new ErroCaixa(`empresa_historicos: ${vinculos.error.message}`, 502);
+
+  const usadas = new Set((vinculos.data ?? []).map((v) => v.historico_id as string));
+  return (cat.data ?? []).map((h) => ({
+    id: h.id, texto: h.texto, natureza: h.natureza, contaId: h.conta_id, daEmpresa: usadas.has(h.id),
+  }));
+}
+
+/**
+ * Põe a analítica na lista da empresa. Espelha `vincularConta`: usou num
+ * lançamento, entrou na lista "desta empresa".
+ */
+export async function vincularHistorico(empresaId: string, historicoId: string): Promise<void> {
+  const db = getDb();
+  const { error } = await db
+    .from('empresa_historicos')
+    .upsert({ empresa_id: empresaId, historico_id: historicoId }, { onConflict: 'empresa_id,historico_id', ignoreDuplicates: true });
+  if (error) throw new ErroCaixa(`empresa_historicos: ${error.message}`, 502);
+}
+
+/**
+ * Cria uma analítica nova no catálogo, sob uma titular, e já a vincula à empresa.
+ * A natureza sai da titular (a analítica é subgrupo dela). Só a contadora cria —
+ * a autorização é da rota.
+ */
+export async function criarAnalitica(empresaId: string, texto: string, contaId: string): Promise<HistoricoCaixa> {
+  const db = getDb();
+  const { data: conta, error: errConta } = await db
+    .from('plano_contas').select('id, natureza').eq('id', contaId).maybeSingle();
+  if (errConta) throw new ErroCaixa(`plano_contas: ${errConta.message}`, 502);
+  if (!conta) throw new ErroCaixa('Conta titular não encontrada no catálogo.');
+
+  // Entra no fim da lista (ordem = maior + 1), para não se intrometer entre as padrão.
+  const { data: ult } = await db.from('historicos_padrao').select('ordem').order('ordem', { ascending: false }).limit(1);
+  const ordem = (Number(ult?.[0]?.ordem) || 0) + 1;
+
+  const { data: nova, error: errIns } = await db.from('historicos_padrao')
+    .insert({ texto, natureza: conta.natureza, conta_id: contaId, ordem })
+    .select('id, texto, natureza, conta_id').single();
+  if (errIns) throw new ErroCaixa(`historicos_padrao: ${errIns.message}`, 502);
+
+  await vincularHistorico(empresaId, nova.id);
+  return { id: nova.id, texto: nova.texto, natureza: nova.natureza, contaId: nova.conta_id, daEmpresa: true };
 }
 
 /** Lançamentos de um mês, na ordem em que aparecem no livro. */
@@ -326,6 +379,8 @@ export function paraValor(v: unknown): number {
 export interface EntradaLancamento {
   data: string;
   historico: string;
+  /** Id da analítica escolhida no catálogo, quando houver — só para vincular à empresa. */
+  historicoId: string | null;
   complemento: string | null;
   contaId: string | null;
   entrada: number;
@@ -343,7 +398,8 @@ export function validarLancamento(body: Record<string, unknown>, ano: number): E
   if (Number(data.slice(0, 4)) !== ano) throw new ErroCaixa(`A data tem que ser do exercício de ${ano}.`);
 
   const historico = String(body.historico ?? '').trim();
-  if (!historico) throw new ErroCaixa('Informe o histórico.');
+  if (!historico) throw new ErroCaixa('Informe a conta analítica.');
+  const historicoId = String(body.historicoId ?? '').trim() || null;
 
   const entrada = paraValor(body.entrada);
   const saida = paraValor(body.saida);
@@ -367,7 +423,7 @@ export function validarLancamento(body: Record<string, unknown>, ano: number): E
   const doc = String(body.pagadorDocumento ?? '').replace(/\D/g, '');
   const pagadorDocumento = doc || null;
   return {
-    data, historico, complemento, contaId,
+    data, historico, historicoId, complemento, contaId,
     entrada: cent(entrada), saida: cent(saida), juros: cent(juros), multa: cent(multa),
     pagadorNome, pagadorDocumento,
   };
