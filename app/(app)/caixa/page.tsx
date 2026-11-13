@@ -731,10 +731,9 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, on
         <input aria-label="Cliente ou paciente" value={campos.pagadorNome} onChange={(e) => setCampos({ ...campos, pagadorNome: e.target.value })}
           placeholder="Cliente/Paciente" className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-full min-w-36')}`} />)}
       {identificaPagador && envolver('CPF/CNPJ',
-        <input aria-label="CPF ou CNPJ" value={campos.pagadorDocumento} onChange={(e) => setCampos({ ...campos, pagadorDocumento: e.target.value })}
+        <input aria-label={docInvalido ? 'CPF ou CNPJ — dígito inválido, confira' : 'CPF ou CNPJ'} value={campos.pagadorDocumento} onChange={(e) => setCampos({ ...campos, pagadorDocumento: e.target.value })}
           inputMode="numeric" placeholder="CPF/CNPJ"
           data-dica={docInvalido ? 'CPF/CNPJ com dígito inválido — confira (não bloqueia)' : undefined}
-          aria-description={docInvalido ? 'CPF/CNPJ com dígito inválido — confira (não bloqueia)' : undefined}
           className={`${CAMPO_LINHA} ${larg('w-full min-w-32')} ${docInvalido ? 'border-aviso bg-aviso-suave' : BORDA_CAMPO}`} />)}
       {envolver('Conta Titular',
         <SeletorConta contas={contas} valor={campos.contaId} compacto

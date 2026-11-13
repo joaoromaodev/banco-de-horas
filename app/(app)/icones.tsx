@@ -22,7 +22,7 @@ export function IconeLapis({ size = 16, className }: Props) {
   );
 }
 
-/** X — excluir (pinte de vermelho no uso: `text-red-600`). */
+/** X — excluir (pinte de vermelho no uso: `text-perigo`, ou <BotaoIcone tom="perigo">). */
 export function IconeExcluir({ size = 16, className }: Props) {
   return (
     <svg {...base(size)} className={className} aria-hidden="true">

@@ -354,9 +354,8 @@ export default function Home() {
                                   value={(d[campo] as string) ?? ''}
                                   onChange={(e) => editar(d.dia, campo, e.target.value)}
                                   placeholder="--:--"
-                                  aria-label={`${CAMPO_LABEL[campo]} do dia ${d.dia}`}
+                                  aria-label={`${CAMPO_LABEL[campo]} do dia ${d.dia}${dica ? ` — ${dica}` : ''}`}
                                   aria-invalid={a?.nivel === 'erro' ? true : undefined}
-                                  aria-description={dica}
                                   data-dica={dica}
                                   className={`h-8 w-[4.25rem] rounded-md border bg-superficie px-1 text-center text-tinta transition-colors placeholder:text-tinta-fraca focus:border-foco ${cls}`}
                                 />

@@ -11,7 +11,12 @@ import {
   retornoSugerido, Situacao, Trajeto, validar, vencimento1, vencimento2,
 } from '@/lib/contratos';
 import { DialogoConfirmacao } from '../Dialogo';
-import { IconeDesfazer, IconeExcluir } from '../icones';
+import { IconeBaixar, IconeDesfazer, IconeExcluir, IconeMais } from '../icones';
+import {
+  Aviso, Botao, BotaoIcone, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, Marcacao, Secao, Selo, Tom,
+} from '@/components/ui';
+import { EntradaSugestoes, Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 
 interface Empresa { id: string; nome: string; trabalhaSabado: boolean; jornadaUtilMin?: number; jornadaSabadoMin?: number }
 interface Funcionario { nome: string; cargo?: string | null }
@@ -19,34 +24,9 @@ interface Funcionario { nome: string; cargo?: string | null }
 const ROTULO_SITUACAO: Record<Situacao, string> = {
   experiencia: 'Em experiência', efetivado: 'Efetivado', encerrado: 'Encerrado',
 };
-const COR_SITUACAO: Record<Situacao, string> = {
-  experiencia: 'bg-amber-50 text-amber-800', efetivado: 'bg-emerald-50 text-emerald-700', encerrado: 'bg-slate-100 text-slate-600',
-};
+const TOM_SITUACAO: Record<Situacao, Tom> = { experiencia: 'aviso', efetivado: 'sucesso', encerrado: 'neutro' };
 const NOME_DIA: Record<Dia, string> = { SEG: 'Segunda', TER: 'Terça', QUA: 'Quarta', QUI: 'Quinta', SEX: 'Sexta', SAB: 'Sábado' };
 const ESTADOS_CIVIS = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União estável'];
-
-const inp = 'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-petroleo-500 focus:ring-2 focus:ring-petroleo-100';
-
-function Campo({ rotulo, children, className = '' }: { rotulo: string; children: React.ReactNode; className?: string }) {
-  return (
-    <label className={`block ${className}`}>
-      <span className="mb-1 block text-xs font-medium text-slate-600">{rotulo}</span>
-      {children}
-    </label>
-  );
-}
-
-function Secao({ titulo, children, extra }: { titulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-800">{titulo}</h2>
-        {extra}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function nomeDoArquivo(cd: string | null, padrao: string) {
   const m = cd && /filename\*=UTF-8''([^;]+)/i.exec(cd);
@@ -309,195 +289,176 @@ export default function ContratosPage() {
 
   return (
     <div className="text-sm">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Contrato de Experiência</h1>
-          <p className="text-xs text-slate-500">Contrato, declaração de vale-transporte e aviso de término a partir de um cadastro só</p>
-        </div>
-        <select value={empresaSel} onChange={(e) => trocarEmpresa(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1">
-          {empresas.length === 0 && <option value="">— nenhuma empresa —</option>}
-          {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-        </select>
-      </header>
+      <CabecalhoPagina titulo="Contrato de Experiência"
+        subtitulo="Contrato, declaração de vale-transporte e aviso de término a partir de um cadastro só"
+        acoes={
+          <Selecao aria-label="Empresa" largura="w-60 max-w-full" valor={empresaSel} onChange={(v) => trocarEmpresa(v)}
+            placeholder="— nenhuma empresa —"
+            opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
+        } />
 
-      <div className="space-y-4 p-6">
-        {semTabela && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
-            O banco ainda não tem a tabela de contratos (migração <code>0009</code> pendente). Os documentos já podem ser
-            gerados normalmente; salvar e os alertas de vencimento ficam disponíveis depois da migração.
-          </p>
-        )}
-        {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
-        {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
-
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+        {msg && <Toast onFechar={() => setMsg(null)}>{msg}</Toast>}
         {desfazer && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
-            <span>Contrato excluído — {desfazer.dados.nome}.</span>
-            <button onClick={desfazerExclusao}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-petroleo-300 bg-white px-2.5 py-1 font-medium text-petroleo-700 hover:border-petroleo-500">
-              <IconeDesfazer size={15} /> Desfazer
-            </button>
-          </div>
+          <Toast tom="info" onFechar={() => setDesfazer(null)}
+            acao={<Botao tamanho="sm" variante="tonal" icone={<IconeDesfazer size={15} />} onClick={desfazerExclusao}>Desfazer</Botao>}>
+            Contrato excluído — {desfazer.dados.nome}.
+          </Toast>
+        )}
+      </Toasts>
+
+      <Conteudo>
+        {semTabela && (
+          <Aviso tom="aviso">
+            O banco ainda não tem a tabela de contratos (migração <code className="font-mono text-xs">0009</code> pendente). Os documentos já podem ser
+            gerados normalmente; salvar e os alertas de vencimento ficam disponíveis depois da migração.
+          </Aviso>
         )}
 
         {alertas.length > 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
-            <div className="mb-1 font-medium">Vencimentos de experiência</div>
-            <ul className="space-y-0.5">
+          <Aviso tom="aviso" titulo="Vencimentos de experiência">
+            <ul className="mt-1 space-y-1">
               {alertas.map(({ c, a }) => (
                 <li key={c.id}>
-                  <button onClick={() => abrir(c)} className="text-left underline-offset-2 hover:underline">
+                  <button type="button" onClick={() => abrir(c)} className="rounded text-left underline-offset-2 hover:underline">
                     <strong>{c.dados.nome}</strong> — {a.marco} {a.tipo === 'vencido'
-                      ? <span className="font-semibold text-red-700">venceu em {br(a.data)}: marque como efetivado ou encerrado</span>
+                      ? <span className="font-semibold text-perigo">venceu em {br(a.data)}: marque como efetivado ou encerrado</span>
                       : <>vence em {br(a.data)} ({a.dias === 0 ? 'hoje' : a.dias === 1 ? 'amanhã' : `em ${a.dias} dias`})</>}
                   </button>
                 </li>
               ))}
             </ul>
-          </div>
+          </Aviso>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
           {/* ---------------------------------------------------- lista */}
-          <aside className="space-y-2">
-            <button onClick={() => { novo(); setMsg(null); setErro(null); }}
-              className="w-full rounded-lg bg-petroleo-900 px-3 py-2 font-medium text-white hover:bg-petroleo-800">
-              + Novo contrato
-            </button>
+          <aside className="space-y-3" aria-label="Contratos salvos">
+            <Botao className="w-full" icone={<IconeMais />} onClick={() => { novo(); setMsg(null); setErro(null); }}>
+              Novo contrato
+            </Botao>
             {contratos.length > 5 && (
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo nome…" className={inp} />
+              <Entrada aria-label="Buscar contrato pelo nome" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo nome…" />
             )}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {filtrados.length === 0 && (
-                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500">
-                  {semTabela ? 'Salvar ainda indisponível.' : 'Nenhum contrato salvo para esta empresa.'}
-                </p>
+                <EstadoVazio titulo={semTabela ? 'Salvar ainda indisponível.' : 'Nenhum contrato salvo para esta empresa.'} />
               )}
               {filtrados.map((c) => (
                 <div key={c.id}
-                  className={`group rounded-lg border bg-white px-3 py-2 ${editandoId === c.id ? 'border-petroleo-600 ring-2 ring-petroleo-100' : 'border-slate-200 hover:border-petroleo-300'}`}>
+                  className={`rounded-xl border bg-superficie px-3 py-2.5 shadow-cartao transition-colors ${editandoId === c.id ? 'border-primaria ring-2 ring-petroleo-100' : 'border-borda hover:border-borda-forte'}`}>
                   <div className="flex items-start justify-between gap-2">
-                    <button onClick={() => abrir(c)} className="min-w-0 flex-1 text-left">
-                      <div className="truncate font-medium text-slate-800">{c.dados.nome}</div>
-                      <div className="text-xs text-slate-500">
+                    <button type="button" onClick={() => abrir(c)} aria-current={editandoId === c.id ? 'true' : undefined}
+                      className="min-w-0 flex-1 rounded text-left">
+                      <div className="truncate font-medium text-tinta">{c.dados.nome}</div>
+                      <div className="text-xs text-tinta-suave">
                         {c.dados.funcao || '—'} · adm. {br(c.dados.admissao)}
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-tinta-suave">
                         vence {br(vencimento1(c.dados))}{vencimento2(c.dados) ? ` · prorr. ${br(vencimento2(c.dados)!)}` : ''}
                       </div>
                     </button>
-                    <button onClick={() => setExcluindo(c)} title="Excluir contrato" aria-label="Excluir contrato"
-                      className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                    <BotaoIcone tamanho="sm" tom="perigo" rotulo="Excluir contrato" onClick={() => setExcluindo(c)}>
                       <IconeExcluir size={15} />
-                    </button>
+                    </BotaoIcone>
                   </div>
-                  <select value={c.situacao} onChange={(e) => mudarSituacao(c, e.target.value as Situacao)}
-                    className={`mt-1.5 rounded px-1.5 py-0.5 text-xs ${COR_SITUACAO[c.situacao]}`}>
-                    {(Object.keys(ROTULO_SITUACAO) as Situacao[]).map((s) => <option key={s} value={s}>{ROTULO_SITUACAO[s]}</option>)}
-                  </select>
+                  <div className="mt-2">
+                    <Selecao aparencia="selo" tom={TOM_SITUACAO[c.situacao]} aria-label={`Situação do contrato de ${c.dados.nome}`}
+                      valor={c.situacao} onChange={(v) => mudarSituacao(c, v as Situacao)}
+                      opcoes={(Object.keys(ROTULO_SITUACAO) as Situacao[]).map((s) => ({ valor: s, rotulo: ROTULO_SITUACAO[s] }))} />
+                  </div>
                 </div>
               ))}
             </div>
           </aside>
 
           {/* ---------------------------------------------------- formulário */}
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-slate-600">
-                {editandoId ? <>Editando <strong>{d.nome || 'contrato'}</strong></> : 'Novo contrato'}
-                {sujo && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">alterações não salvas</span>}
-              </div>
+          <div className="min-w-0 space-y-5">
+            <div className="flex flex-wrap items-center gap-2 text-tinta-suave">
+              <span>{editandoId ? <>Editando <strong className="text-tinta">{d.nome || 'contrato'}</strong></> : 'Novo contrato'}</span>
+              {sujo && <Selo tom="aviso">alterações não salvas</Selo>}
             </div>
 
             <Secao titulo="Empregadora">
-              <div className="grid gap-3 md:grid-cols-[2fr_3fr_1fr]">
-                <Campo rotulo="Razão social"><input className={inp} value={d.empresaNome} onChange={(e) => mudar('empresaNome', e.target.value)} /></Campo>
-                <Campo rotulo="Endereço da sede (vai no contrato)">
-                  <input className={inp} value={d.empresaEndereco} placeholder="Rua Três de Maio, nº 253 – Bairro de São Brás – Belém/PA"
-                    onChange={(e) => mudar('empresaEndereco', e.target.value)} />
-                </Campo>
-                <Campo rotulo="Cidade da assinatura"><input className={inp} value={d.cidade} onChange={(e) => mudar('cidade', e.target.value)} /></Campo>
+              <div className="grid gap-4 md:grid-cols-[2fr_3fr_1fr]">
+                <Entrada rotulo="Razão social" value={d.empresaNome} onChange={(e) => mudar('empresaNome', e.target.value)} />
+                <Entrada rotulo="Endereço da sede (vai no contrato)" value={d.empresaEndereco}
+                  placeholder="Rua Três de Maio, nº 253 – Bairro de São Brás – Belém/PA"
+                  onChange={(e) => mudar('empresaEndereco', e.target.value)} />
+                <Entrada rotulo="Cidade da assinatura" value={d.cidade} onChange={(e) => mudar('cidade', e.target.value)} />
               </div>
             </Secao>
 
             <Secao titulo="Empregado">
-              <div className="grid gap-3 md:grid-cols-4">
-                <Campo rotulo="Nome completo" className="md:col-span-2">
-                  <input className={inp} list="lista-funcionarios" value={d.nome} onChange={(e) => escolherNome(e.target.value)} />
-                  <datalist id="lista-funcionarios">
-                    {funcionarios.map((f) => <option key={f.nome} value={f.nome} />)}
-                  </datalist>
-                </Campo>
-                <Campo rotulo="Tratamento">
-                  <select className={inp} value={d.sexo} onChange={(e) => mudar('sexo', e.target.value as 'M' | 'F')}>
-                    <option value="M">Sr. (masculino)</option>
-                    <option value="F">Sra. (feminino)</option>
-                  </select>
-                </Campo>
-                <Campo rotulo="CPF"><input className={inp} value={d.cpf} onChange={(e) => mudar('cpf', e.target.value)} placeholder="000.000.000-00" /></Campo>
-                <Campo rotulo="CTPS digital nº"><input className={inp} value={d.ctps} onChange={(e) => mudar('ctps', e.target.value)} /></Campo>
-                <Campo rotulo="UF da CTPS"><input className={inp} maxLength={2} value={d.ctpsUf} onChange={(e) => mudar('ctpsUf', e.target.value.toUpperCase())} /></Campo>
-                <Campo rotulo="Estado civil">
-                  <input className={inp} list="lista-estado-civil" value={d.estadoCivil} onChange={(e) => mudar('estadoCivil', e.target.value)} />
-                  <datalist id="lista-estado-civil">{ESTADOS_CIVIS.map((x) => <option key={x} value={x} />)}</datalist>
-                </Campo>
-                <Campo rotulo="Nacionalidade">
-                  <input className={inp} value={d.nacionalidade} placeholder={d.sexo === 'F' ? 'Brasileira' : 'Brasileiro'}
-                    onChange={(e) => mudar('nacionalidade', e.target.value)} />
-                </Campo>
+              <div className="grid gap-4 md:grid-cols-4">
+                <EntradaSugestoes rotulo="Nome completo" classeCampo="md:col-span-2" value={d.nome} onChange={escolherNome}
+                  sugestoes={funcionarios.map((f) => f.nome)} />
+                <Selecao rotulo="Tratamento" valor={d.sexo} onChange={(v) => mudar('sexo', v as 'M' | 'F')}
+                  opcoes={[{ valor: 'M', rotulo: 'Sr. (masculino)' }, { valor: 'F', rotulo: 'Sra. (feminino)' }]} />
+                <Entrada rotulo="CPF" value={d.cpf} onChange={(e) => mudar('cpf', e.target.value)} placeholder="000.000.000-00" inputMode="numeric" />
+                <Entrada rotulo="CTPS digital nº" value={d.ctps} onChange={(e) => mudar('ctps', e.target.value)} />
+                <Entrada rotulo="UF da CTPS" maxLength={2} value={d.ctpsUf} onChange={(e) => mudar('ctpsUf', e.target.value.toUpperCase())} />
+                <EntradaSugestoes rotulo="Estado civil" value={d.estadoCivil} onChange={(v) => mudar('estadoCivil', v)} sugestoes={ESTADOS_CIVIS} />
+                <Entrada rotulo="Nacionalidade" value={d.nacionalidade} placeholder={d.sexo === 'F' ? 'Brasileira' : 'Brasileiro'}
+                  onChange={(e) => mudar('nacionalidade', e.target.value)} />
               </div>
             </Secao>
 
             <Secao titulo="Contrato">
-              <div className="grid gap-3 md:grid-cols-4">
-                <Campo rotulo="Função" className="md:col-span-2"><input className={inp} value={d.funcao} onChange={(e) => mudar('funcao', e.target.value)} /></Campo>
-                <Campo rotulo="Salário (R$)">
-                  <input className={inp} inputMode="decimal" value={d.salario} onChange={(e) => mudar('salario', e.target.value)} onBlur={sairDoSalario} placeholder="1.518,00" />
-                </Campo>
-                <Campo rotulo="Profissão (declaração de VT)">
-                  <input className={inp} value={d.profissao} placeholder={d.funcao || 'igual à função'} onChange={(e) => mudar('profissao', e.target.value)} />
-                </Campo>
-                <Campo rotulo="Salário por extenso" className="md:col-span-4">
-                  <input className={inp} value={d.salarioExtenso} onChange={(e) => mudar('salarioExtenso', e.target.value)} />
-                </Campo>
-                <Campo rotulo="Admissão (= assinatura)"><input type="date" className={inp} value={d.admissao} onChange={(e) => mudar('admissao', e.target.value)} /></Campo>
-                <Campo rotulo="1º período (dias)">
-                  <input type="number" min={1} max={90} className={inp} value={d.diasPeriodo} onChange={(e) => mudar('diasPeriodo', Number(e.target.value))} />
-                </Campo>
-                <Campo rotulo="Prorrogação (dias, 0 = sem)">
-                  <input type="number" min={0} max={89} className={inp} value={d.diasProrrogacao} onChange={(e) => mudar('diasProrrogacao', Number(e.target.value))} />
-                </Campo>
-                <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                  <div>Vence em <strong className="text-slate-800">{br(v1) || '—'}</strong></div>
-                  <div>Prorrogado até <strong className="text-slate-800">{v2 ? br(v2) : '—'}</strong></div>
-                  <div>Total {d.diasPeriodo + d.diasProrrogacao} de 90 dias</div>
-                </div>
+              <div className="grid gap-4 md:grid-cols-4">
+                <Entrada rotulo="Função" classeCampo="md:col-span-2" value={d.funcao} onChange={(e) => mudar('funcao', e.target.value)} />
+                <Entrada rotulo="Salário (R$)" inputMode="decimal" value={d.salario} onChange={(e) => mudar('salario', e.target.value)}
+                  onBlur={sairDoSalario} placeholder="1.518,00" />
+                <Entrada rotulo="Profissão (declaração de VT)" value={d.profissao} placeholder={d.funcao || 'igual à função'}
+                  onChange={(e) => mudar('profissao', e.target.value)} />
+                <Entrada rotulo="Salário por extenso" classeCampo="md:col-span-4" value={d.salarioExtenso}
+                  onChange={(e) => mudar('salarioExtenso', e.target.value)} />
+                <Entrada rotulo="Admissão (= assinatura)" type="date" value={d.admissao} onChange={(e) => mudar('admissao', e.target.value)} />
+                <Entrada rotulo="1º período (dias)" type="number" min={1} max={90} value={d.diasPeriodo}
+                  onChange={(e) => mudar('diasPeriodo', Number(e.target.value))} />
+                <Entrada rotulo="Prorrogação (dias, 0 = sem)" type="number" min={0} max={89} value={d.diasProrrogacao}
+                  onChange={(e) => mudar('diasProrrogacao', Number(e.target.value))} />
+                <dl className="grid grid-cols-[auto_1fr] content-center gap-x-2 gap-y-0.5 rounded-lg bg-superficie-suave px-3 py-2 text-xs text-tinta-suave ring-1 ring-inset ring-borda">
+                  <dt>Vence em</dt><dd className="font-semibold text-tinta">{br(v1) || '—'}</dd>
+                  <dt>Prorrogado até</dt><dd className="font-semibold text-tinta">{v2 ? br(v2) : '—'}</dd>
+                  <dt>Total</dt><dd>{d.diasPeriodo + d.diasProrrogacao} de 90 dias</dd>
+                </dl>
               </div>
             </Secao>
 
             <Secao titulo="Horário de trabalho"
-              extra={<button onClick={copiarSegunda} className="text-xs text-petroleo-700 hover:underline">Copiar segunda para os dias úteis</button>}>
+              acoes={<Botao tamanho="sm" variante="fantasma" onClick={copiarSegunda}>Copiar segunda para os dias úteis</Botao>}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-xs text-slate-500">
-                    <tr><th className="pb-1 text-left font-medium">Dia</th><th className="pb-1 text-left font-medium">Folga</th>
-                      <th className="pb-1 text-left font-medium">Entrada</th><th className="pb-1 text-left font-medium">Saída</th>
-                      <th className="pb-1 text-left font-medium">Intervalo</th></tr>
+                  <thead className="text-left text-[11px] uppercase tracking-wider text-tinta-suave">
+                    <tr>
+                      <th className="pb-2 pr-3 font-semibold">Dia</th><th className="pb-2 pr-3 font-semibold">Folga</th>
+                      <th className="pb-2 pr-2 font-semibold">Entrada</th><th className="pb-2 pr-2 font-semibold">Saída</th>
+                      <th className="pb-2 font-semibold">Intervalo</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {DIAS.map((dia) => {
                       const h = d.horario[dia];
                       return (
-                        <tr key={dia} className="border-t border-slate-100">
-                          <td className="py-1 pr-3 text-slate-700">{NOME_DIA[dia]}</td>
-                          <td className="py-1 pr-3"><input type="checkbox" checked={h.folga} onChange={(e) => mudarDia(dia, 'folga', e.target.checked)} /></td>
-                          <td className="py-1 pr-2"><input type="time" disabled={h.folga} className={`${inp} w-28`} value={h.entrada} onChange={(e) => mudarDia(dia, 'entrada', e.target.value)} /></td>
-                          <td className="py-1 pr-2"><input type="time" disabled={h.folga} className={`${inp} w-28`} value={h.saida} onChange={(e) => mudarDia(dia, 'saida', e.target.value)} /></td>
-                          <td className="py-1">
-                            <div className="flex items-center gap-1">
-                              <input type="time" disabled={h.folga} className={`${inp} w-28`} value={h.intervaloInicio} onChange={(e) => mudarDia(dia, 'intervaloInicio', e.target.value)} />
-                              <span className="text-slate-400">–</span>
-                              <input type="time" disabled={h.folga} className={`${inp} w-28`} value={h.intervaloFim} onChange={(e) => mudarDia(dia, 'intervaloFim', e.target.value)} />
+                        <tr key={dia} className="border-t border-borda/70">
+                          <td className="py-1.5 pr-3 font-medium text-tinta">{NOME_DIA[dia]}</td>
+                          <td className="py-1.5 pr-3">
+                            <input type="checkbox" aria-label={`Folga na ${NOME_DIA[dia].toLowerCase()}`} checked={h.folga}
+                              onChange={(e) => mudarDia(dia, 'folga', e.target.checked)} />
+                          </td>
+                          <td className="py-1.5 pr-2"><Entrada type="time" tamanho="sm" largura="w-28" disabled={h.folga} aria-label={`Entrada, ${NOME_DIA[dia]}`}
+                            value={h.entrada} onChange={(e) => mudarDia(dia, 'entrada', e.target.value)} /></td>
+                          <td className="py-1.5 pr-2"><Entrada type="time" tamanho="sm" largura="w-28" disabled={h.folga} aria-label={`Saída, ${NOME_DIA[dia]}`}
+                            value={h.saida} onChange={(e) => mudarDia(dia, 'saida', e.target.value)} /></td>
+                          <td className="py-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Entrada type="time" tamanho="sm" largura="w-28" disabled={h.folga} aria-label={`Início do intervalo, ${NOME_DIA[dia]}`}
+                                value={h.intervaloInicio} onChange={(e) => mudarDia(dia, 'intervaloInicio', e.target.value)} />
+                              <span className="text-tinta-fraca" aria-hidden="true">–</span>
+                              <Entrada type="time" tamanho="sm" largura="w-28" disabled={h.folga} aria-label={`Fim do intervalo, ${NOME_DIA[dia]}`}
+                                value={h.intervaloFim} onChange={(e) => mudarDia(dia, 'intervaloFim', e.target.value)} />
                             </div>
                           </td>
                         </tr>
@@ -506,93 +467,90 @@ export default function ContratosPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                <label className="flex items-center gap-1">Repouso semanal
-                  <input className={`${inp} w-20 py-1`} value={d.repouso} onChange={(e) => mudar('repouso', e.target.value.toUpperCase())} />
-                </label>
-                {sem != null && <span>Total semanal: <strong className="text-slate-700">{Math.floor(sem / 60)}h{sem % 60 ? String(sem % 60).padStart(2, '0') : ''}</strong></span>}
+              <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3 text-[13px] text-tinta-suave">
+                <Entrada rotulo="Repouso semanal" tamanho="sm" largura="w-24" value={d.repouso} onChange={(e) => mudar('repouso', e.target.value.toUpperCase())} />
+                {sem != null && <span className="pb-1.5">Total semanal: <strong className="text-tinta">{Math.floor(sem / 60)}h{sem % 60 ? String(sem % 60).padStart(2, '0') : ''}</strong></span>}
               </div>
             </Secao>
 
             <Secao titulo="Vale-transporte">
-              <div className="mb-3 flex flex-wrap gap-4">
+              <div role="radiogroup" aria-label="Vale-transporte" className="mb-4 flex flex-wrap gap-x-6 gap-y-2">
                 {([['nao', 'Não recebe'], ['sim', 'Recebe vale-transporte'], ['', 'Deixar em branco (marca à mão)']] as const).map(([v, r]) => (
-                  <label key={v} className="flex items-center gap-1.5">
-                    <input type="radio" name="vt" checked={d.vt === v} onChange={() => mudar('vt', v)} /> {r}
-                  </label>
+                  <Marcacao key={v} type="radio" name="vt" checked={d.vt === v} onChange={() => mudar('vt', v)}>{r}</Marcacao>
                 ))}
               </div>
-              <div className="grid gap-3 md:grid-cols-6">
-                <Campo rotulo="Endereço residencial" className="md:col-span-3"><input className={inp} value={d.endRua} onChange={(e) => mudar('endRua', e.target.value)} /></Campo>
-                <Campo rotulo="Nº"><input className={inp} value={d.endNum} onChange={(e) => mudar('endNum', e.target.value)} /></Campo>
-                <Campo rotulo="Bairro" className="md:col-span-2"><input className={inp} value={d.endBairro} onChange={(e) => mudar('endBairro', e.target.value)} /></Campo>
-                <Campo rotulo="Cidade" className="md:col-span-3"><input className={inp} value={d.endCidade} onChange={(e) => mudar('endCidade', e.target.value)} /></Campo>
-                <Campo rotulo="CEP" className="md:col-span-2"><input className={inp} value={d.endCep} onChange={(e) => mudar('endCep', e.target.value)} /></Campo>
-                <Campo rotulo="UF"><input className={inp} maxLength={2} value={d.endUf} onChange={(e) => mudar('endUf', e.target.value.toUpperCase())} /></Campo>
+              <div className="grid gap-4 md:grid-cols-6">
+                <Entrada rotulo="Endereço residencial" classeCampo="md:col-span-3" value={d.endRua} onChange={(e) => mudar('endRua', e.target.value)} />
+                <Entrada rotulo="Nº" value={d.endNum} onChange={(e) => mudar('endNum', e.target.value)} />
+                <Entrada rotulo="Bairro" classeCampo="md:col-span-2" value={d.endBairro} onChange={(e) => mudar('endBairro', e.target.value)} />
+                <Entrada rotulo="Cidade" classeCampo="md:col-span-3" value={d.endCidade} onChange={(e) => mudar('endCidade', e.target.value)} />
+                <Entrada rotulo="CEP" classeCampo="md:col-span-2" value={d.endCep} onChange={(e) => mudar('endCep', e.target.value)} />
+                <Entrada rotulo="UF" maxLength={2} value={d.endUf} onChange={(e) => mudar('endUf', e.target.value.toUpperCase())} />
               </div>
               {d.vt === 'sim' && (
-                <div className="mt-3 grid gap-4 md:grid-cols-2">
-                  {(['ida', 'volta'] as const).map((qual) => (
-                    <div key={qual}>
-                      <div className="mb-1 text-xs font-medium text-slate-600">{qual === 'ida' ? 'Residência → trabalho' : 'Trabalho → residência'}</div>
-                      {d[qual].map((t, i) => (
-                        <div key={i} className="mb-1 grid grid-cols-[1fr_1.4fr_0.8fr] gap-1">
-                          <input className={inp} placeholder="Linha" value={t.linha} onChange={(e) => mudarTrajeto(qual, i, 'linha', e.target.value)} />
-                          <input className={inp} placeholder="Empresa operadora" value={t.operadora} onChange={(e) => mudarTrajeto(qual, i, 'operadora', e.target.value)} />
-                          <input className={inp} placeholder="Tarifa" value={t.tarifa} onChange={(e) => mudarTrajeto(qual, i, 'tarifa', e.target.value)} />
-                        </div>
-                      ))}
-                    </div>
-                  ))}
+                <div className="mt-5 grid gap-5 md:grid-cols-2">
+                  {(['ida', 'volta'] as const).map((qual) => {
+                    const sentido = qual === 'ida' ? 'Residência → trabalho' : 'Trabalho → residência';
+                    return (
+                      <fieldset key={qual}>
+                        <legend className="mb-1.5 text-[13px] font-medium text-tinta">{sentido}</legend>
+                        {d[qual].map((t, i) => (
+                          <div key={i} className="mb-1.5 grid grid-cols-[1fr_1.4fr_0.8fr] gap-1.5">
+                            <Entrada tamanho="sm" placeholder="Linha" aria-label={`${sentido}: linha ${i + 1}`} value={t.linha} onChange={(e) => mudarTrajeto(qual, i, 'linha', e.target.value)} />
+                            <Entrada tamanho="sm" placeholder="Empresa operadora" aria-label={`${sentido}: operadora ${i + 1}`} value={t.operadora} onChange={(e) => mudarTrajeto(qual, i, 'operadora', e.target.value)} />
+                            <Entrada tamanho="sm" placeholder="Tarifa" aria-label={`${sentido}: tarifa ${i + 1}`} value={t.tarifa} onChange={(e) => mudarTrajeto(qual, i, 'tarifa', e.target.value)} />
+                          </div>
+                        ))}
+                      </fieldset>
+                    );
+                  })}
                 </div>
               )}
             </Secao>
 
             <Secao titulo="Aviso de término (quando não for efetivar)">
-              <div className="grid gap-3 md:grid-cols-3">
-                <Campo rotulo="Término do contrato">
-                  <input type="date" className={inp} value={d.termino} onChange={(e) => mudar('termino', e.target.value)} />
-                  <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                    <button onClick={() => mudar('termino', v1)} className="text-petroleo-700 hover:underline">fim do 1º período</button>
-                    {v2 && <button onClick={() => mudar('termino', v2)} className="text-petroleo-700 hover:underline">fim da prorrogação</button>}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Entrada rotulo="Término do contrato" type="date" value={d.termino} onChange={(e) => mudar('termino', e.target.value)} />
+                  <div className="-ml-2 mt-1 flex flex-wrap">
+                    <Botao tamanho="sm" variante="fantasma" onClick={() => mudar('termino', v1)}>fim do 1º período</Botao>
+                    {v2 && <Botao tamanho="sm" variante="fantasma" onClick={() => mudar('termino', v2)}>fim da prorrogação</Botao>}
                   </div>
-                </Campo>
-                <Campo rotulo="Retorno para receber a rescisão">
-                  <input type="date" className={inp} value={d.retorno} onChange={(e) => mudar('retorno', e.target.value)} />
-                  <div className="mt-1 text-xs text-slate-500">Até 10 dias após o término (CLT art. 477 §6).</div>
-                </Campo>
-                <Campo rotulo="Data do aviso"><input type="date" className={inp} value={d.dataAviso} onChange={(e) => mudar('dataAviso', e.target.value)} /></Campo>
+                </div>
+                <Entrada rotulo="Retorno para receber a rescisão" type="date" value={d.retorno} onChange={(e) => mudar('retorno', e.target.value)}
+                  dica="Até 10 dias após o término (CLT art. 477 §6)." />
+                <Entrada rotulo="Data do aviso" type="date" value={d.dataAviso} onChange={(e) => mudar('dataAviso', e.target.value)} />
               </div>
             </Secao>
 
             {listaAvisos.length > 0 && (
-              <ul className="list-disc space-y-0.5 rounded-lg border border-amber-200 bg-amber-50 py-2 pl-7 pr-3 text-amber-900">
-                {listaAvisos.map((a) => <li key={a}>{a}</li>)}
-              </ul>
+              <Aviso tom="aviso" titulo="Confira antes de gerar">
+                <ul className="list-disc space-y-0.5 pl-4">
+                  {listaAvisos.map((a) => <li key={a}>{a}</li>)}
+                </ul>
+              </Aviso>
             )}
 
             {/* ---------------------------------------------------- ações */}
-            <div className="sticky bottom-0 -mx-6 flex flex-wrap items-center gap-2 border-t border-slate-200 bg-white/95 px-6 py-3 backdrop-blur">
-              <button onClick={salvar} disabled={!!ocupado || semTabela}
-                title={semTabela ? 'Aguardando a migração 0009 no banco' : undefined}
-                className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white hover:bg-petroleo-800 disabled:opacity-50">
-                {ocupado === 'salvar' ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Salvar contrato'}
-              </button>
-              <span className="mx-1 h-6 w-px bg-slate-200" />
+            <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-borda bg-superficie/95 p-3 shadow-flutuante backdrop-blur">
+              <span data-dica={semTabela ? 'Aguardando a migração 0009 no banco' : undefined}>
+                <Botao variante="primaria" onClick={salvar} carregando={ocupado === 'salvar'} disabled={!!ocupado || semTabela}>
+                  {ocupado === 'salvar' ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Salvar contrato'}
+                </Botao>
+              </span>
+              <span className="mx-1 hidden h-6 w-px bg-borda sm:block" aria-hidden="true" />
               {([['contrato', 'Contrato'], ['vale', 'Declaração de VT'], ['encerramento', 'Aviso de término']] as const).map(([doc, r]) => (
-                <button key={doc} onClick={() => baixar(doc)} disabled={!!ocupado}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-700 hover:border-petroleo-500 disabled:opacity-50">
-                  {ocupado === doc ? 'Gerando…' : `⬇ ${r}`}
-                </button>
+                <Botao key={doc} onClick={() => baixar(doc)} carregando={ocupado === doc} disabled={!!ocupado} icone={<IconeBaixar />}>
+                  {ocupado === doc ? 'Gerando…' : r}
+                </Botao>
               ))}
-              <button onClick={() => baixar('todos')} disabled={!!ocupado}
-                className="rounded-lg border border-petroleo-300 bg-petroleo-50 px-3 py-2 font-medium text-petroleo-700 hover:border-petroleo-500 disabled:opacity-50">
-                {ocupado === 'todos' ? 'Gerando…' : '⬇ Admissão completa (.zip)'}
-              </button>
+              <Botao variante="tonal" onClick={() => baixar('todos')} carregando={ocupado === 'todos'} disabled={!!ocupado} icone={<IconeBaixar />}>
+                {ocupado === 'todos' ? 'Gerando…' : 'Admissão completa (.zip)'}
+              </Botao>
             </div>
           </div>
         </div>
-      </div>
+      </Conteudo>
 
       {excluindo && (
         <DialogoConfirmacao
