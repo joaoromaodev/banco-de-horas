@@ -21,7 +21,9 @@ admite muita gente por experiência. Ela mandou três modelos do Word:
 
 - Página `/contratos` (só gestor: master/contabilidade). O `cliente` não alcança
   porque nem `/contratos` nem `/api/contratos` estão em `CLIENTE_PODE`, e as rotas
-  chamam `exigirGestor` + `podeAcessarEmpresa`.
+  chamam `exigirGestor` + `podeAcessarEmpresa`. Fica atrás do módulo **`ponto`**
+  (`ROTAS_PONTO` em `proxy.ts`) e aparece no menu no grupo da Folha de Ponto —
+  é departamento pessoal da mesma contadora; um contador só-caixa não vê.
 - Um formulário só (empregadora, empregado, contrato, horário, VT, aviso) gera
   os três `.docx` ou um `.zip` com todos (`POST /api/contratos/documento`).
   **Gerar não depende de salvar** — funciona mesmo sem a tabela no banco.
@@ -33,7 +35,8 @@ admite muita gente por experiência. Ela mandou três modelos do Word:
 - Exclusão: confirmação + **desfazer** (exclusão lógica, `excluido_em`).
 - Pré-preenchimentos: razão social e horário vêm do cadastro da empresa
   (jornada e "trabalha sábado"); endereço da sede e cidade vêm do último
-  contrato salvo da empresa (ou do navegador); nome sugere os funcionários do
+  contrato salvo da empresa, senão do cadastro fiscal (`empresa_fiscal`), senão
+  do navegador; nome sugere os funcionários do
   cadastro do ponto e puxa o cargo para a função.
 
 ## Regras de data (lib/contratos.ts)
@@ -71,13 +74,10 @@ runtime é um replace de string com escape de XML.
 
 - ✅ Etapa 1 (12/11/2026): página, geração dos três documentos, cadastro salvo,
   alertas de vencimento, exclusão com desfazer.
-- ⚠️ **Migração `0009` ainda não aplicada no Supabase** — o CLI desta máquina
-  está logado numa conta sem permissão no projeto `zxjeibkttmacpuukvyzo`.
-  Aplicar com `npx supabase login` (conta dona do projeto) → `npx supabase link
-  --project-ref zxjeibkttmacpuukvyzo` → `npx supabase migration list` →
-  `npx supabase db push`; ou colar o SQL de
-  `supabase/migrations/0009_contratos_experiencia.sql` no SQL Editor. Até lá a
-  página avisa e só não salva.
+- ✅ Migração `0009` aplicada em produção (12/11/2026). Ela nasceu como `0003`
+  num checkout com `main` desatualizado — o remoto já ia até `0008`. Lição:
+  **`git fetch` + `supabase migration list --remote` antes de numerar migração.**
+  No CLI v3 o `db push` precisa de `--remote` (sem ele tenta o banco local).
 - ⬜ Validar com a Edilse o layout impresso dos três documentos.
 
 ## Ideias para depois (não pedidas)
@@ -85,5 +85,5 @@ runtime é um replace de string com escape de XML.
 - Alertas de vencimento de **todas** as empresas no topo (hoje é por empresa).
 - Aviso no Timesheet/menu quando houver contrato vencendo.
 - PDF direto (hoje sai `.docx`, que ela edita/imprime no Word).
-- Entrar no módulo `ponto` (ou um módulo `dp`) quando a Fase 5, Parte A, do
-  `docs/livro-caixa.md` criar a liberação de módulos por contador.
+- Módulo próprio `dp` em vez de pegar carona no `ponto`, se algum contador
+  quiser contratos sem a folha de ponto.

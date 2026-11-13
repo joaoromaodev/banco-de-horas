@@ -46,3 +46,7 @@ create index if not exists contratos_experiencia_empresa
 
 -- RLS ligada e sem policies: só a secret key (servidor) lê — igual ao caixa.
 alter table contratos_experiencia enable row level security;
+
+-- PostgREST guarda o schema em cache: sem isto a tabela nova só aparece na API
+-- depois de um restart.
+notify pgrst, 'reload schema';
