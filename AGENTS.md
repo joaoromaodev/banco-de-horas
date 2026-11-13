@@ -6,12 +6,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Este projeto
 
-Dois módulos, com bancos diferentes:
+Módulos, com bancos diferentes:
 
 - **Folha de ponto** (`/`, `/folhas`) — foto da folha manuscrita → OCR com Gemini →
   revisão → `.xlsx`. Persiste no **Google Sheets**. Exclusivo da contabilidade.
 - **Livro Caixa** (`/caixa`) — a empresa-cliente lança o movimento, a contadora
   concilia. Persiste no **Postgres (Supabase)**. Em construção.
+- **Contrato de Experiência** (`/contratos`) — gera contrato, declaração de VT e
+  aviso de término a partir dos modelos `.docx` da contadora; lembra vencimentos.
+  Persiste no **Postgres**. Exclusivo da contabilidade. Antes de mexer, leia
+  [`docs/contratos-experiencia.md`](docs/contratos-experiencia.md) (templates não
+  podem ser editados no Word).
 
 Três papéis — `master`, `usuario` (contabilidade) e `cliente` (empresa). O `cliente`
 segue **lista de permissão** em `proxy.ts`: o que não está em `CLIENTE_PODE` ele não
