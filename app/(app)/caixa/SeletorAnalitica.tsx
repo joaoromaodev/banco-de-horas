@@ -11,6 +11,9 @@
 // Criar analítica que **não existe no catálogo** é só da contadora, e sempre sob
 // a titular corrente (a natureza sai dela).
 import { useMemo, useState } from 'react';
+import { Modal } from '../Dialogo';
+import { IconeBusca, IconeMais } from '../icones';
+import { Botao, controleCls, Entrada, EstadoVazio } from '@/components/ui';
 
 export interface Historico {
   id: string;
@@ -82,77 +85,77 @@ export default function SeletorAnalitica({ historicos, valor, titularId, onEscol
       <button
         type="button"
         onClick={abrir}
-        title={valor ?? 'Escolher conta analítica…'}
-        className={`w-full truncate rounded border px-1.5 text-left ${compacto ? 'py-0.5' : 'py-1'} ${
-          valor ? 'border-slate-300 bg-white text-slate-700' : 'border-amber-300 bg-amber-50 text-amber-800'
-        } hover:border-petroleo-500`}
+        data-dica={valor ?? 'Escolher conta analítica…'}
+        aria-haspopup="dialog"
+        className={`w-full truncate rounded-md border px-2 text-left text-base transition-colors sm:text-[13px] ${compacto ? 'h-8' : 'h-9'} ${
+          valor
+            ? 'border-borda-forte bg-superficie text-tinta hover:border-tinta-suave'
+            : 'border-aviso-borda bg-aviso-suave text-aviso hover:border-aviso'
+        }`}
       >
         {valor || 'Escolher conta analítica…'}
       </button>
 
       {aberto && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/30 p-4 pt-16"
-          onClick={() => setAberto(false)}>
-          <div className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-slate-200 p-3">
-              <input
-                autoFocus
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setAberto(false);
-                  if (e.key === 'Enter') {
-                    const primeira = minhas[0] ?? resto[0];
-                    if (primeira) escolher(primeira);
-                  }
-                }}
-                placeholder="Buscar conta analítica…"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600"
-              />
-            </div>
+        <Modal onFechar={() => setAberto(false)} rotulo="Escolher conta analítica" largura="max-w-xl">
+          <div className="relative border-b border-borda p-3">
+            <IconeBusca size={16} className="pointer-events-none absolute left-6 top-1/2 -translate-y-1/2 text-tinta-fraca" />
+            <input
+              autoFocus
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setAberto(false);
+                if (e.key === 'Enter') {
+                  const primeira = minhas[0] ?? resto[0];
+                  if (primeira) escolher(primeira);
+                }
+              }}
+              aria-label="Buscar conta analítica"
+              placeholder="Buscar conta analítica…"
+              className={controleCls({ tamanho: 'lg', className: 'pl-10' })}
+            />
+          </div>
 
-            <div className="max-h-[50vh] overflow-y-auto text-sm">
-              {minhas.length > 0 && (
-                <Secao titulo="Analíticas desta empresa">
-                  {minhas.map((h) => <Item key={h.id} h={h} sel={h.texto === valor} onClick={() => escolher(h)} />)}
-                </Secao>
-              )}
-              {resto.length > 0 && (
-                <Secao titulo={minhas.length ? 'Catálogo completo' : 'Catálogo'}>
-                  {resto.map((h) => <Item key={h.id} h={h} sel={h.texto === valor} onClick={() => escolher(h)} />)}
-                </Secao>
-              )}
-              {minhas.length === 0 && resto.length === 0 && (
-                <p className="px-4 py-6 text-center text-slate-400">
-                  {titularId ? 'Nenhuma analítica para esta titular.' : 'Nenhuma analítica encontrada.'}
-                </p>
-              )}
-            </div>
-
-            {podeCriar && onCriar && (
-              <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-3">
-                {criando ? (
-                  <div className="space-y-2 rounded-lg border border-slate-300 bg-white p-2">
-                    <input value={textoNovo} onChange={(e) => setTextoNovo(e.target.value)}
-                      placeholder="Texto da analítica (ex.: Atendimento)"
-                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs" />
-                    {erro && <p className="text-xs text-red-600">{erro}</p>}
-                    <div className="flex gap-2">
-                      <button type="button" onClick={criar} className="rounded bg-petroleo-900 px-3 py-1 text-xs text-white">Criar e usar</button>
-                      <button type="button" onClick={() => setCriando(false)} className="rounded border border-slate-300 px-3 py-1 text-xs">Cancelar</button>
-                    </div>
-                    <p className="text-xs text-slate-400">Entra como subgrupo da conta titular escolhida.</p>
-                  </div>
-                ) : titularId ? (
-                  <button type="button" onClick={() => setCriando(true)}
-                    className="text-xs text-petroleo-700 hover:underline">+ Criar conta analítica no catálogo</button>
-                ) : (
-                  <p className="text-xs text-slate-400">Escolha a conta titular para poder criar uma analítica nova.</p>
-                )}
-              </div>
+          <div className="max-h-[50vh] overflow-y-auto text-sm">
+            {minhas.length > 0 && (
+              <Secao titulo="Analíticas desta empresa">
+                {minhas.map((h) => <Item key={h.id} h={h} sel={h.texto === valor} onClick={() => escolher(h)} />)}
+              </Secao>
+            )}
+            {resto.length > 0 && (
+              <Secao titulo={minhas.length ? 'Catálogo completo' : 'Catálogo'}>
+                {resto.map((h) => <Item key={h.id} h={h} sel={h.texto === valor} onClick={() => escolher(h)} />)}
+              </Secao>
+            )}
+            {minhas.length === 0 && resto.length === 0 && (
+              <EstadoVazio moldura={false}
+                titulo={titularId ? 'Nenhuma analítica para esta titular.' : 'Nenhuma analítica encontrada.'} />
             )}
           </div>
-        </div>
+
+          {podeCriar && onCriar && (
+            <div className="space-y-2.5 border-t border-borda bg-superficie-suave p-3">
+              {criando ? (
+                <div className="space-y-3 rounded-lg border border-borda bg-superficie p-3">
+                  <Entrada rotulo="Texto da analítica" tamanho="sm" value={textoNovo} onChange={(e) => setTextoNovo(e.target.value)}
+                    placeholder="ex.: Atendimento" dica="Entra como subgrupo da conta titular escolhida." />
+                  {erro && <p role="alert" className="text-xs font-medium text-perigo">{erro}</p>}
+                  <div className="flex gap-2">
+                    <Botao variante="primaria" tamanho="sm" onClick={criar}>Criar e usar</Botao>
+                    <Botao tamanho="sm" onClick={() => setCriando(false)}>Cancelar</Botao>
+                  </div>
+                </div>
+              ) : titularId ? (
+                <Botao variante="fantasma" tamanho="sm" icone={<IconeMais size={14} />} onClick={() => setCriando(true)}>
+                  Criar conta analítica no catálogo
+                </Botao>
+              ) : (
+                <p className="text-xs text-tinta-suave">Escolha a conta titular para poder criar uma analítica nova.</p>
+              )}
+            </div>
+          )}
+        </Modal>
       )}
     </>
   );
@@ -161,7 +164,7 @@ export default function SeletorAnalitica({ historicos, valor, titularId, onEscol
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="sticky top-0 bg-slate-100 px-4 py-1 text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</div>
+      <div className="sticky top-0 border-b border-borda bg-superficie-suave px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-tinta-suave">{titulo}</div>
       {children}
     </div>
   );
@@ -169,10 +172,10 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 
 function Item({ h, sel, onClick }: { h: Historico; sel: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick}
-      className={`flex w-full items-baseline gap-2 px-4 py-1.5 text-left hover:bg-petroleo-50 ${sel ? 'bg-petroleo-50' : ''}`}>
-      <span className="flex-1 truncate">{h.texto}</span>
-      <span className={`shrink-0 text-xs ${h.natureza === 'receita' ? 'text-emerald-600' : 'text-slate-400'}`}>
+    <button type="button" onClick={onClick} aria-current={sel ? 'true' : undefined}
+      className={`flex w-full items-baseline gap-3 px-4 py-2 text-left transition-colors hover:bg-superficie-realce focus-visible:-outline-offset-2 ${sel ? 'bg-superficie-realce font-medium' : ''}`}>
+      <span className="min-w-0 flex-1 truncate text-tinta">{h.texto}</span>
+      <span className={`shrink-0 text-xs ${h.natureza === 'receita' ? 'text-sucesso' : 'text-tinta-suave'}`}>
         {h.natureza === 'receita' ? 'receita' : 'despesa'}
       </span>
     </button>

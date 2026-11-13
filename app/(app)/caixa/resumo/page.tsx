@@ -12,6 +12,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { dinheiro, MESES_LONGOS } from '../formato';
 import { EntradasSaidas, EvolucaoSaldo, PontoMes } from './Graficos';
+import { AbasCaixa } from '../AbasCaixa';
+import { Aviso, CabecalhoPagina, Carregando, Conteudo, Esqueleto, Indicador, Secao, Selo, tb } from '@/components/ui';
+import { Selecao } from '@/components/selecao';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; }
@@ -104,13 +107,10 @@ export default function ResumoCaixa() {
     return (
       <Moldura ehGestor={ehGestor} empresas={empresas} empresaSel={empresaSel} setEmpresaSel={setEmpresaSel}
         ano={ano} setAno={setAno} anos={anos}>
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-900">
-          <h2 className="font-semibold">Falta aplicar a migração do banco</h2>
-          <p className="mt-2">
-            Rode <code className="rounded bg-white px-1">supabase/migrations/0002_lancamentos_e_conferencia.sql</code>
-            {' '}no SQL Editor do Supabase e recarregue.
-          </p>
-        </div>
+        <Aviso tom="aviso" titulo="Falta aplicar a migração do banco">
+          Rode <code className="rounded bg-superficie px-1 font-mono text-xs">supabase/migrations/0002_lancamentos_e_conferencia.sql</code>
+          {' '}no SQL Editor do Supabase e recarregue.
+        </Aviso>
       </Moldura>
     );
   }
@@ -118,88 +118,90 @@ export default function ResumoCaixa() {
   return (
     <Moldura ehGestor={ehGestor} empresas={empresas} empresaSel={empresaSel} setEmpresaSel={setEmpresaSel}
       ano={ano} setAno={setAno} anos={anos}>
-      {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
+      {erro && <Aviso tom="perigo">{erro}</Aviso>}
 
       {nenhumLiberado && !ehGestor && (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+        <Aviso tom="info">
           O resumo aparece aqui quando a contabilidade confirmar o mês. Seus lançamentos continuam
-          disponíveis em <a href="/caixa" className="text-petroleo-700 hover:underline">Lançamentos</a>.
-        </p>
+          disponíveis em <a href="/caixa" className="font-medium text-primaria-texto underline underline-offset-2">Lançamentos</a>.
+        </Aviso>
       )}
 
       {/* Números do exercício */}
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Cartao titulo="Saldo inicial do exercício" valor={resumo?.saldoInicial ?? 0} />
-        <Cartao titulo="Entradas no ano" valor={resumo?.total.entradas ?? 0} cor="text-emerald-700" />
-        <Cartao titulo="Saídas no ano" valor={resumo?.total.saidas ?? 0} cor="text-red-700" />
-        <Cartao titulo="Saldo atual" valor={resumo?.total.saldoFinal ?? 0} destaque />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Indicador rotulo="Saldo inicial do exercício" valor={dinheiro(resumo?.saldoInicial ?? 0)}
+          tom={(resumo?.saldoInicial ?? 0) < 0 ? 'perigo' : 'neutro'} />
+        <Indicador rotulo="Entradas no ano" valor={dinheiro(resumo?.total.entradas ?? 0)} tom="sucesso" />
+        <Indicador rotulo="Saídas no ano" valor={dinheiro(resumo?.total.saidas ?? 0)} tom="perigo" />
+        <Indicador rotulo="Saldo atual" valor={dinheiro(resumo?.total.saldoFinal ?? 0)} destaque
+          tom={(resumo?.total.saldoFinal ?? 0) < 0 ? 'perigo' : 'neutro'} />
       </div>
 
       {resumo && resumo.liberadoAte < 12 && (
-        <p className="text-xs text-slate-500">
+        <p className="text-[13px] text-tinta-suave">
           {ehGestor
             ? 'Os totais do ano somam todos os meses — o cliente só vê até o último mês confirmado.'
             : `Totais até ${MESES_LONGOS[Math.max(resumo.liberadoAte, 1) - 1].toLowerCase()}, o último mês confirmado pela contabilidade.`}
         </p>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-1 font-semibold text-slate-900">Evolução do saldo</h2>
-          <p className="mb-2 text-xs text-slate-500">Saldo do caixa no fim de cada mês.</p>
-          <EvolucaoSaldo meses={meses} saldoInicial={resumo?.saldoInicial ?? 0} />
-        </section>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Secao titulo="Evolução do saldo" descricao="Saldo do caixa no fim de cada mês.">
+          {carregando && !resumo ? <Esqueleto className="h-40 w-full" /> : <EvolucaoSaldo meses={meses} saldoInicial={resumo?.saldoInicial ?? 0} />}
+        </Secao>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-1 font-semibold text-slate-900">Entradas e saídas por mês</h2>
-          <p className="mb-2 text-xs text-slate-500">O movimento de cada mês, sem acumular.</p>
-          <EntradasSaidas meses={meses} />
-        </section>
+        <Secao titulo="Entradas e saídas por mês" descricao="O movimento de cada mês, sem acumular.">
+          {carregando && !resumo ? <Esqueleto className="h-40 w-full" /> : <EntradasSaidas meses={meses} />}
+        </Secao>
       </div>
 
       {/* A tabela é a versão textual dos gráficos — e o que ela confere de fato */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50 text-slate-600">
-              <th className="border-b px-3 py-2 text-left">Mês</th>
-              <th className="border-b px-3 py-2 text-right">Saldo transportado</th>
-              <th className="border-b px-3 py-2 text-right">Entradas</th>
-              <th className="border-b px-3 py-2 text-right">Saídas</th>
-              <th className="border-b px-3 py-2 text-right">Saldo do mês</th>
-              <th className="border-b px-3 py-2 text-center">Situação</th>
+      <div className={tb.moldura}>
+        <table className={`${tb.tabela} text-[13px]`}>
+          <caption className="sr-only">Resumo do exercício de {ano}, mês a mês</caption>
+          <thead className={tb.cabeca}>
+            <tr>
+              <th className={tb.th}>Mês</th>
+              <th className={`${tb.th} text-right`}>Saldo transportado</th>
+              <th className={`${tb.th} text-right`}>Entradas</th>
+              <th className={`${tb.th} text-right`}>Saídas</th>
+              <th className={`${tb.th} text-right`}>Saldo do mês</th>
+              <th className={`${tb.th} text-center`}>Situação</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="[&>tr]:border-b [&>tr]:border-borda/70">
             {meses.map((m) => (
-              <tr key={m.mes} className={m.liberado ? '' : 'text-slate-400'}>
-                <td className="border-b px-3 py-1.5">{MESES_LONGOS[m.mes - 1]}</td>
-                <td className="border-b px-3 py-1.5 text-right">{m.saldoTransportado == null ? '—' : dinheiro(m.saldoTransportado)}</td>
-                <td className="border-b px-3 py-1.5 text-right text-emerald-700">{m.entradas ? dinheiro(m.entradas) : m.liberado ? '' : '—'}</td>
-                <td className="border-b px-3 py-1.5 text-right text-red-700">{m.saidas ? dinheiro(m.saidas) : m.liberado ? '' : '—'}</td>
-                <td className={`border-b px-3 py-1.5 text-right font-medium ${(m.saldoFinal ?? 0) < 0 ? 'text-red-600' : ''}`}>
+              <tr key={m.mes} className={`${tb.linha} ${m.liberado ? 'text-tinta' : 'text-tinta-fraca'}`}>
+                <td className={`${tb.td} font-medium`}>{MESES_LONGOS[m.mes - 1]}</td>
+                <td className={`${tb.td} ${tb.num}`}>{m.saldoTransportado == null ? '—' : dinheiro(m.saldoTransportado)}</td>
+                <td className={`${tb.td} ${tb.num} ${m.entradas ? 'text-sucesso' : ''}`}>{m.entradas ? dinheiro(m.entradas) : m.liberado ? '' : '—'}</td>
+                <td className={`${tb.td} ${tb.num} ${m.saidas ? 'text-perigo' : ''}`}>{m.saidas ? dinheiro(m.saidas) : m.liberado ? '' : '—'}</td>
+                <td className={`${tb.td} ${tb.num} font-semibold ${(m.saldoFinal ?? 0) < 0 ? 'text-perigo' : ''}`}>
                   {m.saldoFinal == null ? '—' : dinheiro(m.saldoFinal)}
                 </td>
-                <td className="border-b px-3 py-1.5 text-center">
-                  {m.confirmado
-                    ? <span className="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700">confirmado</span>
-                    : <span className="text-slate-400">em aberto</span>}
+                <td className={`${tb.td} text-center`}>
+                  {m.confirmado ? <Selo tom="sucesso">confirmado</Selo> : <span className="text-xs text-tinta-fraca">em aberto</span>}
                 </td>
               </tr>
             ))}
-            <tr className="bg-slate-50 font-medium">
-              <td className="px-3 py-2">Total do exercício</td>
-              <td className="px-3 py-2 text-right text-slate-500">{dinheiro(resumo?.saldoInicial ?? 0)}</td>
-              <td className="px-3 py-2 text-right text-emerald-700">{dinheiro(resumo?.total.entradas ?? 0)}</td>
-              <td className="px-3 py-2 text-right text-red-700">{dinheiro(resumo?.total.saidas ?? 0)}</td>
-              <td className="px-3 py-2 text-right">{dinheiro(resumo?.total.saldoFinal ?? 0)}</td>
+            {carregando && !resumo && [0, 1, 2].map((i) => (
+              <tr key={`esqueleto-${i}`}><td colSpan={6} className="px-3 py-2.5"><Esqueleto /></td></tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-superficie-suave font-semibold text-tinta">
+              <td className={tb.td}>Total do exercício</td>
+              <td className={`${tb.td} ${tb.num} font-medium text-tinta-suave`}>{dinheiro(resumo?.saldoInicial ?? 0)}</td>
+              <td className={`${tb.td} ${tb.num} text-sucesso`}>{dinheiro(resumo?.total.entradas ?? 0)}</td>
+              <td className={`${tb.td} ${tb.num} text-perigo`}>{dinheiro(resumo?.total.saidas ?? 0)}</td>
+              <td className={`${tb.td} ${tb.num} ${(resumo?.total.saldoFinal ?? 0) < 0 ? 'text-perigo' : ''}`}>{dinheiro(resumo?.total.saldoFinal ?? 0)}</td>
               <td></td>
             </tr>
-          </tbody>
+          </tfoot>
         </table>
       </div>
 
-      {carregando && <p className="text-xs text-slate-400">Carregando…</p>}
+      {carregando && <Carregando />}
     </Moldura>
   );
 }
@@ -211,43 +213,18 @@ function Moldura({ ehGestor, empresas, empresaSel, setEmpresaSel, ano, setAno, a
 }) {
   return (
     <div className="text-sm">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Livro Caixa — resumo</h1>
-          <p className="text-xs text-slate-500">Entradas, saídas e o saldo de um mês para o outro</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <CabecalhoPagina titulo="Livro Caixa — resumo" subtitulo="Entradas, saídas e o saldo de um mês para o outro"
+        abas={<AbasCaixa ativa="resumo" ehGestor={ehGestor} />}
+        acoes={<>
           {ehGestor && (
-            <select value={empresaSel} onChange={(e) => setEmpresaSel(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2 py-1">
-              {empresas.length === 0 && <option value="">— nenhuma empresa —</option>}
-              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
+            <Selecao aria-label="Empresa" largura="w-56 max-w-full" valor={empresaSel} onChange={setEmpresaSel}
+              placeholder="— nenhuma empresa —"
+              opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
           )}
-          <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
-            className="rounded-lg border border-slate-300 px-2 py-1">
-            {anos.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-      </header>
-
-      <div className="space-y-4 p-6">
-        <nav className="flex gap-1 text-xs">
-          <a href="/caixa" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Lançamentos</a>
-          <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Resumo</span>
-          {ehGestor && <a href="/caixa/cadastros" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Cadastros</a>}
-        </nav>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Cartao({ titulo, valor, cor, destaque }: { titulo: string; valor: number; cor?: string; destaque?: boolean }) {
-  return (
-    <div className={`rounded-xl border bg-white p-3 ${destaque ? 'border-petroleo-300' : 'border-slate-200'}`}>
-      <div className="text-xs text-slate-500">{titulo}</div>
-      <div className={`text-lg font-semibold ${valor < 0 ? 'text-red-600' : cor ?? 'text-slate-900'}`}>{dinheiro(valor)}</div>
+          <Selecao aria-label="Exercício" largura="w-24" busca={false} valor={String(ano)} onChange={(v) => setAno(Number(v))}
+            opcoes={anos.map((a) => ({ valor: String(a), rotulo: String(a) }))} />
+        </>} />
+      <Conteudo>{children}</Conteudo>
     </div>
   );
 }

@@ -10,11 +10,18 @@
 // disso trava a edição: lançamento é sempre editável e excluível, inclusive
 // retroativo — decisão dela.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES } from './formato';
+import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import SeletorAnalitica, { Historico } from './SeletorAnalitica';
-import { IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeExcluir, IconeLapis, IconeSino } from '../icones';
+import { IconeBaixar, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino } from '../icones';
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
+import { AbasCaixa } from './AbasCaixa';
+import {
+  Aviso, Botao, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
+  EstadoVazio, Indicador, Marcacao, Secao, Selo, tb,
+} from '@/components/ui';
+import { Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; identificaPagador?: boolean; }
@@ -352,43 +359,41 @@ export default function Caixa() {
 
   if (erro && faltaMigracao(erro)) return <BancoIncompleto erro={erro} />;
 
+  const mesAberto = `${MESES[mes - 1]}/${ano}`;
+
   return (
     <div className="text-sm">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Livro Caixa</h1>
-          <p className="text-xs text-slate-500">
-            {ehGestor ? 'Movimento do caixa das empresas-clientes' : `Movimento do caixa — ${minhaEmpresa ?? 'sua empresa'}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <CabecalhoPagina titulo="Livro Caixa"
+        subtitulo={ehGestor ? 'Movimento do caixa das empresas-clientes' : `Movimento do caixa — ${minhaEmpresa ?? 'sua empresa'}`}
+        abas={<AbasCaixa ativa="lancamentos" ehGestor={ehGestor} />}
+        acoes={<>
           {ehGestor && (
-            <select value={empresaSel} onChange={(e) => setEmpresaSel(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2 py-1">
-              {empresas.length === 0 && <option value="">— nenhuma empresa —</option>}
-              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
+            <Selecao aria-label="Empresa" largura="w-56 max-w-full" valor={empresaSel} onChange={setEmpresaSel}
+              placeholder="— nenhuma empresa —"
+              opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
           )}
-          <select value={ano} onChange={(e) => irPara(Number(e.target.value), mes)}
-            className="rounded-lg border border-slate-300 px-2 py-1">
-            {anos.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-      </header>
-
-      <div className="space-y-4 p-6">
-        <nav className="flex gap-1 text-xs">
-          <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Lançamentos</span>
-          <a href="/caixa/resumo" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Resumo</a>
-          {ehGestor && <a href="/caixa/cadastros" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Cadastros</a>}
+          <Selecao aria-label="Exercício" largura="w-24" busca={false} valor={String(ano)} onChange={(v) => irPara(Number(v), mes)}
+            opcoes={anos.map((a) => ({ valor: String(a), rotulo: String(a) }))} />
           {ehGestor && (
-            <button onClick={() => setMostrarDocs((v) => !v)}
-              className={`rounded-lg border px-3 py-1.5 ${mostrarDocs ? 'border-petroleo-700 bg-petroleo-900 text-white' : 'border-slate-300 bg-white hover:border-petroleo-500'}`}>
+            <Botao variante={mostrarDocs ? 'tonal' : 'secundaria'} aria-expanded={mostrarDocs} aria-controls="painel-documentos"
+              icone={<IconeDocumento />} onClick={() => setMostrarDocs((v) => !v)}>
               Documentos
-            </button>
+            </Botao>
           )}
-        </nav>
+        </>} />
 
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+        {msg && <Toast onFechar={() => setMsg(null)}>{msg}</Toast>}
+        {desfazer && (
+          <Toast tom="info" onFechar={() => setDesfazer(null)}
+            acao={<Botao tamanho="sm" variante="tonal" icone={<IconeDesfazer size={15} />} onClick={desfazerExclusao}>Desfazer</Botao>}>
+            Lançamento excluído — {diaMes(desfazer.data)} · {desfazer.historico}.
+          </Toast>
+        )}
+      </Toasts>
+
+      <Conteudo>
         {ehGestor && mostrarDocs && (
           <PainelDocumentos
             empresaId={empresaSel} ano={ano} termo={termo}
@@ -397,176 +402,178 @@ export default function Caixa() {
           />
         )}
 
-        {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
-        {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
-
-        {desfazer && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
-            <span>Lançamento excluído — {diaMes(desfazer.data)} · {desfazer.historico}.</span>
-            <button onClick={desfazerExclusao}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-petroleo-300 bg-white px-2.5 py-1 font-medium text-petroleo-700 hover:border-petroleo-500">
-              <IconeDesfazer size={15} /> Desfazer
-            </button>
-          </div>
-        )}
-
         {ehGestor && pendencias.length > 0 && (
-          <div className="rounded-lg border border-petroleo-200 bg-petroleo-50 px-3 py-2 text-petroleo-900">
-            <span className="font-medium">Lançamentos novos para conferir:</span>{' '}
-            {pendencias.map((p) => (
-              <button key={p.empresaId} onClick={() => { setEmpresaSel(p.empresaId); irPara(ano, p.ultimo.mes); }}
-                className="mr-2 rounded bg-white/70 px-2 py-0.5 underline-offset-2 hover:underline">
-                {nomeEmpresa(p.empresaId)} ({p.pendentes})
-              </button>
-            ))}
-          </div>
+          <Aviso tom="info" titulo="Lançamentos novos para conferir">
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {pendencias.map((p) => (
+                <Botao key={p.empresaId} tamanho="sm" onClick={() => { setEmpresaSel(p.empresaId); irPara(ano, p.ultimo.mes); }}>
+                  {nomeEmpresa(p.empresaId)}
+                  <span className="rounded-full bg-primaria px-1.5 text-[11px] font-semibold leading-5 text-white">{p.pendentes}</span>
+                </Botao>
+              ))}
+            </div>
+          </Aviso>
         )}
 
         {/* Meses do exercício */}
-        <div className="flex flex-wrap gap-1">
+        <nav aria-label="Meses do exercício"
+          className="grid grid-cols-6 gap-1 rounded-xl border border-borda bg-superficie p-1.5 shadow-cartao md:grid-cols-12">
           {MESES.map((rotulo, i) => {
             const m = i + 1;
             const r = resumo.find((x) => x.mes === m);
             const temMovimento = r && (r.entradas > 0 || r.saidas > 0);
+            const confirmado = confirmados.includes(m);
             return (
-              <button key={m} onClick={() => irPara(ano, m)}
-                className={`rounded-lg border px-3 py-1.5 uppercase ${
-                  m === mes ? 'border-petroleo-700 bg-petroleo-900 text-white'
-                    : temMovimento ? 'border-slate-300 bg-white text-slate-700 hover:border-petroleo-500'
-                    : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-petroleo-300'
+              <button key={m} type="button" onClick={() => irPara(ano, m)} aria-current={m === mes ? 'true' : undefined}
+                aria-label={`${MESES_LONGOS[i]}${confirmado ? ' — confirmado' : ''}${temMovimento ? '' : ' — sem movimento'}`}
+                className={`relative flex h-9 items-center justify-center gap-1 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
+                  m === mes ? 'bg-primaria text-white shadow-cartao'
+                    : temMovimento ? 'text-tinta hover:bg-superficie-realce'
+                    : 'font-medium text-tinta-fraca hover:bg-superficie-realce hover:text-tinta'
                 }`}>
                 {rotulo}
-                {confirmados.includes(m) && <span className={m === mes ? 'ml-1' : 'ml-1 text-emerald-600'}>✓</span>}
+                {confirmado && <IconeCheck size={12} className={m === mes ? 'text-verde-100' : 'text-sucesso'} />}
               </button>
             );
           })}
-        </div>
+        </nav>
 
         {/* Resumo do mês */}
-        <div className="grid gap-3 sm:grid-cols-4">
-          <Cartao titulo="Saldo transportado" valor={dados?.saldoTransportado ?? 0} />
-          <Cartao titulo="Entradas do mês" valor={dados?.entradas ?? 0} cor="text-emerald-700" />
-          <Cartao titulo="Saídas do mês" valor={dados?.saidas ?? 0} cor="text-red-700" />
-          <Cartao titulo="Saldo do mês" valor={dados?.saldoFinal ?? 0} destaque />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Indicador rotulo="Saldo transportado" valor={dinheiro(dados?.saldoTransportado ?? 0)}
+            tom={(dados?.saldoTransportado ?? 0) < 0 ? 'perigo' : 'neutro'} />
+          <Indicador rotulo="Entradas do mês" valor={dinheiro(dados?.entradas ?? 0)} tom="sucesso" />
+          <Indicador rotulo="Saídas do mês" valor={dinheiro(dados?.saidas ?? 0)} tom="perigo" />
+          <Indicador rotulo="Saldo do mês" valor={dinheiro(dados?.saldoFinal ?? 0)} destaque
+            tom={(dados?.saldoFinal ?? 0) < 0 ? 'perigo' : 'neutro'} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-tinta-suave">
           {/* Saldo inicial só na aba de janeiro: é ele que abre o exercício e se
               propaga como "saldo transportado" nos demais meses. */}
           {mes === 1 && (
-            <span>
-              Saldo inicial do exercício: <strong className="text-slate-700">{dinheiro(saldoInicial)}</strong>
+            <span className="inline-flex items-center gap-1">
+              Saldo inicial do exercício: <strong className="font-semibold text-tinta">{dinheiro(saldoInicial)}</strong>
               {ehGestor && (
-                <button onClick={() => setEditandoSaldo(true)} title="Editar saldo inicial" aria-label="Editar saldo inicial"
-                  className="ml-1 inline-flex items-center rounded p-1 align-middle text-petroleo-700 hover:bg-petroleo-50">
+                <BotaoIcone rotulo="Editar saldo inicial" tom="primaria" tamanho="sm" onClick={() => setEditandoSaldo(true)}>
                   <IconeLapis size={14} />
-                </button>
+                </BotaoIcone>
               )}
             </span>
           )}
-          {dados?.confirmado && <span className="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700">Mês confirmado</span>}
-          {ehGestor && (
-            <button onClick={alternarConfirmacao}
-              title={dados?.confirmado ? 'Desfazer a confirmação deste mês' : 'Confirmar o mês — libera o resumo para o cliente'}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-medium ${
-                dados?.confirmado
-                  ? 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
-                  : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400'
-              }`}>
-              {dados?.confirmado ? <IconeDesfazerConfirmacao size={15} /> : <IconeConfirmar size={15} />}
-              {dados?.confirmado ? 'Desfazer confirmação' : 'Confirmar o mês'}
-            </button>
-          )}
+          {dados?.confirmado && <Selo tom="sucesso"><IconeCheck size={12} /> Mês confirmado</Selo>}
           {ehGestor && aConferir > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-800">
-              <IconeSino size={14} />
-              {aConferir} lançamento(s) a conferir neste mês
-            </span>
+            <Selo tom="aviso"><IconeSino size={12} /> {aConferir} lançamento(s) a conferir neste mês</Selo>
+          )}
+          {ehGestor && (
+            <Botao tamanho="sm" variante={dados?.confirmado ? 'secundaria' : 'sucesso'} onClick={alternarConfirmacao}
+              className="sm:ml-auto"
+              data-dica={dados?.confirmado ? 'Desfazer a confirmação deste mês' : 'Confirmar o mês — libera o resumo para o cliente'}
+              icone={dados?.confirmado ? <IconeDesfazerConfirmacao size={15} /> : <IconeConfirmar size={15} />}>
+              {dados?.confirmado ? 'Desfazer confirmação' : 'Confirmar o mês'}
+            </Botao>
           )}
         </div>
 
         {negativo && (
-          <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
+          <Aviso tom="aviso">
             O saldo do caixa fica negativo em {diaMes(negativo.l.data)} ({dinheiro(negativo.saldo)}). Confira os
             lançamentos — o sistema não bloqueia, só avisa.
-          </p>
+          </Aviso>
         )}
         {semConta > 0 && (
-          <p className="text-xs text-amber-700">
+          <p className="text-xs font-medium text-aviso">
             {semConta} lançamento(s) sem conta. Só faz sentido em depósito ou retirada da conta corrente.
           </p>
         )}
 
+        {/* Novo lançamento — no celular o formulário vem empilhado, fora da tabela. */}
+        <Cartao className="p-4 md:hidden">
+          <h2 className="mb-3 text-[15px] font-semibold text-tinta">Novo lançamento</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Celulas empilhado campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
+              podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
+          </div>
+          <Marcacao type="checkbox" className="mt-3" checked={cheque} onChange={(e) => setCheque(e.target.checked)}>
+            Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
+          </Marcacao>
+          <Botao variante="primaria" className="mt-4 w-full" onClick={lancar} carregando={salvando} disabled={!empresaSel}>
+            Lançar
+          </Botao>
+          <p className="mt-3 text-xs text-tinta-suave">
+            Depósito em banco é <strong>saída</strong> do caixa; retirada é <strong>entrada</strong>.
+          </p>
+        </Cartao>
+
         {/* Livro do mês */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50 text-slate-600">
-                <th className="border-b px-2 py-2 text-left">Data</th>
-                <th className="border-b px-2 py-2 text-left">Complemento</th>
-                {identificaPagador && <th className="border-b px-2 py-2 text-left">Cliente/Paciente</th>}
-                {identificaPagador && <th className="border-b px-2 py-2 text-left">CPF/CNPJ</th>}
-                <th className="border-b px-2 py-2 text-left">Conta Titular</th>
-                <th className="border-b px-2 py-2 text-left">Conta Analítica</th>
-                <th className="border-b px-2 py-2 text-right">Entrada</th>
-                <th className="border-b px-2 py-2 text-right">Saída</th>
-                <th className="border-b px-2 py-2 text-right">Juros</th>
-                <th className="border-b px-2 py-2 text-right">Multa</th>
-                <th className="border-b px-2 py-2 text-right">Saldo</th>
-                <th className="border-b px-2 py-2"></th>
+        <div className={tb.moldura}>
+          <table className={`${tb.tabela} text-[13px]`}>
+            <caption className="sr-only">Lançamentos de {mesAberto}</caption>
+            <thead className={tb.cabeca}>
+              <tr>
+                <th className={tb.th}>Data</th>
+                <th className={tb.th}>Complemento</th>
+                {identificaPagador && <th className={tb.th}>Cliente/Paciente</th>}
+                {identificaPagador && <th className={tb.th}>CPF/CNPJ</th>}
+                <th className={tb.th}>Conta Titular</th>
+                <th className={tb.th}>Conta Analítica</th>
+                <th className={`${tb.th} text-right`}>Entrada</th>
+                <th className={`${tb.th} text-right`}>Saída</th>
+                <th className={`${tb.th} text-right`}>Juros</th>
+                <th className={`${tb.th} text-right`}>Multa</th>
+                <th className={`${tb.th} text-right`}>Saldo</th>
+                <th className={tb.th}><span className="sr-only">Ações</span></th>
               </tr>
             </thead>
-            <tbody>
-              <tr className="text-slate-500">
-                <td className="border-b px-2 py-1.5" colSpan={nCols - 2}>Saldo transportado do mês anterior</td>
-                <td className="border-b px-2 py-1.5 text-right font-medium">{dinheiro(dados?.saldoTransportado ?? 0)}</td>
-                <td className="border-b"></td>
+            <tbody className="[&>tr]:border-b [&>tr]:border-borda/70">
+              <tr className="text-tinta-suave">
+                <td className={tb.td} colSpan={nCols - 2}>Saldo transportado do mês anterior</td>
+                <td className={`${tb.td} ${tb.num} font-medium`}>{dinheiro(dados?.saldoTransportado ?? 0)}</td>
+                <td></td>
               </tr>
 
               {linhas.map(({ l, saldo }) => editandoId === l.id ? (
-                <tr key={l.id} className="bg-petroleo-50/40">
+                <tr key={l.id} className="bg-primaria-suave">
                   <Celulas campos={edicao} setCampos={setEdicao} contas={contas} historicos={historicos}
                     podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
-                  <td className="border-b px-2 py-1 text-right text-slate-400">—</td>
-                  <td className="whitespace-nowrap border-b px-2 py-1 text-center">
-                    <button onClick={salvarEdicao} disabled={salvando} className="text-petroleo-700 hover:underline disabled:opacity-50">Salvar</button>
-                    <button onClick={() => setEditandoId(null)} className="ml-2 text-slate-500 hover:underline">Cancelar</button>
+                  <td className={`${tb.td} ${tb.num} text-tinta-fraca`}>—</td>
+                  <td className="whitespace-nowrap px-2 py-1 text-right">
+                    <Botao tamanho="sm" variante="primaria" onClick={salvarEdicao} carregando={salvando}>Salvar</Botao>
+                    <Botao tamanho="sm" variante="fantasma" className="ml-1" onClick={() => setEditandoId(null)}>Cancelar</Botao>
                   </td>
                 </tr>
               ) : (
-                <tr key={l.id} className={l.conferidoEm ? '' : 'bg-sky-50'}>
-                  <td className="whitespace-nowrap border-b px-2 py-1.5">{diaMes(l.data)}</td>
-                  <td className="border-b px-2 py-1.5 text-slate-500">{l.complemento}</td>
-                  {identificaPagador && <td className="border-b px-2 py-1.5 text-slate-600">{l.pagadorNome}</td>}
+                <tr key={l.id} className={`transition-colors ${l.conferidoEm ? 'hover:bg-superficie-realce/60' : 'bg-primaria-suave/70 hover:bg-petroleo-100/60'}`}>
+                  <td className={`${tb.td} whitespace-nowrap`}>{diaMes(l.data)}</td>
+                  <td className={`${tb.td} text-tinta-suave`}>{l.complemento}</td>
+                  {identificaPagador && <td className={`${tb.td} text-tinta-suave`}>{l.pagadorNome}</td>}
                   {identificaPagador && (
-                    <td className={`whitespace-nowrap border-b px-2 py-1.5 ${
-                      l.pagadorDocumento && !documentoValido(l.pagadorDocumento) ? 'text-amber-700' : 'text-slate-500'
+                    <td className={`${tb.td} whitespace-nowrap ${
+                      l.pagadorDocumento && !documentoValido(l.pagadorDocumento) ? 'font-medium text-aviso' : 'text-tinta-suave'
                     }`}
-                      title={l.pagadorDocumento && !documentoValido(l.pagadorDocumento) ? 'CPF/CNPJ com dígito inválido — confira' : undefined}>
+                      data-dica={l.pagadorDocumento && !documentoValido(l.pagadorDocumento) ? 'CPF/CNPJ com dígito inválido — confira' : undefined}>
                       {formatarDocumento(l.pagadorDocumento)}
                     </td>
                   )}
-                  <td className={`border-b px-2 py-1.5 ${l.contaId ? 'text-slate-600' : 'text-amber-700'}`}>
+                  <td className={`${tb.td} ${l.contaId ? 'text-tinta-suave' : 'font-medium text-aviso'}`}>
                     {rotuloConta(contas, l.contaId)}
                   </td>
-                  <td className="border-b px-2 py-1.5">{l.historico}</td>
-                  <td className="border-b px-2 py-1.5 text-right text-emerald-700">{l.entrada > 0 ? dinheiro(l.entrada) : ''}</td>
-                  <td className="border-b px-2 py-1.5 text-right text-red-700">{l.saida > 0 ? dinheiro(l.saida) : ''}</td>
-                  <td className="border-b px-2 py-1.5 text-right text-red-700">{l.juros > 0 ? dinheiro(l.juros) : ''}</td>
-                  <td className="border-b px-2 py-1.5 text-right text-red-700">{l.multa > 0 ? dinheiro(l.multa) : ''}</td>
-                  <td className={`border-b px-2 py-1.5 text-right font-medium ${saldo < 0 ? 'text-red-600' : 'text-slate-700'}`}>{dinheiro(saldo)}</td>
-                  <td className="whitespace-nowrap border-b px-2 py-1.5 text-right">
+                  <td className={`${tb.td} text-tinta`}>{l.historico}</td>
+                  <td className={`${tb.td} ${tb.num} text-sucesso`}>{l.entrada > 0 ? dinheiro(l.entrada) : ''}</td>
+                  <td className={`${tb.td} ${tb.num} text-perigo`}>{l.saida > 0 ? dinheiro(l.saida) : ''}</td>
+                  <td className={`${tb.td} ${tb.num} text-perigo`}>{l.juros > 0 ? dinheiro(l.juros) : ''}</td>
+                  <td className={`${tb.td} ${tb.num} text-perigo`}>{l.multa > 0 ? dinheiro(l.multa) : ''}</td>
+                  <td className={`${tb.td} ${tb.num} font-semibold ${saldo < 0 ? 'text-perigo' : 'text-tinta'}`}>{dinheiro(saldo)}</td>
+                  <td className="whitespace-nowrap px-2 py-1 text-right">
                     {ehGestor && (
-                      <button onClick={() => conferir(l, !l.conferidoEm)}
+                      <BotaoIcone tamanho="sm" tom={l.conferidoEm ? 'sucesso' : 'apagado'} aria-pressed={!!l.conferidoEm}
+                        rotulo={l.conferidoEm ? 'Conferido' : 'Conferir'}
                         title={l.conferidoEm ? `Conferido por ${l.conferidoPor} — clique para desmarcar` : 'Marcar como conferido'}
-                        aria-label={l.conferidoEm ? 'Conferido' : 'Conferir'}
-                        className={`mr-1 inline-flex items-center rounded p-1 ${
-                          l.conferidoEm ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
-                        }`}>
+                        onClick={() => conferir(l, !l.conferidoEm)}>
                         <IconeCheck size={15} />
-                      </button>
+                      </BotaoIcone>
                     )}
-                    <button onClick={() => {
+                    <BotaoIcone tamanho="sm" tom="primaria" rotulo="Editar lançamento" title="Editar" onClick={() => {
                       setEditandoId(l.id);
                       const hMatch = historicos.find((h) => h.texto === l.historico && h.contaId === l.contaId)
                         ?? historicos.find((h) => h.texto === l.historico);
@@ -579,60 +586,73 @@ export default function Caixa() {
                         multa: l.multa > 0 ? String(l.multa) : '',
                         pagadorNome: l.pagadorNome ?? '', pagadorDocumento: l.pagadorDocumento ?? '',
                       });
-                    }} title="Editar" aria-label="Editar lançamento" className="mr-1 inline-flex items-center rounded p-1 text-petroleo-700 hover:bg-petroleo-50">
+                    }}>
                       <IconeLapis size={15} />
-                    </button>
-                    <button onClick={() => setAExcluir(l)} title="Excluir" aria-label="Excluir lançamento"
-                      className="inline-flex items-center rounded p-1 text-red-600 hover:bg-red-50">
+                    </BotaoIcone>
+                    <BotaoIcone tamanho="sm" tom="perigo" rotulo="Excluir lançamento" title="Excluir" onClick={() => setAExcluir(l)}>
                       <IconeExcluir size={15} />
-                    </button>
+                    </BotaoIcone>
                   </td>
                 </tr>
               ))}
 
+              {carregando && !dados && [0, 1, 2].map((i) => (
+                <tr key={`esqueleto-${i}`}>
+                  <td colSpan={nCols} className="px-3 py-2.5"><Esqueleto className="h-4 w-full" /></td>
+                </tr>
+              ))}
+
               {!carregando && linhas.length === 0 && (
-                <tr><td colSpan={nCols} className="px-2 py-6 text-center text-slate-400">
-                  Nenhum lançamento em {MESES[mes - 1]}/{ano}. Comece pela linha abaixo.
+                <tr><td colSpan={nCols}>
+                  <EstadoVazio moldura={false} titulo={`Nenhum lançamento em ${mesAberto}`}
+                    descricao="Comece pelo formulário de novo lançamento." />
                 </td></tr>
               )}
             </tbody>
 
             <tfoot>
-              <tr className="bg-slate-50">
+              <tr className="bg-superficie-suave max-md:hidden">
                 <Celulas campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
                   podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
-                <td className="px-2 py-1 text-right font-medium text-slate-700">{dinheiro(dados?.saldoFinal ?? 0)}</td>
-                <td className="px-2 py-1 text-center">
-                  <button onClick={lancar} disabled={salvando || !empresaSel}
-                    className="rounded-lg bg-petroleo-900 px-3 py-1 text-white disabled:opacity-50">
-                    {salvando ? '…' : 'Lançar'}
-                  </button>
+                <td className={`${tb.td} ${tb.num} font-semibold ${(dados?.saldoFinal ?? 0) < 0 ? 'text-perigo' : 'text-tinta'}`}>{dinheiro(dados?.saldoFinal ?? 0)}</td>
+                <td className="px-2 py-1 text-right">
+                  <Botao tamanho="sm" variante="primaria" onClick={lancar} carregando={salvando} disabled={!empresaSel}>
+                    Lançar
+                  </Botao>
                 </td>
               </tr>
-              <tr className="bg-slate-50">
-                <td colSpan={nCols} className="px-2 pb-2 text-xs text-slate-500">
-                  <label className="inline-flex items-center gap-1.5">
-                    <input type="checkbox" checked={cheque} onChange={(e) => setCheque(e.target.checked)} />
-                    Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
-                  </label>
-                  <span className="ml-4 text-slate-400">
-                    Depósito em banco é <strong>saída</strong> do caixa; retirada é <strong>entrada</strong>.
-                  </span>
+              <tr className="bg-superficie-suave max-md:hidden">
+                <td colSpan={nCols} className="px-3 pb-3 pt-1 text-xs text-tinta-suave">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
+                    <Marcacao type="checkbox" className="text-xs" checked={cheque} onChange={(e) => setCheque(e.target.checked)}>
+                      Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
+                    </Marcacao>
+                    <span>
+                      Depósito em banco é <strong>saída</strong> do caixa; retirada é <strong>entrada</strong>.
+                    </span>
+                  </div>
                 </td>
+              </tr>
+              {/* No celular a linha de lançamento sai da tabela; o saldo final fica. */}
+              <tr className="bg-superficie-suave md:hidden">
+                <td className={`${tb.td} font-medium text-tinta-suave`} colSpan={nCols - 2}>Saldo do mês</td>
+                <td className={`${tb.td} ${tb.num} font-semibold ${(dados?.saldoFinal ?? 0) < 0 ? 'text-perigo' : 'text-tinta'}`}>{dinheiro(dados?.saldoFinal ?? 0)}</td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        {carregando && <p className="text-xs text-slate-400">Carregando…</p>}
-      </div>
+        {carregando && <Carregando />}
+      </Conteudo>
 
       {aExcluir && (
         <DialogoConfirmacao
           titulo="Excluir lançamento"
           mensagem={
             <>Deseja realmente excluir o lançamento de <strong>{diaMes(aExcluir.data)}</strong> — {aExcluir.historico}
-              {' '}({aExcluir.entrada > 0 ? `entrada de ${dinheiro(aExcluir.entrada)}` : `saída de ${dinheiro(aExcluir.saida)}`})?</>
+              {' '}({aExcluir.entrada > 0 ? `entrada de ${dinheiro(aExcluir.entrada)}` : `saída de ${dinheiro(aExcluir.saida)}`})?
+              {' '}Dá para desfazer logo em seguida.</>
           }
           onConfirmar={confirmarExclusao}
           onCancelar={() => setAExcluir(null)}
@@ -653,12 +673,20 @@ export default function Caixa() {
   );
 }
 
-/** As células editáveis, iguais na linha nova e na linha em edição. */
-function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, onCriarAnalitica, identificaPagador }: {
+const CAMPO_LINHA =
+  'h-8 rounded-md border bg-superficie px-2 text-base text-tinta transition-colors placeholder:text-tinta-fraca focus:border-foco sm:text-[13px]';
+const BORDA_CAMPO = 'border-borda-forte hover:border-tinta-suave';
+
+/**
+ * Os campos editáveis do lançamento, iguais na linha nova e na linha em edição.
+ * Por padrão saem como células (<td>) da tabela; com `empilhado`, como blocos
+ * com rótulo visível — o formulário do celular.
+ */
+function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, onCriarAnalitica, identificaPagador, empilhado = false }: {
   campos: Campos; setCampos: (c: Campos) => void; contas: Conta[]; historicos: Historico[];
   podeCriar: boolean; onCriar: (nome: string, grupo: string) => Promise<Conta | null>;
   onCriarAnalitica: (texto: string, contaId: string | null) => Promise<Historico | null>;
-  identificaPagador: boolean;
+  identificaPagador: boolean; empilhado?: boolean;
 }) {
   // Aviso, não trava: documento com dígito verificador inválido fica em âmbar.
   const docInvalido = !!campos.pagadorDocumento && !documentoValido(campos.pagadorDocumento);
@@ -678,62 +706,62 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, on
     setCampos({ ...campos, historico: h.texto, historicoId: h.id, contaId: h.contaId ?? campos.contaId });
   }
 
+  /** Embrulha um campo: célula da tabela ou bloco com rótulo (celular). */
+  const envolver = (rotulo: string, conteudo: React.ReactNode, opcoes: { td?: string; largo?: boolean } = {}) =>
+    empilhado ? (
+      <div key={rotulo} className={opcoes.largo ? 'col-span-2' : undefined}>
+        <span className="mb-1 block text-xs font-medium text-tinta-suave">{rotulo}</span>
+        {conteudo}
+      </div>
+    ) : (
+      <td key={rotulo} className={`px-1 py-1 align-middle ${opcoes.td ?? ''}`}>{conteudo}</td>
+    );
+  // No celular todo campo ocupa a largura do bloco; na tabela cada um tem a sua.
+  const larg = (naTabela: string) => (empilhado ? 'w-full' : naTabela);
+
   return (
     <>
-      <td className="border-b px-1 py-1">
-        <input type="date" value={campos.data} onChange={(e) => setCampos({ ...campos, data: e.target.value })}
-          className="w-full rounded border border-slate-300 px-1 py-0.5" />
-      </td>
-      <td className="border-b px-1 py-1">
-        <input value={campos.complemento} onChange={(e) => setCampos({ ...campos, complemento: e.target.value })}
-          placeholder="Complemento" className="w-full min-w-32 rounded border border-slate-300 px-1 py-0.5" />
-      </td>
-      {identificaPagador && (
-        <td className="border-b px-1 py-1">
-          <input value={campos.pagadorNome} onChange={(e) => setCampos({ ...campos, pagadorNome: e.target.value })}
-            placeholder="Cliente/Paciente" className="w-full min-w-36 rounded border border-slate-300 px-1 py-0.5" />
-        </td>
-      )}
-      {identificaPagador && (
-        <td className="border-b px-1 py-1">
-          <input value={campos.pagadorDocumento} onChange={(e) => setCampos({ ...campos, pagadorDocumento: e.target.value })}
-            inputMode="numeric" placeholder="CPF/CNPJ"
-            title={docInvalido ? 'CPF/CNPJ com dígito inválido — confira (não bloqueia)' : undefined}
-            className={`w-full min-w-32 rounded border px-1 py-0.5 ${docInvalido ? 'border-amber-400 bg-amber-50' : 'border-slate-300'}`} />
-        </td>
-      )}
-      <td className="border-b px-1 py-1 min-w-48">
+      {envolver('Data',
+        <input type="date" aria-label="Data" value={campos.data} onChange={(e) => setCampos({ ...campos, data: e.target.value })}
+          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-full min-w-[8.5rem]')}`} />)}
+      {envolver('Complemento',
+        <input aria-label="Complemento" value={campos.complemento} onChange={(e) => setCampos({ ...campos, complemento: e.target.value })}
+          placeholder="Complemento" className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-full min-w-32')}`} />)}
+      {identificaPagador && envolver('Cliente/Paciente',
+        <input aria-label="Cliente ou paciente" value={campos.pagadorNome} onChange={(e) => setCampos({ ...campos, pagadorNome: e.target.value })}
+          placeholder="Cliente/Paciente" className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-full min-w-36')}`} />)}
+      {identificaPagador && envolver('CPF/CNPJ',
+        <input aria-label="CPF ou CNPJ" value={campos.pagadorDocumento} onChange={(e) => setCampos({ ...campos, pagadorDocumento: e.target.value })}
+          inputMode="numeric" placeholder="CPF/CNPJ"
+          data-dica={docInvalido ? 'CPF/CNPJ com dígito inválido — confira (não bloqueia)' : undefined}
+          aria-description={docInvalido ? 'CPF/CNPJ com dígito inválido — confira (não bloqueia)' : undefined}
+          className={`${CAMPO_LINHA} ${larg('w-full min-w-32')} ${docInvalido ? 'border-aviso bg-aviso-suave' : BORDA_CAMPO}`} />)}
+      {envolver('Conta Titular',
         <SeletorConta contas={contas} valor={campos.contaId} compacto
           onEscolher={escolherTitular}
-          podeCriar={podeCriar} onCriar={onCriar} />
-      </td>
-      <td className="border-b px-1 py-1 min-w-44">
+          podeCriar={podeCriar} onCriar={onCriar} />, { td: 'min-w-48', largo: true })}
+      {envolver('Conta Analítica',
         <SeletorAnalitica historicos={historicos} valor={campos.historico || null} titularId={campos.contaId} compacto
           onEscolher={escolherAnalitica}
-          podeCriar={podeCriar} onCriar={(texto) => onCriarAnalitica(texto, campos.contaId)} />
-      </td>
-      <td className="border-b px-1 py-1">
-        {/* entrada e saída se excluem: digitar numa apaga a outra */}
-        <input inputMode="decimal" value={campos.entrada} placeholder="0,00"
+          podeCriar={podeCriar} onCriar={(texto) => onCriarAnalitica(texto, campos.contaId)} />, { td: 'min-w-44', largo: true })}
+      {/* entrada e saída se excluem: digitar numa apaga a outra */}
+      {envolver('Entrada',
+        <input inputMode="decimal" aria-label="Entrada" value={campos.entrada} placeholder="0,00"
           onChange={(e) => setCampos({ ...campos, entrada: e.target.value, saida: e.target.value ? '' : campos.saida })}
-          className="w-24 rounded border border-slate-300 px-1 py-0.5 text-right" />
-      </td>
-      <td className="border-b px-1 py-1">
-        <input inputMode="decimal" value={campos.saida} placeholder="0,00"
+          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-24')} text-right`} />)}
+      {envolver('Saída',
+        <input inputMode="decimal" aria-label="Saída" value={campos.saida} placeholder="0,00"
           onChange={(e) => setCampos({ ...campos, saida: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
-          className="w-24 rounded border border-slate-300 px-1 py-0.5 text-right" />
-      </td>
+          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-24')} text-right`} />)}
       {/* juros e multa são saídas adicionais: digitar num deles limpa a entrada */}
-      <td className="border-b px-1 py-1">
-        <input inputMode="decimal" value={campos.juros} placeholder="0,00"
+      {envolver('Juros',
+        <input inputMode="decimal" aria-label="Juros" value={campos.juros} placeholder="0,00"
           onChange={(e) => setCampos({ ...campos, juros: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
-          className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right" />
-      </td>
-      <td className="border-b px-1 py-1">
-        <input inputMode="decimal" value={campos.multa} placeholder="0,00"
+          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-20')} text-right`} />)}
+      {envolver('Multa',
+        <input inputMode="decimal" aria-label="Multa" value={campos.multa} placeholder="0,00"
           onChange={(e) => setCampos({ ...campos, multa: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
-          className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right" />
-      </td>
+          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-20')} text-right`} />)}
     </>
   );
 }
@@ -781,65 +809,34 @@ function PainelDocumentos({ empresaId, ano, termo, onErro, onMsg, onSalvo }: {
     `/api/caixa/livro?empresa=${encodeURIComponent(empresaId)}&ano=${ano}&formato=${formato}`;
 
   return (
-    <form key={chave} onSubmit={salvar} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-      <div>
-        <h2 className="text-sm font-semibold text-slate-900">Livro Caixa {ano} — documentos</h2>
-        <p className="text-xs text-slate-500">
-          Termo de abertura + os 12 meses + termo de encerramento, com as folhas numeradas.
-          Os campos abaixo saem nos termos.
-        </p>
-      </div>
+    <div id="painel-documentos">
+      <Secao titulo={`Livro Caixa ${ano} — documentos`}
+        descricao="Termo de abertura + os 12 meses + termo de encerramento, com as folhas numeradas. Os campos abaixo saem nos termos.">
+        <form key={chave} onSubmit={salvar} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Entrada rotulo="Nº do livro" name="numeroLivro" defaultValue={termo?.numeroLivro?.toString() ?? ''} inputMode="numeric" placeholder="ex.: 1" />
+            <Entrada rotulo="Nº de ordem" name="numeroOrdem" defaultValue={termo?.numeroOrdem?.toString() ?? ''} inputMode="numeric" placeholder="ex.: 1" />
+            <Entrada rotulo="Data do termo" type="date" name="dataTermo" defaultValue={termo?.dataTermo ?? ''} />
+          </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="text-xs text-slate-600">
-          Nº do livro
-          <input name="numeroLivro" defaultValue={termo?.numeroLivro?.toString() ?? ''} inputMode="numeric"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-slate-900" placeholder="ex.: 1" />
-        </label>
-        <label className="text-xs text-slate-600">
-          Nº de ordem
-          <input name="numeroOrdem" defaultValue={termo?.numeroOrdem?.toString() ?? ''} inputMode="numeric"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-slate-900" placeholder="ex.: 1" />
-        </label>
-        <label className="text-xs text-slate-600">
-          Data do termo
-          <input type="date" name="dataTermo" defaultValue={termo?.dataTermo ?? ''}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-slate-900" />
-        </label>
-      </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Botao type="submit" variante="tonal" carregando={salvando} disabled={!empresaId}>
+              {salvando ? 'Salvando…' : 'Salvar dados do termo'}
+            </Botao>
+            <span className="mx-1 hidden h-5 w-px bg-borda sm:block" aria-hidden="true" />
+            <a href={baixar('pdf')} className={botaoCls()}><IconeBaixar /> Baixar livro (PDF)</a>
+            <a href={baixar('xlsx')} className={botaoCls()}><IconeBaixar /> Baixar livro (.xlsx)</a>
+            {termo?.qtdFolhas ? (
+              <span className="text-xs text-tinta-suave">Último PDF: {termo.qtdFolhas} folhas.</span>
+            ) : null}
+          </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" disabled={salvando || !empresaId}
-          className="rounded-lg border border-petroleo-300 bg-petroleo-50 px-3 py-1.5 font-medium text-petroleo-700 hover:border-petroleo-500 disabled:opacity-50">
-          {salvando ? 'Salvando…' : 'Salvar dados do termo'}
-        </button>
-        <span className="mx-1 h-5 w-px bg-slate-200" />
-        <a href={baixar('pdf')}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:border-petroleo-500">
-          Baixar livro (PDF)
-        </a>
-        <a href={baixar('xlsx')}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:border-petroleo-500">
-          Baixar livro (.xlsx)
-        </a>
-        {termo?.qtdFolhas ? (
-          <span className="text-xs text-slate-500">Último PDF: {termo.qtdFolhas} folhas.</span>
-        ) : null}
-      </div>
-
-      <p className="text-xs text-amber-700">
-        O texto dos termos é o padrão do Livro Caixa e ainda depende de validação da contadora
-        (inclusive a variante de pessoa física). Onde faltar dado cadastral, o termo sai com um espaço em branco.
-      </p>
-    </form>
-  );
-}
-
-function Cartao({ titulo, valor, cor, destaque }: { titulo: string; valor: number; cor?: string; destaque?: boolean }) {
-  return (
-    <div className={`rounded-xl border bg-white p-3 ${destaque ? 'border-petroleo-300' : 'border-slate-200'}`}>
-      <div className="text-xs text-slate-500">{titulo}</div>
-      <div className={`text-lg font-semibold ${valor < 0 ? 'text-red-600' : cor ?? 'text-slate-900'}`}>{dinheiro(valor)}</div>
+          <Aviso tom="aviso">
+            O texto dos termos é o padrão do Livro Caixa e ainda depende de validação da contadora
+            (inclusive a variante de pessoa física). Onde faltar dado cadastral, o termo sai com um espaço em branco.
+          </Aviso>
+        </form>
+      </Secao>
     </div>
   );
 }
@@ -848,21 +845,17 @@ function Cartao({ titulo, valor, cor, destaque }: { titulo: string; valor: numbe
 function BancoIncompleto({ erro }: { erro: string }) {
   return (
     <div className="text-sm">
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-slate-900">Livro Caixa</h1>
-        <p className="text-xs text-slate-500">O banco ainda não está pronto</p>
-      </header>
-      <div className="mx-auto max-w-2xl p-6">
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-900">
-          <h2 className="font-semibold">Falta aplicar a migração do banco</h2>
-          <p className="mt-2">
+      <CabecalhoPagina titulo="Livro Caixa" subtitulo="O banco ainda não está pronto" />
+      <Conteudo largura="estreita">
+        <Aviso tom="aviso" titulo="Falta aplicar a migração do banco">
+          <p>
             A tabela de lançamentos não existe no Postgres. Rode
-            <code className="mx-1 rounded bg-white px-1">supabase/migrations/0002_lancamentos_e_conferencia.sql</code>
+            <code className="mx-1 rounded bg-superficie px-1 font-mono text-xs">supabase/migrations/0002_lancamentos_e_conferencia.sql</code>
             no SQL Editor do Supabase e recarregue esta página.
           </p>
-          <p className="mt-2 text-xs opacity-80">Resposta do banco: {erro}</p>
-        </div>
-      </div>
+          <p className="mt-2 text-xs text-tinta-suave">Resposta do banco: {erro}</p>
+        </Aviso>
+      </Conteudo>
     </div>
   );
 }

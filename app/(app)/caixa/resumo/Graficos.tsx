@@ -16,9 +16,10 @@ import { dinheiro, dinheiroCurto, MESES, MESES_LONGOS } from '../formato';
 
 const ENTRADA = '#059669';
 const SAIDA = '#dc2626';
-const SALDO = '#4f46e5';
-const GRADE = '#e2e8f0';
-const EIXO = '#94a3b8';
+const SALDO = '#14636c'; // petróleo-700 — a linha do saldo é a cor da marca
+const GRADE = '#dde6e7'; // --color-borda
+const EIXO = '#5f7377'; // --color-tinta-fraca (4,6:1 — rótulo de eixo legível)
+const ROTULO = '#0f2226'; // --color-tinta
 
 export interface PontoMes {
   mes: number;
@@ -76,7 +77,7 @@ function barra(x: number, y: number, largura: number, altura: number): string {
 
 function Legenda({ itens }: { itens: { cor: string; texto: string }[] }) {
   return (
-    <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+    <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-tinta-suave">
       {itens.map((i) => (
         <span key={i.texto} className="inline-flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: i.cor }} />
@@ -92,7 +93,7 @@ function Dica({ visivel, x, children }: { visivel: boolean; x: number; children:
   // Ancora pela fração horizontal para acompanhar o SVG, que é fluido.
   const pct = (x / W) * 100;
   return (
-    <div className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs shadow-lg"
+    <div className="pointer-events-none absolute top-0 -translate-x-1/2 whitespace-nowrap rounded-lg border border-borda bg-superficie px-2.5 py-1.5 text-xs text-tinta shadow-flutuante"
       style={{ left: `${pct}%` }}>
       {children}
     </div>
@@ -140,13 +141,13 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
         ))}
 
         {/* rótulo direto só no último ponto — número em todo ponto vira poluição */}
-        <text x={x(ultimo.mes)} y={y(ultimo.saldoFinal) - 12} textAnchor="end" fontSize={11} fontWeight={600} fill="#334155">
+        <text x={x(ultimo.mes)} y={y(ultimo.saldoFinal) - 12} textAnchor="end" fontSize={11} fontWeight={600} fill={ROTULO}>
           {dinheiro(ultimo.saldoFinal)}
         </text>
 
         {MESES.map((rotulo, i) => (
           <text key={rotulo} x={x(i + 1)} y={H - 6} textAnchor="middle" fontSize={10}
-            fill={ativo === i + 1 ? '#334155' : EIXO}>{rotulo}</text>
+            fill={ativo === i + 1 ? ROTULO : EIXO}>{rotulo}</text>
         ))}
 
         {/* faixas invisíveis: alvo de mouse bem maior que o marcador */}
@@ -158,7 +159,7 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
 
       <Dica visivel={ativo !== null} x={ativo ? x(ativo) : 0}>
         <strong>{ativo ? MESES_LONGOS[ativo - 1] : ''}</strong>
-        <span className="ml-2 text-slate-600">
+        <span className="ml-2 text-tinta-suave">
           {(() => {
             const m = meses.find((z) => z.mes === ativo);
             return m?.saldoFinal == null ? 'não liberado' : dinheiro(m.saldoFinal);
@@ -210,7 +211,7 @@ export function EntradasSaidas({ meses }: { meses: PontoMes[] }) {
 
         {MESES.map((rotulo, i) => (
           <text key={rotulo} x={L + faixa * (i + 0.5)} y={H - 6} textAnchor="middle" fontSize={10}
-            fill={ativo === i + 1 ? '#334155' : EIXO}>{rotulo}</text>
+            fill={ativo === i + 1 ? ROTULO : EIXO}>{rotulo}</text>
         ))}
 
         {meses.map((m) => (
@@ -223,7 +224,7 @@ export function EntradasSaidas({ meses }: { meses: PontoMes[] }) {
         {(() => {
           const m = meses.find((z) => z.mes === ativo);
           if (!m) return null;
-          if (m.entradas === null) return <><strong>{MESES_LONGOS[m.mes - 1]}</strong> <span className="text-slate-500">não liberado</span></>;
+          if (m.entradas === null) return <><strong>{MESES_LONGOS[m.mes - 1]}</strong> <span className="text-tinta-suave">não liberado</span></>;
           return (
             <>
               <strong>{MESES_LONGOS[m.mes - 1]}</strong>
@@ -239,7 +240,7 @@ export function EntradasSaidas({ meses }: { meses: PontoMes[] }) {
 
 function VazioGrafico({ texto }: { texto: string }) {
   return (
-    <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
+    <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-borda-forte/50 px-4 text-center text-xs text-tinta-fraca">
       {texto}
     </div>
   );

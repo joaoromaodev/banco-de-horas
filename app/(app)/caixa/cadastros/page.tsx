@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Empresa } from '@/lib/tipos';
+import { AbasCaixa } from '../AbasCaixa';
+import { Botao, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, Secao } from '@/components/ui';
+import { EntradaSugestoes, Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 
 /** Espelha DadosFiscais de lib/caixa (camelCase). */
 interface Fiscal {
@@ -88,111 +92,56 @@ export default function CaixaCadastros() {
   }
 
   const setFi = (campo: keyof Fiscal, v: string) => setFiscal((p) => ({ ...p, [campo]: v }));
-  const fInput = 'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100';
   // Pessoa física (autônomo) não tem inscrição estadual/municipal nem registro na Junta.
   const ehFisica = empresas.find((e) => e.id === empresaSel)?.tipoPessoa === 'fisica';
 
   return (
     <div className="text-sm">
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-slate-900">Livro Caixa · Cadastros</h1>
-        <p className="text-xs text-slate-500">Dados fiscais da empresa para o Termo de Abertura</p>
-      </header>
-      <div className="mx-auto max-w-4xl space-y-4 p-6">
-        <nav className="flex gap-1 text-xs">
-          <a href="/caixa" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Lançamentos</a>
-          <a href="/caixa/resumo" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:border-petroleo-500">Resumo</a>
-          <span className="rounded-lg border border-petroleo-700 bg-petroleo-900 px-3 py-1.5 text-white">Cadastros</span>
-        </nav>
+      <CabecalhoPagina titulo="Livro Caixa · Cadastros" subtitulo="Dados fiscais da empresa para o Termo de Abertura"
+        abas={<AbasCaixa ativa="cadastros" ehGestor />} />
 
-        {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
-        {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+        {msg && <Toast onFechar={() => setMsg(null)}>{msg}</Toast>}
+      </Toasts>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold">Dados fiscais</h2>
-            <label className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500">Empresa:</span>
-              <select value={empresaSel} onChange={(e) => setEmpresaSel(e.target.value)}
-                className="rounded-lg border border-slate-300 px-2 py-1">
-                {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
-                {empresas.map((e) => <option key={e.id || e.nome} value={e.id}>{e.nome}</option>)}
-              </select>
-            </label>
-          </div>
-          <p className="mb-3 text-xs text-slate-500">
-            Usados no Termo de Abertura do livro. Preencha uma vez por empresa — valem para todos os anos.
-            O número do livro, o número de ordem e a data do termo são por exercício e ficam na tela do caixa.
-          </p>
+      <Conteudo largura="media">
+        <Secao titulo="Dados fiscais"
+          descricao="Usados no Termo de Abertura do livro. Preencha uma vez por empresa — valem para todos os anos. O número do livro, o número de ordem e a data do termo são por exercício e ficam na tela do caixa."
+          acoes={
+            <Selecao aria-label="Empresa" tamanho="sm" largura="w-56 max-w-full" valor={empresaSel} onChange={setEmpresaSel}
+              placeholder="— cadastre uma empresa —"
+              opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
+          }>
           {!empresaSel ? (
-            <p className="text-slate-400">Cadastre e selecione uma empresa para preencher o fiscal.</p>
+            <EstadoVazio titulo="Nenhuma empresa selecionada" descricao="Cadastre e selecione uma empresa para preencher o fiscal." />
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2 grid grid-cols-3 gap-3">
-                  <div className="col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Endereço</label>
-                    <input className={fInput} value={fiscal.endereco ?? ''} onChange={(e) => setFi('endereco', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Número</label>
-                    <input className={fInput} value={fiscal.numeroEndereco ?? ''} onChange={(e) => setFi('numeroEndereco', e.target.value)} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Município</label>
-                    <input className={fInput} value={fiscal.municipio ?? ''} onChange={(e) => setFi('municipio', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">UF</label>
-                    <input className={fInput} maxLength={2} value={fiscal.estado ?? ''} onChange={(e) => setFi('estado', e.target.value.toUpperCase())} />
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+                <Entrada rotulo="Endereço" classeCampo="sm:col-span-4" value={fiscal.endereco ?? ''} onChange={(e) => setFi('endereco', e.target.value)} />
+                <Entrada rotulo="Número" classeCampo="sm:col-span-2" value={fiscal.numeroEndereco ?? ''} onChange={(e) => setFi('numeroEndereco', e.target.value)} />
+                <Entrada rotulo="Município" classeCampo="sm:col-span-4" value={fiscal.municipio ?? ''} onChange={(e) => setFi('municipio', e.target.value)} />
+                <Entrada rotulo="UF" classeCampo="sm:col-span-2" maxLength={2} value={fiscal.estado ?? ''} onChange={(e) => setFi('estado', e.target.value.toUpperCase())} />
                 {/* Inscrições e Junta não se aplicam a pessoa física (autônomo). */}
                 {!ehFisica && (<>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Inscrição estadual</label>
-                  <input className={fInput} value={fiscal.inscricaoEstadual ?? ''} onChange={(e) => setFi('inscricaoEstadual', e.target.value)} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Inscrição municipal</label>
-                  <input className={fInput} value={fiscal.inscricaoMunicipal ?? ''} onChange={(e) => setFi('inscricaoMunicipal', e.target.value)} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Registro na Junta (órgão)</label>
-                  <input className={fInput} placeholder="ex.: JUCEPA" value={fiscal.registroJunta ?? ''} onChange={(e) => setFi('registroJunta', e.target.value)} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Sob o número</label>
-                  <input className={fInput} value={fiscal.registroNumero ?? ''} onChange={(e) => setFi('registroNumero', e.target.value)} />
-                </div>
+                  <Entrada rotulo="Inscrição estadual" classeCampo="sm:col-span-3" value={fiscal.inscricaoEstadual ?? ''} onChange={(e) => setFi('inscricaoEstadual', e.target.value)} />
+                  <Entrada rotulo="Inscrição municipal" classeCampo="sm:col-span-3" value={fiscal.inscricaoMunicipal ?? ''} onChange={(e) => setFi('inscricaoMunicipal', e.target.value)} />
+                  <Entrada rotulo="Registro na Junta (órgão)" classeCampo="sm:col-span-3" placeholder="ex.: JUCEPA" value={fiscal.registroJunta ?? ''} onChange={(e) => setFi('registroJunta', e.target.value)} />
+                  <Entrada rotulo="Sob o número" classeCampo="sm:col-span-3" value={fiscal.registroNumero ?? ''} onChange={(e) => setFi('registroNumero', e.target.value)} />
                 </>)}
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Prefeitura</label>
-                  <input className={fInput} value={fiscal.prefeitura ?? ''} onChange={(e) => setFi('prefeitura', e.target.value)} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Cidade do termo</label>
-                  <input className={fInput} list="cidades-termo" placeholder="Belém ou Castanhal" value={fiscal.cidadeTermo ?? ''} onChange={(e) => setFi('cidadeTermo', e.target.value)} />
-                  <datalist id="cidades-termo"><option value="Belém" /><option value="Castanhal" /></datalist>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Contabilista</label>
-                  <input className={fInput} value={fiscal.contabilista} onChange={(e) => setFi('contabilista', e.target.value)} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">CRC</label>
-                  <input className={fInput} value={fiscal.crc} onChange={(e) => setFi('crc', e.target.value)} />
-                </div>
+                <Entrada rotulo="Prefeitura" classeCampo="sm:col-span-3" value={fiscal.prefeitura ?? ''} onChange={(e) => setFi('prefeitura', e.target.value)} />
+                <EntradaSugestoes rotulo="Cidade do termo" classeCampo="sm:col-span-3" placeholder="Belém ou Castanhal"
+                  sugestoes={['Belém', 'Castanhal']} value={fiscal.cidadeTermo ?? ''} onChange={(v) => setFi('cidadeTermo', v)} />
+                <Entrada rotulo="Contabilista" classeCampo="sm:col-span-3" value={fiscal.contabilista} onChange={(e) => setFi('contabilista', e.target.value)} />
+                <Entrada rotulo="CRC" classeCampo="sm:col-span-3" value={fiscal.crc} onChange={(e) => setFi('crc', e.target.value)} />
               </div>
-              <div className="mt-3">
-                <button onClick={salvarFiscal} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white">Salvar dados fiscais</button>
+              <div className="mt-5">
+                <Botao variante="primaria" onClick={salvarFiscal}>Salvar dados fiscais</Botao>
               </div>
             </>
           )}
-        </section>
-      </div>
+        </Secao>
+      </Conteudo>
     </div>
   );
 }

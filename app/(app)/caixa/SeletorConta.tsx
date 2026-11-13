@@ -10,6 +10,10 @@
 //
 // Criar conta que **não existe no catálogo** é outra história: só a contadora.
 import { useMemo, useState } from 'react';
+import { Modal } from '../Dialogo';
+import { IconeBusca, IconeMais } from '../icones';
+import { Botao, controleCls, Entrada, EstadoVazio } from '@/components/ui';
+import { Selecao } from '@/components/selecao';
 
 export interface Conta {
   id: string;
@@ -89,81 +93,80 @@ export default function SeletorConta({ contas, valor, onEscolher, podeCriar, onC
       <button
         type="button"
         onClick={abrir}
-        title={rotuloConta(contas, valor)}
-        className={`w-full truncate rounded border px-1.5 text-left ${compacto ? 'py-0.5' : 'py-1'} ${
-          semConta ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-300 bg-white text-slate-700'
-        } hover:border-petroleo-500`}
+        data-dica={rotuloConta(contas, valor)}
+        aria-haspopup="dialog"
+        className={`w-full truncate rounded-md border px-2 text-left text-base transition-colors sm:text-[13px] ${compacto ? 'h-8' : 'h-9'} ${
+          semConta
+            ? 'border-aviso-borda bg-aviso-suave text-aviso hover:border-aviso'
+            : 'border-borda-forte bg-superficie text-tinta hover:border-tinta-suave'
+        }`}
       >
         {valor ? rotuloConta(contas, valor) : 'Escolher conta…'}
       </button>
 
       {aberto && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/30 p-4 pt-16"
-          onClick={() => setAberto(false)}>
-          <div className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-slate-200 p-3">
-              <input
-                autoFocus
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setAberto(false);
-                  if (e.key === 'Enter') {
-                    const primeira = minhas[0] ?? resto[0];
-                    if (primeira) escolher(primeira.id);
-                  }
-                }}
-                placeholder="Buscar por código, nome ou grupo…"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600"
-              />
-            </div>
-
-            <div className="max-h-[50vh] overflow-y-auto text-sm">
-              {minhas.length > 0 && (
-                <Secao titulo="Contas desta empresa">
-                  {minhas.map((c) => <Item key={c.id} conta={c} sel={c.id === valor} onClick={() => escolher(c.id)} />)}
-                </Secao>
-              )}
-              {resto.length > 0 && (
-                <Secao titulo={minhas.length ? 'Catálogo completo' : 'Catálogo'}>
-                  {resto.map((c) => <Item key={c.id} conta={c} sel={c.id === valor} onClick={() => escolher(c.id)} />)}
-                </Secao>
-              )}
-              {minhas.length === 0 && resto.length === 0 && (
-                <p className="px-4 py-6 text-center text-slate-400">Nenhuma conta encontrada.</p>
-              )}
-            </div>
-
-            <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-3">
-              <button type="button" onClick={() => escolher(null)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-xs text-slate-600 hover:border-amber-400">
-                <span className="font-medium">Sem conta — movimentação bancária</span>
-                <span className="block text-slate-400">Depósito ou retirada da conta corrente não é receita nem despesa.</span>
-              </button>
-
-              {podeCriar && onCriar && (criando ? (
-                <div className="space-y-2 rounded-lg border border-slate-300 bg-white p-2">
-                  <input value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)}
-                    placeholder="Nome da conta nova" className="w-full rounded border border-slate-300 px-2 py-1 text-xs" />
-                  <select value={grupoNovo} onChange={(e) => setGrupoNovo(e.target.value)}
-                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs">
-                    <option value="">— grupo do plano de contas —</option>
-                    {grupos.map((gr) => <option key={gr} value={gr}>{gr}</option>)}
-                  </select>
-                  {erro && <p className="text-xs text-red-600">{erro}</p>}
-                  <div className="flex gap-2">
-                    <button type="button" onClick={criar} className="rounded bg-petroleo-900 px-3 py-1 text-xs text-white">Criar e usar</button>
-                    <button type="button" onClick={() => setCriando(false)} className="rounded border border-slate-300 px-3 py-1 text-xs">Cancelar</button>
-                  </div>
-                  <p className="text-xs text-slate-400">O código sai do grupo escolhido.</p>
-                </div>
-              ) : (
-                <button type="button" onClick={() => setCriando(true)}
-                  className="text-xs text-petroleo-700 hover:underline">+ Criar conta no catálogo</button>
-              ))}
-            </div>
+        <Modal onFechar={() => setAberto(false)} rotulo="Escolher conta titular" largura="max-w-xl">
+          <div className="relative border-b border-borda p-3">
+            <IconeBusca size={16} className="pointer-events-none absolute left-6 top-1/2 -translate-y-1/2 text-tinta-fraca" />
+            <input
+              autoFocus
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setAberto(false);
+                if (e.key === 'Enter') {
+                  const primeira = minhas[0] ?? resto[0];
+                  if (primeira) escolher(primeira.id);
+                }
+              }}
+              aria-label="Buscar conta por código, nome ou grupo"
+              placeholder="Buscar por código, nome ou grupo…"
+              className={controleCls({ tamanho: 'lg', className: 'pl-10' })}
+            />
           </div>
-        </div>
+
+          <div className="max-h-[50vh] overflow-y-auto text-sm">
+            {minhas.length > 0 && (
+              <Secao titulo="Contas desta empresa">
+                {minhas.map((c) => <Item key={c.id} conta={c} sel={c.id === valor} onClick={() => escolher(c.id)} />)}
+              </Secao>
+            )}
+            {resto.length > 0 && (
+              <Secao titulo={minhas.length ? 'Catálogo completo' : 'Catálogo'}>
+                {resto.map((c) => <Item key={c.id} conta={c} sel={c.id === valor} onClick={() => escolher(c.id)} />)}
+              </Secao>
+            )}
+            {minhas.length === 0 && resto.length === 0 && (
+              <EstadoVazio moldura={false} titulo="Nenhuma conta encontrada" descricao="Tente outro trecho do código, do nome ou do grupo." />
+            )}
+          </div>
+
+          <div className="space-y-2.5 border-t border-borda bg-superficie-suave p-3">
+            <button type="button" onClick={() => escolher(null)}
+              className="w-full rounded-lg border border-borda bg-superficie px-3 py-2 text-left text-[13px] transition-colors hover:border-aviso hover:bg-aviso-suave">
+              <span className="font-medium text-tinta">Sem conta — movimentação bancária</span>
+              <span className="block text-xs text-tinta-suave">Depósito ou retirada da conta corrente não é receita nem despesa.</span>
+            </button>
+
+            {podeCriar && onCriar && (criando ? (
+              <div className="space-y-3 rounded-lg border border-borda bg-superficie p-3">
+                <Entrada rotulo="Nome da conta nova" tamanho="sm" value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} />
+                <Selecao rotulo="Grupo do plano de contas" tamanho="sm" valor={grupoNovo} onChange={setGrupoNovo}
+                  placeholder="— escolha o grupo —" dica="O código sai do grupo escolhido."
+                  opcoes={grupos.map((gr) => ({ valor: gr, rotulo: gr }))} />
+                {erro && <p role="alert" className="text-xs font-medium text-perigo">{erro}</p>}
+                <div className="flex gap-2">
+                  <Botao variante="primaria" tamanho="sm" onClick={criar}>Criar e usar</Botao>
+                  <Botao tamanho="sm" onClick={() => setCriando(false)}>Cancelar</Botao>
+                </div>
+              </div>
+            ) : (
+              <Botao variante="fantasma" tamanho="sm" icone={<IconeMais size={14} />} onClick={() => setCriando(true)}>
+                Criar conta no catálogo
+              </Botao>
+            ))}
+          </div>
+        </Modal>
       )}
     </>
   );
@@ -172,7 +175,7 @@ export default function SeletorConta({ contas, valor, onEscolher, podeCriar, onC
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="sticky top-0 bg-slate-100 px-4 py-1 text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</div>
+      <div className="sticky top-0 border-b border-borda bg-superficie-suave px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-tinta-suave">{titulo}</div>
       {children}
     </div>
   );
@@ -180,11 +183,11 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 
 function Item({ conta, sel, onClick }: { conta: Conta; sel: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick}
-      className={`flex w-full items-baseline gap-2 px-4 py-1.5 text-left hover:bg-petroleo-50 ${sel ? 'bg-petroleo-50' : ''}`}>
-      <span className="w-16 shrink-0 font-mono text-xs text-slate-500">{conta.codigo}</span>
-      <span className="flex-1 truncate">{conta.nome}</span>
-      <span className={`shrink-0 text-xs ${conta.natureza === 'receita' ? 'text-emerald-600' : 'text-slate-400'}`}>
+    <button type="button" onClick={onClick} aria-current={sel ? 'true' : undefined}
+      className={`flex w-full items-baseline gap-3 px-4 py-2 text-left transition-colors hover:bg-superficie-realce focus-visible:-outline-offset-2 ${sel ? 'bg-superficie-realce font-medium' : ''}`}>
+      <span className="w-16 shrink-0 font-mono text-xs text-tinta-suave">{conta.codigo}</span>
+      <span className="min-w-0 flex-1 truncate text-tinta">{conta.nome}</span>
+      <span className={`shrink-0 text-xs ${conta.natureza === 'receita' ? 'text-sucesso' : 'text-tinta-suave'}`}>
         {conta.natureza === 'receita' ? 'receita' : 'despesa'}
       </span>
     </button>
