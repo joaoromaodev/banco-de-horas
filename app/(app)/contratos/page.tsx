@@ -25,7 +25,7 @@ const COR_SITUACAO: Record<Situacao, string> = {
 const NOME_DIA: Record<Dia, string> = { SEG: 'Segunda', TER: 'Terça', QUA: 'Quarta', QUI: 'Quinta', SEX: 'Sexta', SAB: 'Sábado' };
 const ESTADOS_CIVIS = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União estável'];
 
-const inp = 'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+const inp = 'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-petroleo-500 focus:ring-2 focus:ring-petroleo-100';
 
 function Campo({ rotulo, children, className = '' }: { rotulo: string; children: React.ReactNode; className?: string }) {
   return (
@@ -334,7 +334,7 @@ export default function ContratosPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
             <span>Contrato excluído — {desfazer.dados.nome}.</span>
             <button onClick={desfazerExclusao}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-2.5 py-1 font-medium text-indigo-700 hover:border-indigo-400">
+              className="inline-flex items-center gap-1.5 rounded-lg border border-petroleo-300 bg-white px-2.5 py-1 font-medium text-petroleo-700 hover:border-petroleo-500">
               <IconeDesfazer size={15} /> Desfazer
             </button>
           </div>
@@ -361,7 +361,7 @@ export default function ContratosPage() {
           {/* ---------------------------------------------------- lista */}
           <aside className="space-y-2">
             <button onClick={() => { novo(); setMsg(null); setErro(null); }}
-              className="w-full rounded-lg bg-indigo-600 px-3 py-2 font-medium text-white hover:bg-indigo-700">
+              className="w-full rounded-lg bg-petroleo-900 px-3 py-2 font-medium text-white hover:bg-petroleo-800">
               + Novo contrato
             </button>
             {contratos.length > 5 && (
@@ -375,7 +375,7 @@ export default function ContratosPage() {
               )}
               {filtrados.map((c) => (
                 <div key={c.id}
-                  className={`group rounded-lg border bg-white px-3 py-2 ${editandoId === c.id ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-indigo-300'}`}>
+                  className={`group rounded-lg border bg-white px-3 py-2 ${editandoId === c.id ? 'border-petroleo-600 ring-2 ring-petroleo-100' : 'border-slate-200 hover:border-petroleo-300'}`}>
                   <div className="flex items-start justify-between gap-2">
                     <button onClick={() => abrir(c)} className="min-w-0 flex-1 text-left">
                       <div className="truncate font-medium text-slate-800">{c.dados.nome}</div>
@@ -476,7 +476,7 @@ export default function ContratosPage() {
             </Secao>
 
             <Secao titulo="Horário de trabalho"
-              extra={<button onClick={copiarSegunda} className="text-xs text-indigo-700 hover:underline">Copiar segunda para os dias úteis</button>}>
+              extra={<button onClick={copiarSegunda} className="text-xs text-petroleo-700 hover:underline">Copiar segunda para os dias úteis</button>}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-slate-500">
@@ -553,8 +553,8 @@ export default function ContratosPage() {
                 <Campo rotulo="Término do contrato">
                   <input type="date" className={inp} value={d.termino} onChange={(e) => mudar('termino', e.target.value)} />
                   <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                    <button onClick={() => mudar('termino', v1)} className="text-indigo-700 hover:underline">fim do 1º período</button>
-                    {v2 && <button onClick={() => mudar('termino', v2)} className="text-indigo-700 hover:underline">fim da prorrogação</button>}
+                    <button onClick={() => mudar('termino', v1)} className="text-petroleo-700 hover:underline">fim do 1º período</button>
+                    {v2 && <button onClick={() => mudar('termino', v2)} className="text-petroleo-700 hover:underline">fim da prorrogação</button>}
                   </div>
                 </Campo>
                 <Campo rotulo="Retorno para receber a rescisão">
@@ -575,18 +575,18 @@ export default function ContratosPage() {
             <div className="sticky bottom-0 -mx-6 flex flex-wrap items-center gap-2 border-t border-slate-200 bg-white/95 px-6 py-3 backdrop-blur">
               <button onClick={salvar} disabled={!!ocupado || semTabela}
                 title={semTabela ? 'Aguardando a migração 0009 no banco' : undefined}
-                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white hover:bg-petroleo-800 disabled:opacity-50">
                 {ocupado === 'salvar' ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Salvar contrato'}
               </button>
               <span className="mx-1 h-6 w-px bg-slate-200" />
               {([['contrato', 'Contrato'], ['vale', 'Declaração de VT'], ['encerramento', 'Aviso de término']] as const).map(([doc, r]) => (
                 <button key={doc} onClick={() => baixar(doc)} disabled={!!ocupado}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-700 hover:border-indigo-400 disabled:opacity-50">
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-700 hover:border-petroleo-500 disabled:opacity-50">
                   {ocupado === doc ? 'Gerando…' : `⬇ ${r}`}
                 </button>
               ))}
               <button onClick={() => baixar('todos')} disabled={!!ocupado}
-                className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 font-medium text-indigo-700 hover:border-indigo-400 disabled:opacity-50">
+                className="rounded-lg border border-petroleo-300 bg-petroleo-50 px-3 py-2 font-medium text-petroleo-700 hover:border-petroleo-500 disabled:opacity-50">
                 {ocupado === 'todos' ? 'Gerando…' : '⬇ Admissão completa (.zip)'}
               </button>
             </div>
