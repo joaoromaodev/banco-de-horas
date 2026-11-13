@@ -1,5 +1,9 @@
 # Guia de Design — padrões reutilizáveis
 
+> **Para este app, a referência é [`identidade-visual.md`](identidade-visual.md)** (tokens e
+> primitivas reais do ClickContas) e a vitrine [`design-system.html`](design-system.html).
+> Este guia é a versão genérica, agnóstica de marca, para portar o padrão a outros projetos.
+
 Documentação do **sistema de design** deste app (layout, espaçamento, raios,
 tipografia, componentes e estados de interação), pensada para ser reaproveitada
 em **outros projetos**. É **agnóstica de marca**: as cores aparecem por *papel

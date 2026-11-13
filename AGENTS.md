@@ -26,3 +26,11 @@ alcança. Toda rota de API nova precisa chamar a guarda correspondente de
 **Antes de mexer no Livro Caixa, leia [`docs/livro-caixa.md`](docs/livro-caixa.md)** —
 decisões da contadora, etapas concluídas, o que vem a seguir e armadilhas conhecidas.
 Mantenha esse arquivo atualizado ao fim de cada etapa.
+
+**Antes de criar ou alterar qualquer tela, leia
+[`docs/identidade-visual.md`](docs/identidade-visual.md)** — os papéis de cor de
+`app/globals.css` e as primitivas de `components/` (`ui`, `selecao`, `retorno`) e de
+`app/(app)/Dialogo.tsx`. Em resumo: nada de `slate-*`/`red-*` soltos, nada de
+`<select>`, `<datalist>`, `alert/confirm/prompt` nem `title=` cru; uma ação primária
+por tela; excluir sempre com confirmação **e** desfazer. A vitrine dos componentes
+está em [`docs/design-system.html`](docs/design-system.html).

@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClickContas Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Tokens — espelham app/globals.css. A marca só tem tema claro. */
+:root {
+  --petroleo-950:#06282d; --petroleo-900:#0a3a40; --petroleo-800:#0f4c54; --petroleo-700:#14636c;
+  --petroleo-600:#1c808b; --petroleo-500:#2b9aa6; --petroleo-400:#5aa7b0; --petroleo-300:#93c4ca;
+  --petroleo-200:#bcdadd; --petroleo-100:#d7e7e9; --petroleo-50:#eef5f6;
+  --verde-700:#15803d; --verde-600:#16a34a; --verde-500:#22c55e; --verde-100:#d1fadf; --verde-50:#ecfdf5;
+
+  --fundo:#f3f7f7; --superficie:#ffffff; --superficie-suave:#f6f9f9; --superficie-realce:#eef5f6;
+  --borda:#dde6e7; --borda-forte:#7f9499;
+  --tinta:#0f2226; --tinta-suave:#47595d; --tinta-fraca:#5f7377;
+  --primaria:#0f4c54; --primaria-hover:#0a3a40; --primaria-suave:#eef5f6; --primaria-texto:#14636c;
+  --sucesso:#15803d; --sucesso-suave:#ecfdf5; --sucesso-borda:#a7dfbd;
+  --aviso:#92400e; --aviso-suave:#fffbeb; --aviso-borda:#f3d491;
+  --perigo:#b91c1c; --perigo-solido:#c81e1e; --perigo-suave:#fef2f2; --perigo-borda:#f3bcbc;
+  --foco:#1c808b;
+
+  --raio-sm:6px; --raio:8px; --raio-lg:12px;
+  --sombra-cartao:0 1px 2px rgb(15 34 38 / .05);
+  --sombra-flutuante:0 16px 40px -12px rgb(15 34 38 / .28), 0 2px 8px rgb(15 34 38 / .08);
+  --fonte:'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --mono:'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  color-scheme: light;
+}
+*,*::before,*::after { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; }
+body { margin:0; background:var(--fundo); color:var(--tinta); font:14px/1.5 var(--fonte); -webkit-font-smoothing:antialiased; }
+h1,h2,h3,p { margin:0; }
+button,input { font:inherit; color:inherit; }
+::selection { background:var(--petroleo-200); color:var(--tinta); }
+:where(a,button,input,[tabindex]):focus-visible { outline:2px solid var(--foco); outline-offset:2px; }
+:where(input:not([type=checkbox],[type=radio])):focus-visible { outline-offset:0; border-color:var(--foco); }
+
+/* Barra de rolagem da marca */
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background:transparent; }
+::-webkit-scrollbar-thumb { background-color:var(--petroleo-300); border:2px solid transparent; border-radius:999px; background-clip:content-box; }
+::-webkit-scrollbar-thumb:hover { background-color:var(--petroleo-600); }
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-width:thin; scrollbar-color:var(--petroleo-300) transparent; } }
+
+/* ---------- página ---------- */
+.capa { background:radial-gradient(60% 50% at 0% 100%, rgb(22 163 74 / .22) 0%, transparent 70%), radial-gradient(120% 140% at 100% 0%, #14636c 0%, #0a3a40 45%, #06282d 100%); color:#fff; }
+.capa-in { max-width:1040px; margin:0 auto; padding:56px 16px 48px; }
+.marca { display:flex; align-items:center; gap:12px; }
+.marca strong { display:block; font-size:16px; letter-spacing:-.01em; }
+.marca span { font-size:12px; color:var(--petroleo-200); }
+.capa .traco { display:block; width:40px; height:4px; border-radius:999px; background:var(--verde-500); margin:44px 0 20px; }
+.capa h1 { font-size:clamp(28px, 6vw, 44px); line-height:1.1; letter-spacing:-.02em; font-weight:600; max-width:16ch; }
+.capa p { margin-top:16px; max-width:52ch; color:var(--petroleo-100); font-size:15px; }
+.indice { position:sticky; top:0; z-index:20; background:rgb(255 255 255 / .92); backdrop-filter:blur(8px); border-bottom:1px solid var(--borda); }
+.indice nav { max-width:1040px; margin:0 auto; padding:0 16px; display:flex; gap:4px; overflow-x:auto; }
+.indice a { white-space:nowrap; padding:12px 10px; font-size:13px; font-weight:500; color:var(--tinta-suave); text-decoration:none; border-bottom:2px solid transparent; }
+.indice a:hover { color:var(--tinta); border-color:var(--borda-forte); }
+main { max-width:1040px; margin:0 auto; padding:8px 16px 80px; }
+section { padding-top:44px; scroll-margin-top:40px; }
+.sobre { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--primaria-texto); }
+section > h2 { font-size:22px; letter-spacing:-.015em; font-weight:600; margin-top:4px; }
+section > p.lide { color:var(--tinta-suave); margin:6px 0 20px; max-width:68ch; }
+.cartao { background:var(--superficie); border:1px solid var(--borda); border-radius:var(--raio-lg); box-shadow:var(--sombra-cartao); padding:20px; }
+.cartao + .cartao { margin-top:16px; }
+.cartao h3 { font-size:15px; font-weight:600; margin-bottom:14px; }
+.linha { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.grade { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+.legenda { font-size:12px; color:var(--tinta-suave); margin-top:10px; }
+code { font-family:var(--mono); font-size:12px; background:var(--superficie-realce); padding:1px 5px; border-radius:4px; color:var(--primaria-texto); }
+
+/* ---------- paleta ---------- */
+.rampa { display:grid; grid-template-columns:repeat(auto-fit, minmax(74px, 1fr)); border-radius:var(--raio); overflow:hidden; border:1px solid var(--borda); }
+.rampa div { height:74px; padding:8px; font:500 11px/1.3 var(--mono); display:flex; flex-direction:column; justify-content:flex-end; }
+.papeis { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); }
+.papel { display:flex; align-items:center; gap:10px; font-size:13px; }
+.papel i { width:36px; height:36px; flex:none; border-radius:var(--raio); border:1px solid var(--borda); }
+.papel b { display:block; font-weight:600; }
+.papel small { font:11px var(--mono); color:var(--tinta-suave); }
+
+/* ---------- tipografia ---------- */
+.tipo { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+.tipo div { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; padding-bottom:12px; border-bottom:1px solid var(--borda); }
+.tipo div:last-child { border:0; padding:0; }
+.tipo small { font:11px var(--mono); color:var(--tinta-suave); }
+.caixas { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; }
+.caixas figure { margin:0; text-align:center; font:11px var(--mono); color:var(--tinta-suave); }
+.caixas i { display:block; background:var(--superficie); border:1px solid var(--borda); margin-bottom:8px; }
+
+/* ---------- botões ---------- */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--raio); border:1px solid transparent; font-size:14px; font-weight:500; white-space:nowrap; cursor:pointer; transition:background-color .15s, border-color .15s; user-select:none; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn.sm { height:32px; padding:0 12px; font-size:13px; gap:6px; }
+.btn.lg { height:44px; padding:0 20px; font-size:15px; }
+.btn.primaria { background:var(--primaria); color:#fff; box-shadow:var(--sombra-cartao); }
+.btn.primaria:hover:not(:disabled) { background:var(--primaria-hover); }
+.btn.secundaria { background:var(--superficie); border-color:#bfcacc; }
+.btn.secundaria:hover:not(:disabled) { background:var(--superficie-realce); border-color:var(--borda-forte); }
+.btn.tonal { background:var(--primaria-suave); color:var(--primaria-texto); box-shadow:inset 0 0 0 1px var(--petroleo-200); }
+.btn.tonal:hover { background:var(--petroleo-100); }
+.btn.fantasma { color:var(--primaria-texto); }
+.btn.fantasma:hover { background:var(--superficie-realce); }
+.btn.perigo { background:var(--perigo-solido); color:#fff; }
+.btn.perigo:hover { background:var(--perigo); }
+.btn.sucesso { background:var(--sucesso-suave); color:var(--sucesso); box-shadow:inset 0 0 0 1px var(--sucesso-borda); }
+.btn.sucesso:hover { background:var(--verde-100); }
+.icone-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:0; border-radius:var(--raio-sm); background:none; cursor:pointer; color:var(--tinta-suave); transition:background-color .15s; }
+.icone-btn:hover { background:var(--superficie-realce); color:var(--tinta); }
+.icone-btn.perigo { color:var(--perigo); } .icone-btn.perigo:hover { background:var(--perigo-suave); }
+.icone-btn.primaria { color:var(--primaria-texto); }
+.giro { width:16px; height:16px; border-radius:50%; border:2.5px solid rgb(255 255 255 / .3); border-top-color:#fff; animation:giro .7s linear infinite; }
+@keyframes giro { to { transform:rotate(360deg); } }
+svg.i { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+
+/* ---------- campos ---------- */
+.campo label, .rotulo { display:block; font-size:13px; font-weight:500; margin-bottom:6px; }
+.campo .dica { display:block; font-size:12px; color:var(--tinta-suave); margin-top:6px; }
+.campo .erro { display:block; font-size:12px; font-weight:500; color:var(--perigo); margin-top:6px; }
+.controle { display:flex; align-items:center; width:100%; height:36px; padding:0 12px; border:1px solid var(--borda-forte); border-radius:var(--raio); background:var(--superficie); font-size:14px; transition:border-color .15s; }
+.controle::placeholder { color:var(--tinta-fraca); }
+.controle:hover { border-color:var(--tinta-suave); }
+.controle:disabled { background:var(--superficie-suave); border-color:var(--borda); color:var(--tinta-fraca); cursor:not-allowed; }
+.controle.invalido { border-color:var(--perigo); }
+input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator { cursor:pointer; padding:3px; border-radius:4px; opacity:.55; }
+input[type=date]::-webkit-calendar-picker-indicator:hover, input[type=time]::-webkit-calendar-picker-indicator:hover { opacity:1; background:var(--petroleo-100); }
+.arquivo { display:flex; align-items:center; gap:10px; height:36px; padding:0 12px; border:1px dashed var(--borda-forte); border-radius:var(--raio); background:var(--superficie); color:var(--tinta-suave); cursor:pointer; }
+.arquivo:hover { border-color:var(--primaria); background:var(--superficie-realce); }
+.arquivo input { position:absolute; width:1px; height:1px; opacity:0; }
+.arquivo:has(:focus-visible) { outline:2px solid var(--foco); }
+.arquivo svg { color:var(--primaria-texto); }
+
+input[type=checkbox], input[type=radio] { appearance:none; flex:none; width:18px; height:18px; margin:0; border:1.5px solid var(--borda-forte); border-radius:5px; background:var(--superficie) center / 100% 100% no-repeat; cursor:pointer; transition:background-color .12s, border-color .12s, box-shadow .12s, background-position .15s; }
+input[type=radio] { border-radius:50%; }
+input[type=checkbox]:hover, input[type=radio]:hover { border-color:var(--primaria); }
+input[type=checkbox]:checked { border-color:var(--primaria); background-color:var(--primaria); background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 9.5l3 3 6-6.5'/%3E%3C/svg%3E"); }
+input[type=radio]:checked { border-color:var(--primaria); background-color:var(--primaria); box-shadow:inset 0 0 0 3px var(--superficie); }
+input[type=checkbox].alternador { width:36px; height:20px; border:0; border-radius:999px; background:var(--borda-forte) radial-gradient(circle at center, #fff 0 7.2px, transparent 8px) left center / 20px 20px no-repeat; }
+input[type=checkbox].alternador:checked { background-color:var(--primaria); background-image:radial-gradient(circle at center, #fff 0 7.2px, transparent 8px); background-position:right center; }
+input:disabled { opacity:.5; cursor:not-allowed; }
+.marcacao { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+
+/* ---------- lista suspensa ---------- */
+.selecao { position:relative; }
+.selecao > button { justify-content:space-between; gap:8px; cursor:pointer; text-align:left; }
+.selecao > button svg { color:var(--tinta-suave); transition:transform .15s; }
+.selecao.aberta > button svg { transform:rotate(180deg); }
+.painel { position:absolute; z-index:30; left:0; right:0; top:calc(100% + 4px); display:none; flex-direction:column; max-height:260px; background:var(--superficie); border:1px solid var(--borda); border-radius:var(--raio); box-shadow:var(--sombra-flutuante); overflow:hidden; }
+.selecao.aberta .painel { display:flex; }
+.painel .busca { margin:6px; height:32px; padding:0 10px; border:0; border-radius:var(--raio-sm); background:var(--superficie-suave); outline:none; }
+.painel ul { list-style:none; margin:0; padding:4px; overflow-y:auto; }
+.painel li { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:var(--raio-sm); cursor:pointer; }
+.painel li.ativa { background:var(--superficie-realce); }
+.painel li[aria-selected=true] { font-weight:500; }
+.painel li[aria-selected=true]::after { content:'✓'; color:var(--primaria-texto); }
+.painel li.nada { color:var(--tinta-fraca); justify-content:center; cursor:default; }
+
+/* ---------- selos, avisos, abas ---------- */
+.selo { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:500; white-space:nowrap; background:var(--superficie-realce); color:var(--tinta-suave); box-shadow:inset 0 0 0 1px var(--borda); }
+.selo.primaria { background:var(--primaria-suave); color:var(--primaria-texto); box-shadow:inset 0 0 0 1px var(--petroleo-200); }
+.selo.sucesso { background:var(--sucesso-suave); color:var(--sucesso); box-shadow:inset 0 0 0 1px var(--sucesso-borda); }
+.selo.aviso { background:var(--aviso-suave); color:var(--aviso); box-shadow:inset 0 0 0 1px var(--aviso-borda); }
+.selo.perigo { background:var(--perigo-suave); color:var(--perigo); box-shadow:inset 0 0 0 1px var(--perigo-borda); }
+.aviso-cx { display:flex; gap:12px; align-items:flex-start; padding:12px 14px; border:1px solid var(--petroleo-200); border-radius:var(--raio); background:var(--primaria-suave); }
+.aviso-cx + .aviso-cx { margin-top:10px; }
+.aviso-cx svg { width:18px; height:18px; margin-top:1px; color:var(--primaria-texto); }
+.aviso-cx b { display:block; }
+.aviso-cx.sucesso { border-color:var(--sucesso-borda); background:var(--sucesso-suave); } .aviso-cx.sucesso svg { color:var(--sucesso); }
+.aviso-cx.aviso { border-color:var(--aviso-borda); background:var(--aviso-suave); } .aviso-cx.aviso svg { color:var(--aviso); }
+.aviso-cx.perigo { border-color:var(--perigo-borda); background:var(--perigo-suave); } .aviso-cx.perigo svg { color:var(--perigo); }
+.abas { display:flex; gap:4px; border-bottom:1px solid var(--borda); overflow-x:auto; }
+.abas button { border:0; background:none; padding:10px 12px; margin-bottom:-1px; border-bottom:2px solid transparent; font-size:14px; font-weight:500; color:var(--tinta-suave); cursor:pointer; white-space:nowrap; }
+.abas button:hover { color:var(--tinta); border-color:#bfcacc; }
+.abas button[aria-selected=true] { color:var(--primaria); border-color:var(--primaria); }
+.meses { display:grid; grid-template-columns:repeat(6, 1fr); gap:4px; padding:6px; border:1px solid var(--borda); border-radius:var(--raio-lg); background:var(--superficie); }
+@media (min-width:640px) { .meses { grid-template-columns:repeat(12, 1fr); } }
+.meses button { height:36px; border:0; border-radius:var(--raio); background:none; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; cursor:pointer; color:var(--tinta); }
+.meses button:hover { background:var(--superficie-realce); }
+.meses button.vazio { color:var(--tinta-fraca); font-weight:500; }
+.meses button[aria-current=true] { background:var(--primaria); color:#fff; }
+.pag { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; color:var(--tinta-suave); margin-top:14px; }
+
+/* ---------- tabela, indicadores, vazio, esqueleto ---------- */
+.indicadores { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+@media (min-width:760px) { .indicadores { grid-template-columns:repeat(4, minmax(0,1fr)); } }
+.indicador { background:var(--superficie); border:1px solid var(--borda); border-radius:var(--raio-lg); box-shadow:var(--sombra-cartao); padding:14px 16px; }
+.indicador.destaque { border-color:var(--petroleo-300); box-shadow:0 0 0 1px var(--petroleo-100); }
+.indicador small { font-size:12px; font-weight:500; color:var(--tinta-suave); }
+.indicador b { display:block; margin-top:4px; font-size:20px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+.tabela-moldura { overflow-x:auto; background:var(--superficie); border:1px solid var(--borda); border-radius:var(--raio-lg); box-shadow:var(--sombra-cartao); }
+table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+th { text-align:left; white-space:nowrap; padding:10px 12px; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--tinta-suave); background:var(--superficie-suave); border-bottom:1px solid var(--borda); }
+td { padding:8px 12px; border-bottom:1px solid #e8eeef; white-space:nowrap; }
+tbody tr:hover { background:rgb(238 245 246 / .6); }
+tbody tr.novo { background:rgb(238 245 246 / .8); }
+tfoot td { background:var(--superficie-suave); font-weight:600; border-bottom:0; }
+.num { text-align:right; } .entrada { color:var(--sucesso); } .saida { color:var(--perigo); }
+.vazio { display:flex; flex-direction:column; align-items:center; text-align:center; padding:32px 16px; border:1px dashed #bfcacc; border-radius:var(--raio-lg); }
+.vazio b { font-weight:500; color:var(--tinta-suave); } .vazio span { font-size:13px; color:var(--tinta-fraca); margin:4px 0 12px; max-width:36ch; }
+.esqueleto { display:block; height:14px; border-radius:var(--raio-sm); background:var(--petroleo-100); animation:pulso 1.4s ease-in-out infinite; }
+.esqueleto + .esqueleto { margin-top:10px; }
+@keyframes pulso { 50% { opacity:.45; } }
+.rolavel { max-height:150px; overflow:auto; border:1px solid var(--borda); border-radius:var(--raio); padding:12px; color:var(--tinta-suave); }
+
+/* ---------- diálogo, toast, dica ---------- */
+.veu { position:fixed; inset:0; z-index:50; display:none; align-items:flex-start; justify-content:center; padding:10vh 16px 16px; background:rgb(6 40 45 / .45); backdrop-filter:blur(2px); }
+.veu.aberto { display:flex; }
+.dialogo { width:100%; max-width:440px; background:var(--superficie); border-radius:var(--raio-lg); box-shadow:var(--sombra-flutuante); overflow:hidden; outline:none; }
+.dialogo .corpo { padding:20px; } .dialogo h3 { font-size:16px; font-weight:600; } .dialogo p { margin-top:8px; color:var(--tinta-suave); }
+.dialogo .pe { display:flex; flex-direction:column-reverse; gap:8px; padding:12px 20px; background:var(--superficie-suave); border-top:1px solid var(--borda); }
+@media (min-width:520px) { .dialogo .pe { flex-direction:row; justify-content:flex-end; } }
+.toasts { position:fixed; z-index:70; top:16px; left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; padding:0 16px; pointer-events:none; }
+@media (min-width:640px) { .toasts { align-items:flex-end; } }
+.toast { pointer-events:auto; position:relative; display:flex; align-items:flex-start; gap:12px; width:100%; max-width:380px; padding:12px 10px 12px 20px; background:var(--superficie); border:1px solid var(--borda); border-radius:var(--raio-lg); box-shadow:var(--sombra-flutuante); overflow:hidden; animation:entrada .18s ease-out; }
+.toast::before { content:''; position:absolute; inset:0 auto 0 0; width:4px; background:var(--sucesso); }
+.toast.perigo::before { background:var(--perigo); } .toast.info::before { background:var(--primaria); }
+.toast svg.i { width:18px; height:18px; margin-top:1px; color:var(--sucesso); } .toast.perigo svg.i { color:var(--perigo); } .toast.info svg.i { color:var(--primaria-texto); }
+.toast div { flex:1; min-width:0; } .toast .btn { margin-top:8px; }
+@keyframes entrada { from { opacity:0; transform:translateY(-6px); } }
+[data-dica] { position:relative; }
+[data-dica]:hover::after, [data-dica]:focus-visible::after { content:attr(data-dica); position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%); z-index:40; width:max-content; max-width:220px; padding:6px 10px; border-radius:var(--raio-sm); background:var(--petroleo-950); color:#fff; font-size:12px; font-weight:500; line-height:1.35; white-space:normal; pointer-events:none; }
+.sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+footer { border-top:1px solid var(--borda); padding:24px 16px; text-align:center; font-size:12px; color:var(--tinta-suave); }
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+</style>
+</head>
+<body>
+
+<header class="capa">
+  <div class="capa-in">
+    <div class="marca">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <defs><linearGradient id="g" x1="4" y1="3" x2="36" y2="37" gradientUnits="userSpaceOnUse"><stop stop-color="#16a34a"/><stop offset=".55" stop-color="#159f6f"/><stop offset="1" stop-color="#1c808b"/></linearGradient></defs>
+        <path d="M6 23.5V6.5A3 3 0 0 1 9 3.5h22a3 3 0 0 1 3 3v17l3.5 9v1.2a3 3 0 0 1-3 3h-29a3 3 0 0 1-3-3V32.500z" stroke="url(#g)" stroke-width="2.3" stroke-linejoin="round"/>
+        <rect x="9.800" y="7.200" width="20.400" height="13.600" rx="1.800" stroke="url(#g)" stroke-width="2.300"/>
+        <path d="M10.500 25.500h1.500M15.800 25.500h1.500M22.700 25.500h1.500M28 25.500h1.500M13.500 28.500h1.500M19.200 28.500h1.500M25 28.500h1.500M15.500 32.800h9" stroke="url(#g)" stroke-width="2.300" stroke-linecap="round"/>
+      </svg>
+      <div><strong>ClickContas</strong><span>Praticidade Contábil</span></div>
+    </div>
+    <span class="traco" aria-hidden="true"></span>
+    <h1>O sistema visual da marca</h1>
+    <p>Petróleo e verde, superfícies claras, um só jeito de fazer cada coisa. Tokens, tipografia e todos os componentes do painel — do botão à barra de rolagem.</p>
+  </div>
+</header>
+
+<div class="indice"><nav aria-label="Seções">
+  <a href="#cores">Cores</a><a href="#tipografia">Tipografia</a><a href="#forma">Forma</a><a href="#botoes">Botões</a>
+  <a href="#campos">Campos</a><a href="#retorno">Retorno</a><a href="#navegacao">Navegação</a><a href="#dados">Dados</a>
+</nav></div>
+
+<main>
+<section id="cores">
+  <span class="sobre">Fundações</span><h2>Cores</h2>
+  <p class="lide">Duas camadas. As <strong>rampas</strong> são a matéria-prima da marca; os <strong>papéis</strong> são o que as telas usam — nenhuma tela escolhe um tom de cinza ou de vermelho por conta própria.</p>
+  <div class="cartao">
+    <h3>Rampa petróleo</h3>
+    <div class="rampa" id="rampa-petroleo"></div>
+    <h3 style="margin-top:20px">Rampa verde</h3>
+    <div class="rampa" id="rampa-verde"></div>
+  </div>
+  <div class="cartao">
+    <h3>Papéis semânticos</h3>
+    <div class="papeis" id="papeis"></div>
+    <p class="legenda">Contraste AA: <code>tinta</code> 16:1, <code>tinta-suave</code> 7:1, <code>tinta-fraca</code> 4,6:1 sobre o fundo; branco sobre <code>primaria</code> 9,6:1; <code>borda-forte</code> 3:1 (contorno de campo).</p>
+  </div>
+</section>
+
+<section id="tipografia">
+  <span class="sobre">Fundações</span><h2>Tipografia</h2>
+  <p class="lide">Geist em quatro pesos. Escala curta: o título da página, o da seção, o corpo e o apoio. Números sempre tabulares.</p>
+  <div class="cartao tipo">
+    <div><span style="font-size:20px;font-weight:600;letter-spacing:-.015em">Livro Caixa — resumo</span><small>título de página · 20/600</small></div>
+    <div><span style="font-size:15px;font-weight:600">Entradas e saídas por mês</span><small>título de seção · 15/600</small></div>
+    <div><span>O movimento de cada mês, sem acumular.</span><small>corpo · 14/400</small></div>
+    <div><span style="font-size:13px;color:var(--tinta-suave)">Saldo do caixa no fim de cada mês.</span><small>apoio · 13/400 · tinta-suave</small></div>
+    <div><span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">Conta titular</span><small>cabeçalho de tabela · 11/600 caixa-alta</small></div>
+    <div><span style="font-size:20px;font-weight:600;font-variant-numeric:tabular-nums">1.234.567,89</span><small>número · tabular-nums</small></div>
+  </div>
+</section>
+
+<section id="forma">
+  <span class="sobre">Fundações</span><h2>Espaço, raio e sombra</h2>
+  <p class="lide">Ritmo de 4 px. Três raios, duas sombras — e a segunda só para o que flutua.</p>
+  <div class="cartao">
+    <h3>Espaçamento</h3>
+    <div class="caixas" id="espacos"></div>
+    <h3 style="margin-top:22px">Raios</h3>
+    <div class="caixas">
+      <figure><i style="width:64px;height:48px;border-radius:6px"></i>6 · célula, ícone</figure>
+      <figure><i style="width:64px;height:48px;border-radius:8px"></i>8 · botão, campo</figure>
+      <figure><i style="width:64px;height:48px;border-radius:12px"></i>12 · cartão, diálogo</figure>
+      <figure><i style="width:64px;height:48px;border-radius:999px"></i>∞ · selo, avatar</figure>
+    </div>
+    <h3 style="margin-top:22px">Sombras</h3>
+    <div class="caixas">
+      <figure><i style="width:120px;height:56px;border-radius:12px;box-shadow:var(--sombra-cartao)"></i>cartao</figure>
+      <figure><i style="width:120px;height:56px;border-radius:12px;box-shadow:var(--sombra-flutuante)"></i>flutuante</figure>
+    </div>
+  </div>
+</section>
+
+<section id="botoes">
+  <span class="sobre">Componentes</span><h2>Botões</h2>
+  <p class="lide">Uma ação primária por tela (ou por cartão-formulário). O resto é secundário, tonal ou fantasma. Vermelho só confirma o que destrói.</p>
+  <div class="cartao">
+    <h3>Variantes</h3>
+    <div class="linha">
+      <button class="btn primaria">Salvar contrato</button>
+      <button class="btn secundaria">Cancelar</button>
+      <button class="btn tonal">Admissão completa</button>
+      <button class="btn fantasma">Copiar segunda</button>
+      <button class="btn sucesso">Confirmar o mês</button>
+      <button class="btn perigo">Excluir</button>
+    </div>
+    <h3 style="margin-top:20px">Tamanhos e estados</h3>
+    <div class="linha">
+      <button class="btn primaria sm">Lançar</button>
+      <button class="btn primaria">Padrão</button>
+      <button class="btn primaria lg">Entrar no painel</button>
+      <button class="btn primaria" disabled><span class="giro"></span>Salvando…</button>
+      <button class="btn secundaria" disabled>Desabilitado</button>
+      <button class="btn secundaria"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7.500 10.500 12 15l4.500-4.500M5 19h14"/></svg>Baixar (.xlsx)</button>
+    </div>
+    <h3 style="margin-top:20px">Só ícone — sempre com rótulo e balão de dica</h3>
+    <div class="linha">
+      <button class="icone-btn primaria" aria-label="Editar" data-dica="Editar"><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.500 3.500a2.120 2.120 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      <button class="icone-btn" aria-label="Conferir" data-dica="Marcar como conferido"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></button>
+      <button class="icone-btn perigo" aria-label="Excluir" data-dica="Excluir"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <p class="legenda">Experimente o Tab: o anel de foco é o mesmo em tudo.</p>
+  </div>
+</section>
+
+<section id="campos">
+  <span class="sobre">Componentes</span><h2>Campos</h2>
+  <p class="lide">Nada com cara de navegador: lista suspensa, checkbox, radio, alternador e envio de arquivo são da marca. Rótulo sempre visível; a dica vem embaixo.</p>
+  <div class="cartao">
+    <div class="grade">
+      <div class="campo"><label for="c1">Razão social</label><input id="c1" class="controle" placeholder="Nome da empresa"></div>
+      <div class="campo"><label for="c2">Salário (R$)</label><input id="c2" class="controle" value="1.518,00" inputmode="decimal"><span class="dica">Aceita vírgula ou ponto.</span></div>
+      <div class="campo"><label for="c3">CPF</label><input id="c3" class="controle invalido" value="123.456.789-00" aria-invalid="true"><span class="erro">Dígito verificador inválido.</span></div>
+      <div class="campo"><label for="c4">Desabilitado</label><input id="c4" class="controle" value="Somente leitura" disabled></div>
+      <div class="campo"><label for="c5">Admissão</label><input id="c5" class="controle" type="date" value="2026-11-13"></div>
+      <div class="campo"><label for="c6">Entrada</label><input id="c6" class="controle" type="time" value="08:00"></div>
+    </div>
+  </div>
+  <div class="cartao">
+    <h3>Lista suspensa</h3>
+    <div class="grade">
+      <div class="campo"><span class="rotulo" id="r-mes">Mês</span>
+        <div class="selecao" data-valor="Novembro" data-opcoes="Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro" data-busca="1" aria-labelledby="r-mes"></div>
+        <span class="dica">Com busca: digite para filtrar; setas, Enter e Esc.</span></div>
+      <div class="campo"><span class="rotulo" id="r-tipo">Tipo de pessoa</span>
+        <div class="selecao" data-valor="Jurídica" data-opcoes="Jurídica|Física" aria-labelledby="r-tipo"></div>
+        <span class="dica">Lista curta: sem busca; digitar salta para a opção.</span></div>
+    </div>
+  </div>
+  <div class="cartao">
+    <h3>Marcação, alternador e arquivo</h3>
+    <div class="linha" style="gap:24px">
+      <label class="marcacao"><input type="checkbox" checked> Livro Caixa</label>
+      <label class="marcacao"><input type="checkbox"> Folha de Ponto</label>
+      <label class="marcacao"><input type="checkbox" disabled> Indisponível</label>
+    </div>
+    <div class="linha" style="gap:24px;margin-top:14px">
+      <label class="marcacao"><input type="radio" name="vt" checked> Não recebe</label>
+      <label class="marcacao"><input type="radio" name="vt"> Recebe vale-transporte</label>
+    </div>
+    <div class="linha" style="gap:24px;margin-top:14px">
+      <label class="marcacao"><input type="checkbox" class="alternador" role="switch" checked> Trabalha aos sábados</label>
+      <label class="marcacao"><input type="checkbox" class="alternador" role="switch"> Identifica pagador</label>
+    </div>
+    <div class="campo" style="margin-top:18px;max-width:360px"><span class="rotulo">Foto da folha</span>
+      <label class="arquivo"><input type="file" id="arq"><svg class="i" viewBox="0 0 24 24"><path d="M12 20V9M7.500 13.500 12 9l4.500 4.500M5 5h14"/></svg><span id="arq-nome">Escolher ou soltar a foto aqui</span></label></div>
+  </div>
+</section>
+
+<section id="retorno">
+  <span class="sobre">Componentes</span><h2>Retorno</h2>
+  <p class="lide">Toda ação responde. Sucesso vira notificação que some sozinha; erro fica até ser lido. Excluir sempre pergunta antes — e sempre deixa desfazer depois.</p>
+  <div class="cartao">
+    <h3>Diálogo e notificações</h3>
+    <div class="linha">
+      <button class="btn secundaria" id="abrir-dialogo">Excluir lançamento…</button>
+      <button class="btn secundaria" data-toast="sucesso">Notificar sucesso</button>
+      <button class="btn secundaria" data-toast="perigo">Notificar erro</button>
+    </div>
+    <p class="legenda">O diálogo prende o foco, fecha no Esc e nasce com o foco em “Cancelar”. Confirmar a exclusão mostra o toast com “Desfazer”.</p>
+  </div>
+  <div class="cartao">
+    <h3>Avisos em linha</h3>
+    <div class="aviso-cx"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.500v.500"/></svg><div><b>Lançamentos novos para conferir</b>Duas empresas lançaram desde a sua última visita.</div></div>
+    <div class="aviso-cx sucesso"><svg class="i" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg><div>Mês confirmado — o resumo fica visível ao cliente.</div></div>
+    <div class="aviso-cx aviso"><svg class="i" viewBox="0 0 24 24"><path d="M10.300 4.300 2.700 17.500a2 2 0 0 0 1.700 3h15.200a2 2 0 0 0 1.700-3L13.700 4.300a2 2 0 0 0-3.400 0Z"/><path d="M12 9.500v4.500M12 17v.500"/></svg><div>O saldo do caixa fica negativo em 14/07. O sistema não bloqueia, só avisa.</div></div>
+    <div class="aviso-cx perigo"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.500v5.500M12 16v.500"/></svg><div>Não foi possível salvar. Tente de novo.</div></div>
+    <h3 style="margin-top:20px">Selos</h3>
+    <div class="linha"><span class="selo">Contabilidade</span><span class="selo primaria">Administrador</span><span class="selo sucesso">Efetivado</span><span class="selo aviso">Em experiência</span><span class="selo perigo">2 erro(s)</span></div>
+  </div>
+</section>
+
+<section id="navegacao">
+  <span class="sobre">Componentes</span><h2>Navegação</h2>
+  <p class="lide">Abas sublinhadas para as telas de um módulo; grade de meses para o exercício; paginação discreta.</p>
+  <div class="cartao">
+    <div class="abas" role="tablist" aria-label="Livro Caixa">
+      <button role="tab" aria-selected="true">Lançamentos</button><button role="tab" aria-selected="false">Resumo</button><button role="tab" aria-selected="false">Cadastros</button>
+    </div>
+    <div class="meses" style="margin-top:18px" aria-label="Meses do exercício" id="meses"></div>
+    <div class="pag"><button class="btn secundaria sm" disabled>Anterior</button><span>Página <b style="color:var(--tinta)">1</b> de 4</span><button class="btn secundaria sm">Próxima</button></div>
+  </div>
+</section>
+
+<section id="dados">
+  <span class="sobre">Componentes</span><h2>Dados</h2>
+  <p class="lide">Dinheiro à direita, em números tabulares; verde entra, vermelho sai. A tabela rola dentro da moldura — a página nunca rola de lado.</p>
+  <div class="indicadores">
+    <div class="indicador"><small>Saldo transportado</small><b>12.480,00</b></div>
+    <div class="indicador"><small>Entradas do mês</small><b class="entrada">38.215,40</b></div>
+    <div class="indicador"><small>Saídas do mês</small><b class="saida">21.930,15</b></div>
+    <div class="indicador destaque"><small>Saldo do mês</small><b>28.765,25</b></div>
+  </div>
+  <div class="tabela-moldura">
+    <table>
+      <thead><tr><th>Data</th><th>Conta titular</th><th>Conta analítica</th><th class="num">Entrada</th><th class="num">Saída</th><th class="num">Saldo</th></tr></thead>
+      <tbody>
+        <tr><td>03/11</td><td>1.01.01 · Receita de serviços</td><td>Atendimento</td><td class="num entrada">4.200,00</td><td class="num"></td><td class="num"><b>16.680,00</b></td></tr>
+        <tr><td>05/11</td><td>2.03.02 · Energia elétrica</td><td>Conta de luz</td><td class="num"></td><td class="num saida">612,35</td><td class="num"><b>16.067,65</b></td></tr>
+        <tr class="novo"><td>09/11</td><td>2.01.04 · Folha de pagamento</td><td>Salários</td><td class="num"></td><td class="num saida">8.940,00</td><td class="num"><b>7.127,65</b></td></tr>
+        <tr class="novo"><td>12/11</td><td>1.01.01 · Receita de serviços</td><td>Atendimento</td><td class="num entrada">21.637,60</td><td class="num"></td><td class="num"><b>28.765,25</b></td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="3">Saldo do mês</td><td class="num entrada">25.837,60</td><td class="num saida">9.552,35</td><td class="num">28.765,25</td></tr></tfoot>
+    </table>
+  </div>
+  <p class="legenda">Linha tingida = lançamento ainda não conferido pela contabilidade.</p>
+  <div class="grade" style="margin-top:16px">
+    <div class="cartao" style="margin:0"><h3>Estado vazio</h3><div class="vazio"><b>Nenhum contrato salvo</b><span>Cadastre a admissão uma vez e gere os três documentos.</span><button class="btn secundaria sm">Novo contrato</button></div></div>
+    <div class="cartao" style="margin:0"><h3>Carregando</h3><span class="esqueleto" style="width:55%"></span><span class="esqueleto"></span><span class="esqueleto" style="width:82%"></span><span class="esqueleto" style="width:68%"></span>
+      <h3 style="margin-top:20px">Barra de rolagem</h3><div class="rolavel" tabindex="0">Fina, discreta e petróleo — escurece ao passar o mouse. Vale para a página, as tabelas, as listas suspensas e os diálogos.<br><br>Role este bloco para ver.<br><br>Na barra lateral, sobre o petróleo escuro, a mesma barra aparece em branco translúcido.<br><br>No Firefox, que não tem o seletor próprio, entra o equivalente padrão: fina e na mesma cor.</div></div>
+  </div>
+</section>
+</main>
+
+<footer>ClickContas · Praticidade Contábil — sistema visual. Tokens em <code>app/globals.css</code>, componentes em <code>components/</code>.</footer>
+
+<div class="veu" id="veu"><div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="dlg-t" tabindex="-1">
+  <div class="corpo"><h3 id="dlg-t">Excluir lançamento</h3><p>Deseja realmente excluir o lançamento de <strong>05/11</strong> — Conta de luz (saída de 612,35)? Dá para desfazer logo em seguida.</p></div>
+  <div class="pe"><button class="btn secundaria" id="dlg-cancelar">Cancelar</button><button class="btn perigo" id="dlg-ok">Excluir</button></div>
+</div></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var el = function (t, c, h) { var e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
+  var css = getComputedStyle(document.documentElement);
+  var v = function (n) { return css.getPropertyValue('--' + n).trim(); };
+
+  // ---- paleta
+  [['petroleo', [950, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50]], ['verde', [700, 600, 500, 100, 50]]].forEach(function (r) {
+    r[1].forEach(function (n) {
+      var d = el('div', '', n + '<br>' + v(r[0] + '-' + n));
+      d.style.background = 'var(--' + r[0] + '-' + n + ')';
+      d.style.color = n >= 500 ? '#fff' : 'var(--tinta)';
+      $('#rampa-' + r[0]).appendChild(d);
+    });
+  });
+  [['fundo', 'Fundo da página'], ['superficie', 'Cartões, campos'], ['superficie-suave', 'Cabeçalho de tabela'], ['superficie-realce', 'Hover, selecionado'],
+   ['borda', 'Divisórias, cartões'], ['borda-forte', 'Contorno de campo'], ['tinta', 'Texto principal'], ['tinta-suave', 'Texto de apoio'],
+   ['tinta-fraca', 'Placeholder'], ['primaria', 'Ação principal'], ['primaria-texto', 'Links, destaque'], ['sucesso', 'Entradas, confirmado'],
+   ['aviso', 'Atenção, a conferir'], ['perigo', 'Erro, saídas, excluir'], ['foco', 'Anel de foco']].forEach(function (p) {
+    var d = el('div', 'papel', '<i style="background:var(--' + p[0] + ')"></i><span><b>' + p[0] + '</b><small>' + v(p[0]) + ' · ' + p[1] + '</small></span>');
+    $('#papeis').appendChild(d);
+  });
+  [4, 8, 12, 16, 20, 24, 32].forEach(function (n) {
+    $('#espacos').appendChild(el('figure', '', '<i style="width:' + n + 'px;height:' + n + 'px;background:var(--petroleo-200);border:0;border-radius:2px;margin-inline:auto"></i>' + n));
+  });
+  ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'].forEach(function (m, i) {
+    var b = el('button', i > 10 ? 'vazio' : '', m); b.type = 'button';
+    if (i === 10) b.setAttribute('aria-current', 'true');
+    b.onclick = function () { var a = $('#meses [aria-current]'); if (a) a.removeAttribute('aria-current'); b.setAttribute('aria-current', 'true'); };
+    $('#meses').appendChild(b);
+  });
+
+  // ---- abas
+  document.querySelectorAll('.abas button').forEach(function (b) {
+    b.onclick = function () { document.querySelectorAll('.abas button').forEach(function (x) { x.setAttribute('aria-selected', x === b); }); };
+  });
+
+  // ---- lista suspensa
+  var norm = function (s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); };
+  document.querySelectorAll('.selecao').forEach(function (raiz, n) {
+    var opcoes = raiz.dataset.opcoes.split('|'), valor = raiz.dataset.valor, comBusca = !!raiz.dataset.busca, ativo = 0, visiveis = opcoes, buf = '', quando = 0;
+    var gat = el('button', 'controle', '<span></span><svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>');
+    gat.type = 'button'; gat.setAttribute('role', 'combobox'); gat.setAttribute('aria-haspopup', 'listbox'); gat.setAttribute('aria-expanded', 'false');
+    gat.setAttribute('aria-labelledby', raiz.getAttribute('aria-labelledby'));
+    var painel = el('div', 'painel'), busca = el('input', 'busca'), ul = el('ul');
+    busca.placeholder = 'Buscar…'; busca.setAttribute('aria-label', 'Buscar na lista'); ul.setAttribute('role', 'listbox'); ul.id = 'lista-' + n;
+    gat.setAttribute('aria-controls', ul.id);
+    if (comBusca) painel.appendChild(busca);
+    painel.appendChild(ul); raiz.appendChild(gat); raiz.appendChild(painel);
+    function pintar() {
+      gat.firstChild.textContent = valor; ul.innerHTML = '';
+      if (!visiveis.length) ul.appendChild(el('li', 'nada', 'Nada encontrado.'));
+      visiveis.forEach(function (o, i) {
+        var li = el('li', i === ativo ? 'ativa' : '', o);
+        li.setAttribute('role', 'option'); li.setAttribute('aria-selected', o === valor);
+        li.onmousedown = function (e) { e.preventDefault(); }; li.onmousemove = function () { if (ativo !== i) { ativo = i; pintar(); } };
+        li.onclick = function () { escolher(o); };
+        ul.appendChild(li);
+        if (i === ativo) li.scrollIntoView({ block: 'nearest' });
+      });
+    }
+    function abrir() { visiveis = opcoes; ativo = Math.max(0, opcoes.indexOf(valor)); busca.value = ''; raiz.classList.add('aberta'); gat.setAttribute('aria-expanded', 'true'); pintar(); if (comBusca) busca.focus(); }
+    function fechar(foco) { raiz.classList.remove('aberta'); gat.setAttribute('aria-expanded', 'false'); if (foco) gat.focus(); }
+    function escolher(o) { if (o) valor = o; fechar(true); pintar(); }
+    function tecla(e) {
+      var aberta = raiz.classList.contains('aberta');
+      if (!aberta) { if (['ArrowDown', 'ArrowUp', 'Enter', ' '].indexOf(e.key) >= 0) { e.preventDefault(); abrir(); } return; }
+      if (e.key === 'Escape') { e.preventDefault(); fechar(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); ativo = Math.min(visiveis.length - 1, ativo + 1); pintar(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); ativo = Math.max(0, ativo - 1); pintar(); }
+      else if (e.key === 'Enter' || (e.key === ' ' && !comBusca)) { e.preventDefault(); escolher(visiveis[ativo]); }
+      else if (e.key === 'Tab') fechar(false);
+      else if (!comBusca && e.key.length === 1) {
+        var agora = Date.now(); buf = agora - quando > 700 ? e.key : buf + e.key; quando = agora;
+        var i = visiveis.findIndex(function (o) { return norm(o).indexOf(norm(buf)) === 0; });
+        if (i >= 0) { ativo = i; pintar(); }
+      }
+    }
+    gat.onclick = function () { raiz.classList.contains('aberta') ? fechar(true) : abrir(); };
+    gat.onkeydown = tecla; busca.onkeydown = tecla;
+    busca.oninput = function () { var t = norm(busca.value.trim()); visiveis = opcoes.filter(function (o) { return norm(o).indexOf(t) >= 0; }); ativo = 0; pintar(); };
+    document.addEventListener('pointerdown', function (e) { if (!raiz.contains(e.target)) fechar(false); });
+    pintar();
+  });
+
+  // ---- arquivo
+  $('#arq').onchange = function (e) { $('#arq-nome').textContent = e.target.files[0] ? e.target.files[0].name : 'Escolher ou soltar a foto aqui'; };
+
+  // ---- toasts
+  var ICONE = { sucesso: '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/>', perigo: '<circle cx="12" cy="12" r="9"/><path d="M12 7.500v5.500M12 16v.500"/>', info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.500v.500"/>' };
+  function toast(tom, texto, acao) {
+    var t = el('div', 'toast ' + tom, '<svg class="i" viewBox="0 0 24 24">' + ICONE[tom] + '</svg><div>' + texto + '</div>');
+    t.setAttribute('role', tom === 'perigo' ? 'alert' : 'status');
+    var sair = function () { t.remove(); };
+    if (acao) { var b = el('button', 'btn tonal sm', acao); b.type = 'button'; b.onclick = function () { sair(); toast('sucesso', 'Exclusão desfeita.'); }; t.children[1].appendChild(el('br')); t.children[1].appendChild(b); }
+    var x = el('button', 'icone-btn', '<svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>'); x.type = 'button'; x.setAttribute('aria-label', 'Fechar notificação'); x.onclick = sair;
+    t.appendChild(x); $('#toasts').appendChild(t);
+    if (tom === 'sucesso') setTimeout(sair, 5000);
+  }
+  document.querySelectorAll('[data-toast]').forEach(function (b) {
+    b.onclick = function () { b.dataset.toast === 'sucesso' ? toast('sucesso', 'Lançado.') : toast('perigo', 'Não foi possível salvar. Verifique a conexão e tente de novo.'); };
+  });
+
+  // ---- diálogo
+  var veu = $('#veu'), dlg = $('.dialogo'), quemAbriu = null;
+  function abrirDlg() { quemAbriu = document.activeElement; veu.classList.add('aberto'); document.body.style.overflow = 'hidden'; $('#dlg-cancelar').focus(); }
+  function fecharDlg() { veu.classList.remove('aberto'); document.body.style.overflow = ''; if (quemAbriu) quemAbriu.focus(); }
+  $('#abrir-dialogo').onclick = abrirDlg; $('#dlg-cancelar').onclick = fecharDlg;
+  $('#dlg-ok').onclick = function () { fecharDlg(); toast('info', 'Lançamento excluído — 05/11 · Conta de luz.', 'Desfazer'); };
+  veu.onclick = function (e) { if (e.target === veu) fecharDlg(); };
+  document.addEventListener('keydown', function (e) {
+    if (!veu.classList.contains('aberto')) return;
+    if (e.key === 'Escape') fecharDlg();
+    if (e.key === 'Tab') {
+      var f = dlg.querySelectorAll('button'), p = f[0], u = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === p) { e.preventDefault(); u.focus(); }
+      else if (!e.shiftKey && document.activeElement === u) { e.preventDefault(); p.focus(); }
+    }
+  });
+})();
+</script>
+</body>
+</html>
