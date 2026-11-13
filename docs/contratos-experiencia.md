@@ -25,7 +25,7 @@ admite muita gente por experiência. Ela mandou três modelos do Word:
 - Um formulário só (empregadora, empregado, contrato, horário, VT, aviso) gera
   os três `.docx` ou um `.zip` com todos (`POST /api/contratos/documento`).
   **Gerar não depende de salvar** — funciona mesmo sem a tabela no banco.
-- Contratos salvos ficam no Postgres (`contratos_experiencia`, migração `0003`),
+- Contratos salvos ficam no Postgres (`contratos_experiencia`, migração `0009`),
   com situação `experiencia` / `efetivado` / `encerrado`. Os em experiência
   geram alerta no topo quando o 1º período ou a prorrogação vence em ≤ 7 dias,
   e alerta vermelho quando já venceu (contrato vencido sem providência vira
@@ -71,12 +71,12 @@ runtime é um replace de string com escape de XML.
 
 - ✅ Etapa 1 (12/11/2026): página, geração dos três documentos, cadastro salvo,
   alertas de vencimento, exclusão com desfazer.
-- ⚠️ **Migração `0003` ainda não aplicada no Supabase** — o CLI desta máquina
+- ⚠️ **Migração `0009` ainda não aplicada no Supabase** — o CLI desta máquina
   está logado numa conta sem permissão no projeto `zxjeibkttmacpuukvyzo`.
   Aplicar com `npx supabase login` (conta dona do projeto) → `npx supabase link
   --project-ref zxjeibkttmacpuukvyzo` → `npx supabase migration list` →
   `npx supabase db push`; ou colar o SQL de
-  `supabase/migrations/0003_contratos_experiencia.sql` no SQL Editor. Até lá a
+  `supabase/migrations/0009_contratos_experiencia.sql` no SQL Editor. Até lá a
   página avisa e só não salva.
 - ⬜ Validar com a Edilse o layout impresso dos três documentos.
 
