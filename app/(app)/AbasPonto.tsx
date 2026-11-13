@@ -1,22 +1,14 @@
-// Sub-navegação do módulo Folha de Ponto. Timesheet (ler folha + gerar planilha)
-// e Folhas em branco são as duas telas do mesmo módulo — aqui viram abas, no
-// mesmo padrão de "Lançamentos | Resumo" do Livro Caixa.
-const base = 'rounded-lg border px-3 py-1.5';
-const ativoCls = 'border-petroleo-700 bg-petroleo-900 text-white';
-const inativoCls = 'border-slate-300 bg-white hover:border-petroleo-500';
+// Sub-navegação do módulo Folha de Ponto. Timesheet (ler folha + gerar planilha),
+// Folhas em branco e Cadastros são telas do mesmo módulo — aqui viram abas no
+// cabeçalho da página, no mesmo padrão do Livro Caixa (ver caixa/AbasCaixa).
+import { Abas } from '@/components/ui';
 
 export function AbasPonto({ ativa }: { ativa: 'timesheet' | 'folhas' | 'cadastros' }) {
   return (
-    <nav className="flex gap-1 text-xs">
-      {ativa === 'timesheet'
-        ? <span className={`${base} ${ativoCls}`}>Timesheet</span>
-        : <a href="/" className={`${base} ${inativoCls}`}>Timesheet</a>}
-      {ativa === 'folhas'
-        ? <span className={`${base} ${ativoCls}`}>Folhas em branco</span>
-        : <a href="/folhas" className={`${base} ${inativoCls}`}>Folhas em branco</a>}
-      {ativa === 'cadastros'
-        ? <span className={`${base} ${ativoCls}`}>Cadastros</span>
-        : <a href="/ponto-cadastros" className={`${base} ${inativoCls}`}>Cadastros</a>}
-    </nav>
+    <Abas rotulo="Folha de Ponto" itens={[
+      { rotulo: 'Timesheet', href: '/', ativa: ativa === 'timesheet' },
+      { rotulo: 'Folhas em branco', href: '/folhas', ativa: ativa === 'folhas' },
+      { rotulo: 'Cadastros', href: '/ponto-cadastros', ativa: ativa === 'cadastros' },
+    ]} />
   );
 }

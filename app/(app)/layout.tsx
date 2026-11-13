@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { IconePainel } from './icones';
+import { IconeExcluir, IconeMenu, IconePainel } from './icones';
 import { BRAND } from '@/lib/brand';
 
 type Modulo = 'ponto' | 'caixa';
@@ -33,11 +33,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [recolhido, setRecolhido] = useState(false);
+  // Gaveta do menu no celular (no desktop a barra é fixa e isto não tem efeito).
+  const [menuAberto, setMenuAberto] = useState(false);
 
   useEffect(() => {
     fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => d?.autenticado && setMe(d)).catch(() => {});
     setRecolhido(localStorage.getItem('sidebar-recolhida') === '1');
   }, []);
+
+  useEffect(() => {
+    if (!menuAberto) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAberto(false); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [menuAberto]);
 
   function alternarBarra() {
     setRecolhido((v) => {
@@ -80,32 +89,61 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const iniciais = (me?.nome ?? '?').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
 
+  // Rótulos somem só na barra recolhida do desktop; na gaveta do celular ficam.
+  const soExpandido = recolhido ? 'lg:hidden' : '';
+  const botaoEscuro = 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-petroleo-100 transition-colors hover:bg-white/10 hover:text-white';
+
   return (
-    <div className="flex min-h-screen">
-      <aside className={`flex shrink-0 flex-col bg-petroleo-900 text-white transition-all duration-200 ${recolhido ? 'w-16' : 'w-60'}`}>
-        <div className={`flex items-center py-6 ${recolhido ? 'justify-center px-2' : 'justify-between px-6'}`}>
-          {!recolhido && (
-            <div className="flex min-w-0 items-center gap-2.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-mark.svg" alt={BRAND.nome} className="h-8 w-8 shrink-0 rounded-lg" />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold tracking-tight">{BRAND.nome}</span>
-                <span className="block truncate text-xs text-petroleo-100">{BRAND.subtitulo}</span>
-              </span>
-            </div>
-          )}
-          <button onClick={alternarBarra} title={recolhido ? 'Expandir menu' : 'Recolher menu'}
+    <div className="min-h-screen lg:flex">
+      <a href="#conteudo"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[90] focus:rounded-lg focus:bg-superficie focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primaria focus:shadow-flutuante">
+        Pular para o conteúdo
+      </a>
+
+      {/* Barra de topo — só no celular/tablet, onde o menu vira gaveta. */}
+      <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 bg-petroleo-900 px-3 text-white [--color-foco:var(--color-petroleo-300)] lg:hidden">
+        <button onClick={() => setMenuAberto(true)} aria-label="Abrir menu" aria-expanded={menuAberto} aria-controls="menu-lateral"
+          className={botaoEscuro}>
+          <IconeMenu />
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-mark.svg" alt="" className="h-7 w-7 shrink-0" />
+        <span className="truncate text-sm font-semibold tracking-tight">{BRAND.nome}</span>
+      </div>
+
+      {menuAberto && (
+        <div className="fixed inset-0 z-30 bg-petroleo-950/50 backdrop-blur-[2px] lg:hidden" aria-hidden="true"
+          onClick={() => setMenuAberto(false)} />
+      )}
+
+      <aside id="menu-lateral" aria-label="Menu principal"
+        className={`rolagem-escura fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto bg-petroleo-900 text-white transition-[transform,width] duration-200 [--color-foco:var(--color-petroleo-300)] lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+          menuAberto ? 'translate-x-0 shadow-flutuante' : '-translate-x-full max-lg:invisible'
+        } ${recolhido ? 'lg:w-16' : 'lg:w-60'}`}>
+        <div className={`flex items-center justify-between gap-2 px-4 py-5 ${recolhido ? 'lg:justify-center lg:px-2' : ''}`}>
+          <div className={`flex min-w-0 items-center gap-2.5 ${soExpandido}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="h-8 w-8 shrink-0" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold tracking-tight">{BRAND.nome}</span>
+              <span className="block truncate text-xs text-petroleo-200">{BRAND.subtitulo}</span>
+            </span>
+          </div>
+          <button onClick={alternarBarra} data-dica={recolhido ? 'Expandir menu' : 'Recolher menu'}
             aria-label={recolhido ? 'Expandir menu' : 'Recolher menu'}
-            className="rounded-lg p-1.5 text-petroleo-100 hover:bg-white/10 hover:text-white">
+            className={`${botaoEscuro} max-lg:hidden`}>
             <IconePainel recolhido={recolhido} />
+          </button>
+          <button onClick={() => setMenuAberto(false)} aria-label="Fechar menu" className={`${botaoEscuro} lg:hidden`}>
+            <IconeExcluir size={18} />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-3 px-3">
+        <nav aria-label="Módulos" className="flex-1 px-3">
           {grupos.map((grupo, gi) => (
-            <div key={gi} className="space-y-1">
-              {grupo.titulo && !recolhido && (
-                <div className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider text-petroleo-500">
+            <div key={gi} className={`space-y-1 py-2 ${gi > 0 ? 'border-t border-white/10' : ''}`}>
+              {grupo.titulo && (
+                <div className={`px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider text-petroleo-300 ${soExpandido}`}>
                   {grupo.titulo}
                 </div>
               )}
@@ -113,12 +151,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 const casa = (p: string) => (p === '/' ? pathname === '/' : pathname.startsWith(p));
                 const ativo = item.ativoEm ? item.ativoEm.some(casa) : casa(item.href);
                 return (
-                  <a key={item.href} href={item.href} title={recolhido ? item.label : undefined}
-                    className={`flex items-center gap-3 rounded-lg py-2.5 text-sm transition ${recolhido ? 'justify-center px-0' : 'px-3'} ${
-                      ativo ? 'bg-white/10 font-medium text-white' : 'text-petroleo-100 hover:bg-white/5 hover:text-white'
+                  <a key={item.href} href={item.href} aria-current={ativo ? 'page' : undefined}
+                    aria-label={item.label} data-dica={recolhido ? item.label : undefined}
+                    className={`relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors ${recolhido ? 'lg:justify-center lg:px-0' : ''} ${
+                      ativo
+                        ? 'bg-white/10 font-medium text-white before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-verde-500'
+                        : 'text-petroleo-100 hover:bg-white/5 hover:text-white'
                     }`}>
-                    <Icon name={item.icon} />
-                    {!recolhido && item.label}
+                    <span className="shrink-0"><Icon name={item.icon} /></span>
+                    <span className={`truncate ${soExpandido}`}>{item.label}</span>
                   </a>
                 );
               })}
@@ -126,33 +167,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className={`rounded-lg bg-white/5 ${recolhido ? 'm-2 p-2' : 'm-3 p-3'}`}>
-          <div className={`flex items-center gap-3 ${recolhido ? 'justify-center' : ''}`}>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-verde-600 text-sm font-semibold">
+        <div className={`m-3 rounded-xl bg-white/5 p-3 ring-1 ring-inset ring-white/10 ${recolhido ? 'lg:m-2 lg:p-2' : ''}`}>
+          <div className={`flex items-center gap-3 ${recolhido ? 'lg:flex-col lg:gap-2' : ''}`}>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-verde-700 text-sm font-semibold" aria-hidden="true">
               {iniciais}
             </div>
-            {!recolhido && (
-              <>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{me?.nome ?? '—'}</div>
-                  <div className="truncate text-xs text-petroleo-100">{me ? ROTULO_PAPEL[me.role] : '—'}</div>
-                </div>
-                <button onClick={sair} title="Sair" className="text-petroleo-100 hover:text-white">
-                  <Icon name="logout" />
-                </button>
-              </>
-            )}
-          </div>
-          {recolhido && (
-            <button onClick={sair} title="Sair" aria-label="Sair"
-              className="mt-2 flex w-full justify-center text-petroleo-100 hover:text-white">
+            <div className={`min-w-0 flex-1 ${soExpandido}`}>
+              <div className="truncate text-sm font-medium">{me?.nome ?? '—'}</div>
+              <div className="truncate text-xs text-petroleo-200">{me ? ROTULO_PAPEL[me.role] : '—'}</div>
+            </div>
+            <button onClick={sair} data-dica="Sair" aria-label="Sair" className={botaoEscuro}>
               <Icon name="logout" />
             </button>
-          )}
+          </div>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">{children}</main>
+      <main id="conteudo" className="min-w-0 flex-1 pt-14 lg:pt-0">{children}</main>
     </div>
   );
 }

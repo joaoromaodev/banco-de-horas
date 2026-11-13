@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
-/* Identidade visual — Petróleo + Verde.
-   Registrada no @theme para virar utilitários (bg-petroleo-900, text-verde-600…)
-   usáveis em todo o app conforme cada módulo for migrado para a nova cara. */
+/* Identidade visual — Petróleo + Verde (ClickContas).
+   Guia completo em docs/identidade-visual.md.
+
+   Duas camadas:
+   1. RAMPAS da marca (petroleo-*, verde-*) — a matéria-prima. Use direto só na
+      moldura da marca (barra lateral, painel do login).
+   2. PAPÉIS semânticos (fundo, superficie, borda, tinta, primaria, sucesso, aviso,
+      perigo, foco) — é o que as telas usam. Trocar um papel aqui muda o app todo. */
 @theme {
+  /* ---- rampas da marca ---- */
   --color-petroleo-950: #06282d;
   --color-petroleo-900: #0a3a40;
   --color-petroleo-800: #0f4c54;
@@ -22,22 +28,227 @@
   --color-verde-100: #d1fadf;
   --color-verde-50: #ecfdf5;
 
-  --color-ambar-600: #d97706;
-  --color-ambar-50: #fffbeb;
+  /* ---- superfícies ---- */
+  --color-fundo: #f3f7f7;             /* fundo da página */
+  --color-superficie: #ffffff;        /* cartões, tabelas, diálogos, campos */
+  --color-superficie-suave: #f6f9f9;  /* cabeçalho de tabela, rodapé de diálogo */
+  --color-superficie-realce: #eef5f6; /* hover de linha, item selecionado */
 
-  --color-tinta: #0f2226;
-  --color-nevoa: #f1f5f5;
+  /* ---- bordas ---- */
+  --color-borda: #dde6e7;             /* cartões, divisórias, tabelas */
+  --color-borda-forte: #7f9499;       /* contorno de campos e botões (3:1 no branco) */
+
+  /* ---- texto ---- */
+  --color-tinta: #0f2226;             /* texto principal, títulos   (16:1) */
+  --color-tinta-suave: #47595d;       /* texto de apoio, rótulos    (7:1)  */
+  --color-tinta-fraca: #5f7377;       /* placeholder, estado vazio  (4,6:1 no fundo) */
+
+  /* ---- ação primária ---- */
+  --color-primaria: #0f4c54;          /* botão primário, aba ativa */
+  --color-primaria-hover: #0a3a40;
+  --color-primaria-suave: #eef5f6;    /* fundo de botão tonal / aviso informativo */
+  --color-primaria-texto: #14636c;    /* links e texto de destaque sobre claro */
+
+  /* ---- estados ---- */
+  --color-sucesso: #15803d;           /* texto/ícone — entradas, confirmado */
+  --color-sucesso-suave: #ecfdf5;
+  --color-sucesso-borda: #a7dfbd;
+
+  --color-aviso: #92400e;             /* texto/ícone — atenção, a conferir */
+  --color-aviso-suave: #fffbeb;
+  --color-aviso-borda: #f3d491;
+
+  --color-perigo: #b91c1c;            /* texto/ícone — erro, saídas, excluir */
+  --color-perigo-solido: #c81e1e;     /* fundo do botão destrutivo (branco em cima: 5,7:1) */
+  --color-perigo-suave: #fef2f2;
+  --color-perigo-borda: #f3bcbc;
+
+  --color-foco: #1c808b;              /* anel de foco do teclado */
+
+  /* ---- sombras: quase nenhuma; só para separar camadas ---- */
+  --shadow-cartao: 0 1px 2px rgb(15 34 38 / 0.05);
+  /* ---- movimento ---- */
+  --animate-entrada: entrada 0.18s ease-out;
+  @keyframes entrada {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  --shadow-flutuante: 0 16px 40px -12px rgb(15 34 38 / 0.28), 0 2px 8px rgb(15 34 38 / 0.08);
 }
 
-body {
-  background: var(--color-nevoa);
-  color: var(--color-tinta);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+@layer base {
+  html {
+    /* Só tema claro por enquanto: evita que o navegador pinte campos nativos
+       (date, select) no escuro e quebre o contraste. */
+    color-scheme: light;
+  }
+
+  body {
+    background: var(--color-fundo);
+    color: var(--color-tinta);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, Arial, Helvetica, sans-serif;
+  }
+
+  /* Foco de teclado: um anel só, igual em todo elemento interativo. Vale para
+     tudo — inclusive o que não passou pelas primitivas de components/ui.tsx. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-foco);
+    outline-offset: 2px;
+  }
+  :where(input:not([type='checkbox'], [type='radio']), select, textarea):focus-visible {
+    outline-offset: 0;
+  }
+
+  /* Números alinhados em coluna em qualquer tabela. */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :where(button, [role='button'], select, summary, label:has(input[type='checkbox'], input[type='radio'])) {
+    cursor: pointer;
+  }
+  :where(button, select):disabled {
+    cursor: not-allowed;
+  }
+
+  ::selection {
+    background: var(--color-petroleo-200);
+    color: var(--color-tinta);
+  }
+
+  /* ---- Barra de rolagem da marca: fina, discreta, petróleo; escurece no hover.
+     Vale para a página, tabelas, listas e modais. ---- */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-petroleo-300);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-petroleo-600);
+  }
+  /* Firefox (não tem ::-webkit-scrollbar): o equivalente padrão, sem hover. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-petroleo-300) transparent;
+    }
+  }
+  /* Sobre o petróleo escuro (barra lateral). */
+  .rolagem-escura::-webkit-scrollbar-thumb {
+    background-color: rgb(255 255 255 / 0.22);
+  }
+  .rolagem-escura::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(255 255 255 / 0.45);
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    .rolagem-escura {
+      scrollbar-color: rgb(255 255 255 / 0.3) transparent;
+    }
+  }
+
+  /* ---- Checkbox e radio desenhados pela marca (nada de controle nativo). ---- */
+  :where(input[type='checkbox'], input[type='radio']) {
+    appearance: none;
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    vertical-align: middle;
+    border: 1.5px solid var(--color-borda-forte);
+    border-radius: 0.3rem;
+    background: var(--color-superficie) center / 100% 100% no-repeat;
+    cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s, box-shadow 0.12s;
+  }
+  :where(input[type='radio']) {
+    border-radius: 999px;
+  }
+  :where(input[type='checkbox'], input[type='radio']):hover {
+    border-color: var(--color-primaria);
+  }
+  :where(input[type='checkbox']):checked {
+    border-color: var(--color-primaria);
+    background-color: var(--color-primaria);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 9.5l3 3 6-6.5'/%3E%3C/svg%3E");
+  }
+  :where(input[type='radio']):checked {
+    border-color: var(--color-primaria);
+    background-color: var(--color-primaria);
+    box-shadow: inset 0 0 0 3px var(--color-superficie);
+  }
+  :where(input[type='checkbox'], input[type='radio']):disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  /* ---- Data, hora e número: o campo é nativo (teclado e leitor de tela de
+     graça), mas sem os enfeites do navegador. ---- */
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    padding: 3px;
+    border-radius: 0.3rem;
+    opacity: 0.55;
+    transition: opacity 0.12s, background-color 0.12s;
+  }
+  input[type='date']::-webkit-calendar-picker-indicator:hover,
+  input[type='time']::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    background-color: var(--color-petroleo-100);
+  }
+  input[type='date']:disabled::-webkit-calendar-picker-indicator,
+  input[type='time']:disabled::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+  input[type='number'] {
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
-/* Faixa de topo (hero) reutilizável nas páginas — gradiente petróleo. */
+/* Alternador (liga/desliga): um checkbox com outra roupa — ver <Alternador>. */
+input[type='checkbox'].alternador {
+  width: 2.25rem;
+  height: 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-borda-forte) radial-gradient(circle at center, #fff 0 0.45rem, transparent 0.5rem) left center / 1.25rem 1.25rem no-repeat;
+  transition: background-position 0.15s ease, background-color 0.15s ease;
+}
+input[type='checkbox'].alternador:hover {
+  background-color: var(--color-tinta-suave);
+}
+input[type='checkbox'].alternador:checked {
+  background-color: var(--color-primaria);
+  background-image: radial-gradient(circle at center, #fff 0 0.45rem, transparent 0.5rem);
+  background-position: right center;
+}
+
+/* Painel da marca (login) — gradiente petróleo com um brilho verde discreto. */
 .hero {
-  background: radial-gradient(120% 140% at 100% 0%, #14636c 0%, #0a3a40 45%, #06282d 100%);
+  background:
+    radial-gradient(60% 50% at 0% 100%, rgb(22 163 74 / 0.22) 0%, transparent 70%),
+    radial-gradient(120% 140% at 100% 0%, #14636c 0%, #0a3a40 45%, #06282d 100%);
   color: #fff;
-  border-radius: 1rem;
 }

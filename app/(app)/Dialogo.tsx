@@ -1,25 +1,74 @@
 'use client';
 
-// Modais na identidade visual do site (mesma moldura do seletor de conta): fundo
-// esmaecido, cartão branco arredondado. Substituem os `confirm()`/`prompt()`
-// nativos, que destoavam do resto.
-import { useEffect, useRef, useState } from 'react';
+// Modais na identidade visual do site: fundo esmaecido, cartão branco
+// arredondado. Substituem os `confirm()`/`prompt()` nativos, que destoavam do
+// resto. `Modal` é a moldura única — os seletores de conta também a usam.
+import { useEffect, useId, useRef, useState } from 'react';
+import { Botao, Entrada } from '@/components/ui';
 
-function Moldura({ onFechar, children }: { onFechar: () => void; children: React.ReactNode }) {
+const FOCAVEIS =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Moldura de diálogo modal. Fecha no Esc e no clique fora, prende o Tab dentro
+ * do cartão, trava a rolagem da página e devolve o foco a quem abriu.
+ * O foco inicial vai para o elemento com `data-foco-inicial` (ou `autoFocus`).
+ */
+export function Modal({ onFechar, rotuladoPor, rotulo, largura = 'max-w-md', children }: {
+  onFechar: () => void;
+  /** id do título do diálogo (aria-labelledby)… */
+  rotuladoPor?: string;
+  /** …ou um nome direto (aria-label), quando não há título visível. */
+  rotulo?: string;
+  largura?: string;
+  children: React.ReactNode;
+}) {
+  const caixaRef = useRef<HTMLDivElement>(null);
+  const fecharRef = useRef(onFechar);
+  useEffect(() => { fecharRef.current = onFechar; });
+
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar();
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [onFechar]);
+    const caixa = caixaRef.current;
+    const anterior = document.activeElement as HTMLElement | null;
+    const inicial = caixa?.querySelector<HTMLElement>('[data-foco-inicial]');
+    if (inicial) inicial.focus();
+    else if (caixa && !caixa.contains(document.activeElement)) caixa.focus();
+
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { fecharRef.current(); return; }
+      if (e.key !== 'Tab' || !caixa) return;
+      const itens = Array.from(caixa.querySelectorAll<HTMLElement>(FOCAVEIS));
+      if (itens.length === 0) { e.preventDefault(); return; }
+      const primeiro = itens[0];
+      const ultimo = itens[itens.length - 1];
+      const atual = document.activeElement;
+      if (e.shiftKey && (atual === primeiro || atual === caixa)) { e.preventDefault(); ultimo.focus(); }
+      else if (!e.shiftKey && (atual === ultimo || !caixa.contains(atual))) { e.preventDefault(); primeiro.focus(); }
+    };
+    window.addEventListener('keydown', tecla);
+
+    const rolagem = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', tecla);
+      document.body.style.overflow = rolagem;
+      if (anterior?.isConnected) anterior.focus();
+    };
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/30 p-4 pt-24" onClick={onFechar}>
-      <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-petroleo-950/45 p-4 pt-[10vh] backdrop-blur-[2px]"
+      onClick={onFechar}>
+      <div ref={caixaRef} role="dialog" aria-modal="true" aria-labelledby={rotuladoPor} aria-label={rotulo} tabIndex={-1}
+        className={`w-full ${largura} overflow-hidden rounded-xl bg-superficie shadow-flutuante outline-none`}
+        onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
   );
 }
+
+const RODAPE = 'flex flex-col-reverse gap-2 border-t border-borda bg-superficie-suave px-5 py-3 sm:flex-row sm:justify-end';
 
 /** Confirmação de ação destrutiva. `perigo` pinta o botão de confirmar de vermelho. */
 export function DialogoConfirmacao({
@@ -28,23 +77,22 @@ export function DialogoConfirmacao({
   titulo: string; mensagem: React.ReactNode; textoConfirmar?: string; perigo?: boolean;
   onConfirmar: () => void; onCancelar: () => void;
 }) {
+  const id = useId();
   return (
-    <Moldura onFechar={onCancelar}>
+    <Modal onFechar={onCancelar} rotuladoPor={id}>
       <div className="p-5">
-        <h2 className="text-base font-semibold text-slate-900">{titulo}</h2>
-        <p className="mt-2 text-sm text-slate-600">{mensagem}</p>
+        <h2 id={id} className="text-base font-semibold text-tinta">{titulo}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-tinta-suave">{mensagem}</p>
       </div>
-      <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
-        <button onClick={onCancelar}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-          Cancelar
-        </button>
-        <button onClick={onConfirmar}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white ${perigo ? 'bg-red-600 hover:bg-red-700' : 'bg-petroleo-900 hover:bg-petroleo-800'}`}>
+      <div className={RODAPE}>
+        {/* Em ação destrutiva o foco nasce no Cancelar: Enter sem querer não apaga nada. */}
+        <Botao onClick={onCancelar} data-foco-inicial={perigo ? '' : undefined}>Cancelar</Botao>
+        <Botao variante={perigo ? 'perigo' : 'primaria'} onClick={onConfirmar}
+          data-foco-inicial={perigo ? undefined : ''}>
           {textoConfirmar}
-        </button>
+        </Botao>
       </div>
-    </Moldura>
+    </Modal>
   );
 }
 
@@ -55,30 +103,25 @@ export function DialogoValor({
   titulo: string; descricao?: string; valorInicial?: string; rotulo?: string;
   onConfirmar: (v: string) => void; onCancelar: () => void;
 }) {
+  const id = useId();
   const [valor, setValor] = useState(valorInicial);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
 
   return (
-    <Moldura onFechar={onCancelar}>
+    <Modal onFechar={onCancelar} rotuladoPor={id}>
       <form onSubmit={(e) => { e.preventDefault(); onConfirmar(valor); }}>
         <div className="p-5">
-          <h2 className="text-base font-semibold text-slate-900">{titulo}</h2>
-          {descricao && <p className="mt-2 text-sm text-slate-600">{descricao}</p>}
-          {rotulo && <label className="mt-3 mb-1 block text-xs font-medium text-slate-600">{rotulo}</label>}
-          <input ref={ref} value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100" />
+          <h2 id={id} className="text-base font-semibold text-tinta">{titulo}</h2>
+          {descricao && <p className="mt-2 text-sm leading-relaxed text-tinta-suave">{descricao}</p>}
+          <Entrada ref={ref} classeCampo="mt-4" rotulo={rotulo} aria-label={rotulo ? undefined : titulo}
+            value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" />
         </div>
-        <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
-          <button type="button" onClick={onCancelar}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-            Cancelar
-          </button>
-          <button type="submit" className="rounded-lg bg-petroleo-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-petroleo-800">
-            Salvar
-          </button>
+        <div className={RODAPE}>
+          <Botao onClick={onCancelar}>Cancelar</Botao>
+          <Botao type="submit" variante="primaria">Salvar</Botao>
         </div>
       </form>
-    </Moldura>
+    </Modal>
   );
 }

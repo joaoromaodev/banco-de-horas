@@ -89,3 +89,80 @@ export function IconePainel({ size = 18, className, recolhido }: Props & { recol
     </svg>
   );
 }
+
+/** Três barras — abrir o menu no celular. */
+export function IconeMenu({ size = 20, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+/** Seta para a bandeja — baixar arquivo. */
+export function IconeBaixar({ size = 16, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14" />
+    </svg>
+  );
+}
+
+/** Mais — adicionar. */
+export function IconeMais({ size = 16, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+/** Lupa — busca. */
+export function IconeBusca({ size = 16, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+/** Folha com linhas — documentos. */
+export function IconeDocumento({ size = 16, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
+/** "i" no círculo — informação. */
+export function IconeInfo({ size = 18, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 7.5v.5" />
+    </svg>
+  );
+}
+
+/** Triângulo com exclamação — atenção. */
+export function IconeAlerta({ size = 18, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M10.3 4.3 2.7 17.5a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9.5v4.5M12 17v.5" />
+    </svg>
+  );
+}
+
+/** Círculo com exclamação — erro. */
+export function IconeErro({ size = 18, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5M12 16v.5" />
+    </svg>
+  );
+}

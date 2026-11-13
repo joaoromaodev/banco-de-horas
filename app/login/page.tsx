@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BRAND } from '@/lib/brand';
+import { Aviso, Botao, Entrada } from '@/components/ui';
 
 export default function Login() {
   const router = useRouter();
@@ -34,60 +35,61 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Painel lateral */}
-      <div className="relative hidden w-1/2 flex-col justify-between p-12 text-white lg:flex hero">
-        <div className="flex items-center gap-2.5">
+    <div className="flex min-h-screen bg-superficie">
+      {/* Painel da marca */}
+      <div className="hero relative hidden w-[46%] max-w-2xl flex-col justify-between overflow-hidden p-12 lg:flex xl:p-16">
+        {/* A marca ampliada, como marca-d'água */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-mark.svg" alt="" aria-hidden="true"
+          className="pointer-events-none absolute -bottom-24 -right-24 h-[26rem] w-[26rem] opacity-[0.07] brightness-0 invert" />
+
+        <div className="relative flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mark.svg" alt={BRAND.nome} className="h-9 w-9 rounded-lg" />
+          <img src="/logo-mark.svg" alt="" className="h-10 w-10" />
           <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">{BRAND.nome}</div>
-            <div className="text-xs text-petroleo-100">{BRAND.subtitulo}</div>
+            <div className="text-base font-semibold tracking-tight">{BRAND.nome}</div>
+            <div className="text-xs text-petroleo-200">{BRAND.subtitulo}</div>
           </div>
         </div>
-        <div>
-          <h1 className="whitespace-pre-line text-3xl font-semibold leading-tight">{BRAND.chamada}</h1>
-          <p className="mt-4 max-w-sm text-sm text-petroleo-100">{BRAND.descricao}</p>
+
+        <div className="relative">
+          <span className="mb-6 block h-1 w-10 rounded-full bg-verde-500" aria-hidden="true" />
+          <p className="whitespace-pre-line text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">{BRAND.chamada}</p>
+          <p className="mt-5 max-w-sm text-sm leading-relaxed text-petroleo-100">{BRAND.descricao}</p>
         </div>
-        <div className="text-xs text-petroleo-100">© {new Date().getFullYear()} · {BRAND.nome}</div>
+
+        <div className="relative text-xs text-petroleo-200">© {new Date().getFullYear()} · {BRAND.nome}</div>
       </div>
 
       {/* Formulário */}
-      <div className="flex flex-1 items-center justify-center p-6">
+      <main className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
         <form onSubmit={entrar} className="w-full max-w-sm">
-          <div className="mb-6 flex items-center gap-2.5 lg:hidden">
+          <div className="mb-10 flex items-center gap-3 lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-mark.svg" alt={BRAND.nome} className="h-9 w-9 rounded-lg" />
-            <span className="text-sm font-semibold text-petroleo-900">{BRAND.nome}</span>
-          </div>
-          <h2 className="text-2xl font-semibold text-petroleo-900">Entrar no painel</h2>
-          <p className="mt-1 text-sm text-slate-500">Acesse com seu e-mail e senha.</p>
-
-          <div className="mt-8 space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">E-mail</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                autoComplete="username"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100"
-                placeholder="voce@empresa.com" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Senha</label>
-              <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required
-                autoComplete="current-password"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100"
-                placeholder="••••••••" />
+            <img src="/logo-mark.svg" alt="" className="h-10 w-10" />
+            <div className="leading-tight">
+              <div className="text-base font-semibold tracking-tight text-primaria">{BRAND.nome}</div>
+              <div className="text-xs text-tinta-suave">{BRAND.subtitulo}</div>
             </div>
           </div>
 
-          {erro && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
+          <h1 className="text-2xl font-semibold tracking-tight text-tinta">Entrar no painel</h1>
+          <p className="mt-1.5 text-sm text-tinta-suave">Acesse com seu e-mail e senha.</p>
 
-          <button type="submit" disabled={carregando}
-            className="mt-6 w-full rounded-lg bg-petroleo-900 py-2.5 text-sm font-medium text-white transition hover:bg-petroleo-800 disabled:opacity-50">
+          <div className="mt-8 space-y-5">
+            <Entrada rotulo="E-mail" tamanho="lg" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+              autoComplete="username" placeholder="voce@empresa.com" />
+            <Entrada rotulo="Senha" tamanho="lg" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required
+              autoComplete="current-password" placeholder="••••••••" />
+          </div>
+
+          {erro && <Aviso tom="perigo" className="mt-5">{erro}</Aviso>}
+
+          <Botao type="submit" variante="primaria" tamanho="lg" carregando={carregando} className="mt-7 w-full">
             {carregando ? 'Entrando…' : 'Entrar no painel'}
-          </button>
+          </Botao>
         </form>
-      </div>
+      </main>
     </div>
   );
 }
