@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { IconeExcluir } from '../icones';
+import { Botao, BotaoIcone, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, Marcacao, Secao, Selo } from '@/components/ui';
+import { Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
 
 type Papel = 'master' | 'usuario' | 'cliente';
@@ -86,122 +89,105 @@ export default function Configuracoes() {
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
-  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100';
-
   return (
     <div className="text-sm">
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-slate-900">Configurações</h1>
-        <p className="text-xs text-slate-500">Área restrita ao administrador</p>
-      </header>
+      <CabecalhoPagina titulo="Configurações" subtitulo="Área restrita ao administrador" />
 
-      <div className="mx-auto max-w-3xl space-y-6 p-6">
-        {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+        {msgCfg && <Toast onFechar={() => setMsgCfg(null)}>{msgCfg}</Toast>}
+        {msgUser && <Toast onFechar={() => setMsgUser(null)}>{msgUser}</Toast>}
+      </Toasts>
 
+      <Conteudo largura="estreita">
         {/* Gemini */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="font-semibold text-slate-900">Leitura das folhas (Gemini)</h2>
-          <p className="mt-1 text-xs text-slate-500">A chave fica guardada na planilha do Google e é usada só para ler as folhas de ponto.</p>
-
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="mb-1 block font-medium text-slate-700">Chave da API</label>
-              <p className="mb-1 text-xs text-slate-500">
-                {temChave ? 'Já existe uma chave salva. Preencha apenas para trocar.' : 'Nenhuma chave salva. Crie em aistudio.google.com/apikey.'}
-              </p>
-              <input type="password" value={chave} onChange={(e) => setChave(e.target.value)}
-                placeholder={temChave ? 'manter atual' : 'AIza... ou AQ...'} className={input} />
-            </div>
-            <div>
-              <label className="mb-1 block font-medium text-slate-700">Modelo</label>
-              <select value={modelo} onChange={(e) => setModelo(e.target.value)} className={input}>
-                <option value="gemini-2.5-flash">gemini-2.5-flash (rápido, grátis)</option>
-                <option value="gemini-2.5-pro">gemini-2.5-pro (mais preciso)</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={salvarCfg} disabled={savingCfg}
-                className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
-                {savingCfg ? 'Salvando…' : 'Salvar'}
-              </button>
-              {msgCfg && <span className="text-green-700">{msgCfg}</span>}
-            </div>
+        <Secao titulo="Leitura das folhas (Gemini)"
+          descricao="A chave fica guardada na planilha do Google e é usada só para ler as folhas de ponto.">
+          <div className="space-y-4">
+            <Entrada rotulo="Chave da API" type="password" autoComplete="off" value={chave} onChange={(e) => setChave(e.target.value)}
+              placeholder={temChave ? 'manter atual' : 'AIza... ou AQ...'}
+              dica={temChave ? 'Já existe uma chave salva. Preencha apenas para trocar.' : 'Nenhuma chave salva. Crie em aistudio.google.com/apikey.'} />
+            <Selecao rotulo="Modelo" valor={modelo} onChange={setModelo}
+              opcoes={[
+                { valor: 'gemini-2.5-flash', rotulo: 'gemini-2.5-flash', detalhe: 'rápido, grátis' },
+                { valor: 'gemini-2.5-pro', rotulo: 'gemini-2.5-pro', detalhe: 'mais preciso' },
+              ]} />
           </div>
-        </section>
+          <div className="mt-5">
+            <Botao variante="primaria" onClick={salvarCfg} carregando={savingCfg}>
+              {savingCfg ? 'Salvando…' : 'Salvar'}
+            </Botao>
+          </div>
+        </Secao>
 
         {/* Usuários */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="font-semibold text-slate-900">Usuários</h2>
-          <p className="mt-1 text-xs text-slate-500">
+        <Secao titulo="Usuários"
+          descricao={<>
             Cadastre contadores e outros administradores. <strong>Contabilidade</strong> enxerga apenas as
             empresas que cadastrar. Os <strong>administradores das empresas</strong> (papel cliente) são
             criados pelo próprio contador no módulo <strong>Cadastro</strong>.
-          </p>
+          </>}>
+          {usuarios.length === 0 ? (
+            <EstadoVazio titulo="Nenhum usuário cadastrado" descricao="Adicione o primeiro pelo formulário abaixo." />
+          ) : (
+            <ul className="divide-y divide-borda rounded-xl border border-borda">
+              {usuarios.map((u) => (
+                <li key={u.email} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-tinta">{u.nome}</div>
+                    <div className="truncate text-xs text-tinta-suave">{u.email}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Selo tom={u.role === 'master' ? 'primaria' : 'neutro'}>{ROTULO_PAPEL[u.role]}</Selo>
+                    {u.role === 'usuario' && (
+                      <span className="hidden text-xs text-tinta-suave sm:inline">
+                        {u.modulos.map((m) => ROTULO_MODULO[m]).join(' · ')}
+                      </span>
+                    )}
+                    <BotaoIcone rotulo={`Remover ${u.nome}`} title="Remover" tom="perigo" onClick={() => setAExcluir(u)}>
+                      <IconeExcluir size={16} />
+                    </BotaoIcone>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
 
-          <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
-            {usuarios.length === 0 && <p className="px-3 py-3 text-slate-400">Nenhum usuário cadastrado.</p>}
-            {usuarios.map((u) => (
-              <div key={u.email} className="flex items-center justify-between px-3 py-2.5">
-                <div>
-                  <div className="font-medium text-slate-800">{u.nome}</div>
-                  <div className="text-xs text-slate-500">{u.email}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
-                    {ROTULO_PAPEL[u.role]}
-                  </span>
-                  {u.role === 'usuario' && (
-                    <span className="hidden text-xs text-slate-500 sm:inline">
-                      {u.modulos.map((m) => ROTULO_MODULO[m]).join(' · ')}
-                    </span>
-                  )}
-                  <button onClick={() => setAExcluir(u)} title="Remover" aria-label={`Remover ${u.nome}`}
-                    className="text-red-600 hover:text-red-700">
-                    <IconeExcluir size={16} className="inline" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Nome" className={input} />
-            <input value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} placeholder="E-mail" className={input} />
-            <input type="password" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} placeholder="Senha (mín. 4)" className={input} />
-            <select value={novo.role} onChange={(e) => setNovo({ ...novo, role: e.target.value as Papel })} className={input}>
-              <option value="usuario">Contabilidade</option>
-              <option value="master">Administrador</option>
-            </select>
+          <h3 className="mb-3 mt-6 text-[13px] font-semibold text-tinta">Novo usuário</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Entrada rotulo="Nome" value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} />
+            <Entrada rotulo="E-mail" type="email" autoComplete="off" value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} />
+            <Entrada rotulo="Senha" dica="Mínimo de 4 caracteres." type="password" autoComplete="new-password" value={novo.senha}
+              onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
+            <Selecao rotulo="Papel" valor={novo.role} onChange={(v) => setNovo({ ...novo, role: v as Papel })}
+              opcoes={[{ valor: 'usuario', rotulo: 'Contabilidade' }, { valor: 'master', rotulo: 'Administrador' }]} />
           </div>
 
           {/* Módulos — só para a contabilidade. Master tem tudo; cliente é só caixa. */}
           {novo.role === 'usuario' && (
-            <div className="mt-3">
-              <label className="mb-1 block font-medium text-slate-700">Módulos liberados</label>
-              <p className="mb-2 text-xs text-slate-500">O que este contador enxerga. A Folha de Ponto só faz sentido para quem usa timesheet.</p>
-              <div className="flex flex-wrap gap-4">
+            <fieldset className="mt-5">
+              <legend className="text-[13px] font-medium text-tinta">Módulos liberados</legend>
+              <p className="mb-2.5 mt-1 text-xs text-tinta-suave">O que este contador enxerga. A Folha de Ponto só faz sentido para quem usa timesheet.</p>
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
                 {(['caixa', 'ponto'] as Modulo[]).map((m) => (
-                  <label key={m} className="flex items-center gap-2">
-                    <input type="checkbox" checked={novo.modulos.includes(m)}
-                      onChange={(e) => setNovo({
-                        ...novo,
-                        modulos: e.target.checked ? [...novo.modulos, m] : novo.modulos.filter((x) => x !== m),
-                      })} />
+                  <Marcacao key={m} type="checkbox" checked={novo.modulos.includes(m)}
+                    onChange={(e) => setNovo({
+                      ...novo,
+                      modulos: e.target.checked ? [...novo.modulos, m] : novo.modulos.filter((x) => x !== m),
+                    })}>
                     {ROTULO_MODULO[m]}
-                  </label>
+                  </Marcacao>
                 ))}
               </div>
-            </div>
+            </fieldset>
           )}
-          <div className="mt-3 flex items-center gap-3">
-            <button onClick={addUsuario} disabled={savingUser}
-              className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
+          <div className="mt-5">
+            <Botao variante="primaria" onClick={addUsuario} carregando={savingUser}>
               {savingUser ? 'Salvando…' : 'Adicionar usuário'}
-            </button>
-            {msgUser && <span className="text-green-700">{msgUser}</span>}
+            </Botao>
           </div>
-        </section>
-      </div>
+        </Secao>
+      </Conteudo>
 
       {aExcluir && (
         <DialogoConfirmacao

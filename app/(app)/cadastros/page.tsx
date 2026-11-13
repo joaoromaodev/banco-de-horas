@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { Empresa } from '@/lib/tipos';
-import { IconeExcluir } from '../icones';
+import { IconeExcluir, IconeMais } from '../icones';
+import { Alternador, Botao, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
+import { Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
 
 interface Administrador { email: string; nome: string; role: string; empresa: string | null; }
@@ -96,136 +99,134 @@ export default function Cadastro() {
     setEmpresas((p) => p.map((e, j) => j === i ? { ...e, [campo]: v } : e));
 
   const nomeEmpresa = (id: string | null) => empresas.find((e) => e.id === id)?.nome ?? 'empresa removida';
-  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-petroleo-600 focus:ring-2 focus:ring-petroleo-100';
-  // Célula de tabela: input discreto que só ganha contorno no hover/foco (some a
-  // grade dura, no padrão dos cards do site).
-  const cell = 'w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-200 focus:border-petroleo-500 focus:bg-white focus:ring-2 focus:ring-petroleo-100';
+  const cell = `${celulaCls} w-full`;
   const colsEmpresa = 4 + (ehMaster ? 1 : 0) + 1; // razão + tipo + doc + pagador (+contador) + ações
 
   return (
     <div className="text-sm">
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-slate-900">Cadastro</h1>
-        <p className="text-xs text-slate-500">
-          Empresas-clientes e seus administradores. Os dados de cada módulo (jornada,
-          funcionários, feriados, fiscal) ficam dentro da Folha de Ponto e do Livro Caixa.
-        </p>
-      </header>
-      <div className="mx-auto max-w-4xl space-y-6 p-6">
-        {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
-        {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
+      <CabecalhoPagina titulo="Cadastro"
+        subtitulo="Empresas-clientes e seus administradores. Os dados de cada módulo (jornada, funcionários, feriados, fiscal) ficam dentro da Folha de Ponto e do Livro Caixa." />
 
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+        {msg && <Toast onFechar={() => setMsg(null)}>{msg}</Toast>}
+      </Toasts>
+
+      <Conteudo largura="media">
         {/* Identidade das empresas (compartilhada pelos dois módulos) */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-1 font-semibold">Empresas-clientes</h2>
-          <p className="mb-2 text-xs text-slate-500">
+        <Secao titulo="Empresas-clientes"
+          descricao={<>
             A razão social aparece no cabeçalho da planilha e no Termo.
             {ehMaster
               ? ' Como administrador, você vê as empresas de todos os contadores e define o responsável de cada uma.'
               : ' Você vê e edita apenas as suas empresas.'}
-          </p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-petroleo-50/70 text-left text-[11px] font-semibold uppercase tracking-wide text-petroleo-800">
-                  <th className="px-3 py-2.5">Razão social / Nome</th>
-                  <th className="px-3 py-2.5">Tipo</th>
-                  <th className="px-3 py-2.5">CNPJ / CPF</th>
-                  <th className="px-3 py-2.5" title="Identificar o pagador/paciente (nome + CPF/CNPJ) nas entradas do Livro Caixa — para Carnê-Leão/DMED. Ligue em clínicas e profissionais de saúde.">Identifica pagador</th>
-                  {ehMaster && <th className="px-3 py-2.5">Contador responsável</th>}
-                  <th className="w-12 px-3 py-2.5"></th>
+          </>}>
+          <div className={`${tb.moldura} shadow-none`}>
+            <table className={tb.tabela}>
+              <thead className={tb.cabeca}>
+                <tr>
+                  <th className={tb.th}>Razão social / Nome</th>
+                  <th className={tb.th}>Tipo</th>
+                  <th className={tb.th}>CNPJ / CPF</th>
+                  <th className={`${tb.th} text-center`}>
+                    <span tabIndex={0} className="cursor-help underline decoration-dotted underline-offset-4"
+                      data-dica="Identificar o pagador/paciente (nome + CPF/CNPJ) nas entradas do Livro Caixa — para Carnê-Leão/DMED. Ligue em clínicas e profissionais de saúde.">
+                      Identifica pagador
+                    </span>
+                  </th>
+                  {ehMaster && <th className={tb.th}>Contador responsável</th>}
+                  <th className={`${tb.th} w-12`}><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={tb.corpo}>
                 {empresas.map((e, i) => (
-                  <tr key={i} className="group transition-colors hover:bg-slate-50/70">
-                    <td className="px-2 py-1"><input className={cell} value={e.nome}
+                  <tr key={i} className={tb.linha}>
+                    <td className={tb.tdCampo}><input className={`${cell} min-w-48`} value={e.nome} aria-label="Razão social ou nome"
                       onChange={(ev) => setE(i, 'nome', ev.target.value)} /></td>
-                    <td className="px-2 py-1">
-                      <select className={`${cell} cursor-pointer`} value={e.tipoPessoa ?? 'juridica'}
-                        onChange={(ev) => setE(i, 'tipoPessoa', ev.target.value)}>
-                        <option value="juridica">Jurídica</option>
-                        <option value="fisica">Física</option>
-                      </select>
+                    <td className={tb.tdCampo}>
+                      <Selecao aparencia="celula" largura="w-28" aria-label={`Tipo de pessoa de ${e.nome || 'empresa'}`}
+                        valor={e.tipoPessoa ?? 'juridica'} onChange={(v) => setE(i, 'tipoPessoa', v)}
+                        opcoes={[{ valor: 'juridica', rotulo: 'Jurídica' }, { valor: 'fisica', rotulo: 'Física' }]} />
                     </td>
-                    <td className="px-2 py-1"><input className={cell} value={e.cnpj ?? ''}
+                    <td className={tb.tdCampo}><input className={`${cell} min-w-40`} value={e.cnpj ?? ''}
+                      aria-label={`${e.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'} de ${e.nome || 'empresa'}`}
                       placeholder={e.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}
                       onChange={(ev) => setE(i, 'cnpj', ev.target.value)} /></td>
-                    <td className="px-2 py-1 text-center">
-                      <input type="checkbox" checked={!!e.identificaPagador}
+                    <td className={`${tb.tdCampo} text-center`}>
+                      <Alternador checked={!!e.identificaPagador}
                         aria-label="Identifica pagador/paciente nas entradas"
                         onChange={(ev) => setEmpresas((p) => p.map((x, j) => j === i ? { ...x, identificaPagador: ev.target.checked } : x))} />
                     </td>
                     {ehMaster && (
-                      <td className="px-2 py-1"><input className={cell} value={e.contador ?? ''}
+                      <td className={tb.tdCampo}><input className={`${cell} min-w-44`} value={e.contador ?? ''}
+                        aria-label={`Contador responsável por ${e.nome || 'empresa'}`}
                         placeholder="e-mail do contador" onChange={(ev) => setE(i, 'contador', ev.target.value)} /></td>
                     )}
-                    <td className="px-2 py-1 text-center">
-                      <button onClick={() => setEmpresas((p) => p.filter((_, j) => j !== i))}
-                        title="Remover" aria-label="Remover empresa"
-                        className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600 group-hover:text-slate-400">
-                        <IconeExcluir size={16} className="inline" />
-                      </button>
+                    <td className={`${tb.tdCampo} text-center`}>
+                      <BotaoIcone rotulo="Remover empresa" title="Remover" tom="perigo"
+                        onClick={() => setEmpresas((p) => p.filter((_, j) => j !== i))}>
+                        <IconeExcluir size={16} />
+                      </BotaoIcone>
                     </td>
                   </tr>
                 ))}
                 {empresas.length === 0 && (
-                  <tr><td colSpan={colsEmpresa} className="px-3 py-8 text-center text-slate-400">Nenhuma empresa cadastrada.</td></tr>
+                  <tr><td colSpan={colsEmpresa} className={tb.vazio}>Nenhuma empresa cadastrada.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          <div className="mt-2 flex gap-2">
-            <button onClick={() => setEmpresas((p) => [...p, { id: '', nome: '', tipoPessoa: 'juridica', cnpj: '', trabalhaSabado: false }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Empresa</button>
-            <button onClick={salvarEmpresas} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white">Salvar empresas</button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Botao variante="primaria" onClick={salvarEmpresas}>Salvar empresas</Botao>
+            <Botao icone={<IconeMais />}
+              onClick={() => setEmpresas((p) => [...p, { id: '', nome: '', tipoPessoa: 'juridica', cnpj: '', trabalhaSabado: false }])}>
+              Empresa
+            </Botao>
           </div>
-          <p className="mt-2 text-xs text-slate-400">Dica: evite renomear uma empresa depois de cadastrar funcionários — o vínculo é pelo id interno.</p>
-        </section>
+          <p className="mt-3 text-xs text-tinta-suave">Dica: evite renomear uma empresa depois de cadastrar funcionários — o vínculo é pelo id interno.</p>
+        </Secao>
 
         {/* Administradores da empresa (papel cliente) */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="font-semibold">Administradores da empresa</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Você cadastra quem administra o <strong>Livro Caixa</strong> de cada empresa-cliente.
-            O administrador acessa só o caixa da empresa vinculada.
-          </p>
+        <Secao titulo="Administradores da empresa"
+          descricao={<>Você cadastra quem administra o <strong>Livro Caixa</strong> de cada empresa-cliente. O administrador acessa só o caixa da empresa vinculada.</>}>
+          {admins.length === 0 ? (
+            <EstadoVazio titulo="Nenhum administrador cadastrado" descricao="Adicione o primeiro pelo formulário abaixo." />
+          ) : (
+            <ul className="divide-y divide-borda rounded-xl border border-borda">
+              {admins.map((u) => (
+                <li key={u.email} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-tinta">{u.nome}</div>
+                    <div className="truncate text-xs text-tinta-suave">{u.email}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Selo>{nomeEmpresa(u.empresa)}</Selo>
+                    <BotaoIcone rotulo={`Remover ${u.nome}`} title="Remover" tom="perigo" onClick={() => setAExcluir(u)}>
+                      <IconeExcluir size={16} />
+                    </BotaoIcone>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
 
-          <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
-            {admins.length === 0 && <p className="px-3 py-3 text-slate-400">Nenhum administrador cadastrado.</p>}
-            {admins.map((u) => (
-              <div key={u.email} className="flex items-center justify-between px-3 py-2.5">
-                <div>
-                  <div className="font-medium text-slate-800">{u.nome}</div>
-                  <div className="text-xs text-slate-500">{u.email}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">{nomeEmpresa(u.empresa)}</span>
-                  <button onClick={() => setAExcluir(u)} title="Remover" aria-label={`Remover ${u.nome}`}
-                    className="text-red-600 hover:text-red-700">
-                    <IconeExcluir size={16} className="inline" />
-                  </button>
-                </div>
-              </div>
-            ))}
+          <h3 className="mb-3 mt-6 text-[13px] font-semibold text-tinta">Novo administrador</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Entrada rotulo="Nome" value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} />
+            <Entrada rotulo="E-mail" type="email" autoComplete="off" value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} />
+            <Entrada rotulo="Senha" dica="Mínimo de 4 caracteres." type="password" autoComplete="new-password" value={novo.senha}
+              onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
+            <Selecao rotulo="Empresa" valor={novo.empresa} onChange={(v) => setNovo({ ...novo, empresa: v })}
+              placeholder="Escolha a empresa…"
+              opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
           </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Nome" className={input} />
-            <input value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} placeholder="E-mail" className={input} />
-            <input type="password" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} placeholder="Senha (mín. 4)" className={input} />
-            <select value={novo.empresa} onChange={(e) => setNovo({ ...novo, empresa: e.target.value })} className={input}>
-              <option value="">Escolha a empresa…</option>
-              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
-          </div>
-          <div className="mt-3 flex items-center gap-3">
-            <button onClick={addAdmin} disabled={salvandoAdmin || !novo.empresa}
-              className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
+          <div className="mt-5">
+            <Botao variante="primaria" onClick={addAdmin} carregando={salvandoAdmin} disabled={!novo.empresa}>
               {salvandoAdmin ? 'Salvando…' : 'Adicionar administrador'}
-            </button>
+            </Botao>
           </div>
-        </section>
-      </div>
+        </Secao>
+      </Conteudo>
 
       {aExcluir && (
         <DialogoConfirmacao
