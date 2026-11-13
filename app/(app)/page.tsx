@@ -7,6 +7,10 @@ import { validar, Alerta } from '@/lib/validacao';
 import { dataBR } from '@/lib/data';
 import LupaImagem from './LupaImagem';
 import { AbasPonto } from './AbasPonto';
+import { IconeBaixar } from './icones';
+import { Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
+import { EntradaSugestoes, Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 
 type Campo = 'entradaManha' | 'saidaAlmoco' | 'retornoAlmoco' | 'saidaTarde';
 const CAMPOS: Campo[] = ['entradaManha', 'saidaAlmoco', 'retornoAlmoco', 'saidaTarde'];
@@ -249,173 +253,143 @@ export default function Home() {
 
   return (
     <div className="text-sm">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Timesheet</h1>
-          <p className="text-xs text-slate-500">Suba a folha, revise e gere a planilha</p>
-        </div>
-        <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">{dataBR()}</span>
-      </header>
-      <div className="space-y-6 p-6">
-      <AbasPonto ativa="timesheet" />
+      <CabecalhoPagina titulo="Timesheet" subtitulo="Suba a folha, revise e gere a planilha"
+        acoes={<Selo>{dataBR()}</Selo>} abas={<AbasPonto ativa="timesheet" />} />
 
-      <section className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-4">
-        <label className="flex flex-col gap-1 md:col-span-2">
-          <span className="font-medium">Empresa</span>
-          <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={empresa}
-            onChange={(e) => { setEmpresa(e.target.value); setFuncionario(''); }}>
-            {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
-            {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 md:col-span-2">
-          <span className="font-medium">Funcionário</span>
-          <input className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={funcionario} list="lista-funcs"
-            onChange={(e) => setFuncionario(e.target.value)} placeholder={empresa ? 'Nome completo (ou selecione)' : 'Selecione a empresa primeiro'} />
-          <datalist id="lista-funcs">
-            {funcList.map((f) => <option key={f.nome} value={f.nome} />)}
-          </datalist>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-medium">Mês</span>
-          <select className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={mes}
-            onChange={(e) => setMes(Number(e.target.value))}>
-            {MESES.slice(1).map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-medium">Ano</span>
-          <input type="number" className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={ano}
-            onChange={(e) => setAno(Number(e.target.value))} />
-        </label>
-        <label className="flex flex-col gap-1 md:col-span-2">
-          <span className="font-medium">Foto da folha</span>
-          <input type="file" accept="image/*" className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600"
-            onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)} />
-        </label>
-        <label className="flex flex-col gap-1 md:col-span-2">
-          <span className="font-medium">Feriados extras (opcional)</span>
-          <input className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600" value={feriadosTxt}
-            onChange={(e) => setFeriadosTxt(e.target.value)}
-            placeholder={feriadosCad.length ? `${feriadosCad.length} do cadastro + extras aqui` : 'AAAA-MM-DD, ex.: 2026-06-19'} />
-        </label>
-        <div className="flex items-end gap-2 md:col-span-4">
-          <button onClick={lerFolha} disabled={carregando}
-            className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
-            {carregando ? 'Lendo…' : 'Ler folha (OCR)'}
-          </button>
-          <button onClick={preencherManual}
-            className="rounded-lg border border-slate-300 px-4 py-2 font-medium">
-            Preencher manualmente
-          </button>
-        </div>
-      </section>
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+        {aviso && <Toast onFechar={() => setAviso(null)}>{aviso}</Toast>}
+      </Toasts>
 
-      <section className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-4">
-        <span className="font-medium">Gerar em lote:</span>
-        <span className="text-slate-500">todas as planilhas de {empresaSel?.nome || 'empresa'} em {MESES[mes]}/{ano} salvas no banco →</span>
-        <button onClick={gerarLote} disabled={carregando}
-          className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
-          Baixar todas (.zip)
-        </button>
-      </section>
-
-      {erro && <p className="mt-4 rounded bg-red-50 p-3 text-red-700">{erro}</p>}
-
-      {dias && (
-        <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="lg:sticky lg:top-4 lg:self-start">
-            <h2 className="mb-2 font-semibold">Folha original</h2>
-            {imgUrl
-              ? <LupaImagem src={imgUrl} />
-              : <p className="text-slate-400">Sem imagem (preenchimento manual).</p>}
+      <Conteudo>
+        <Secao titulo="Folha do mês" descricao="Escolha a empresa, o funcionário e o mês; depois envie a foto da folha manuscrita ou preencha à mão.">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <Selecao rotulo="Empresa" classeCampo="md:col-span-2" valor={empresa} placeholder="— cadastre uma empresa —"
+              onChange={(v) => { setEmpresa(v); setFuncionario(''); }}
+              opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
+            <EntradaSugestoes rotulo="Funcionário" classeCampo="md:col-span-2" value={funcionario} onChange={setFuncionario}
+              sugestoes={funcList.map((f) => f.nome)}
+              placeholder={empresa ? 'Nome completo (ou selecione)' : 'Selecione a empresa primeiro'} />
+            <Selecao rotulo="Mês" busca={false} valor={String(mes)} onChange={(v) => setMes(Number(v))}
+              opcoes={MESES.slice(1).map((m, i) => ({ valor: String(i + 1), rotulo: m }))} />
+            <Entrada rotulo="Ano" type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} />
+            <CampoArquivo rotulo="Foto da folha" classeCampo="md:col-span-2" accept="image/*" texto="Escolher ou soltar a foto aqui"
+              nome={arquivo?.name} onArquivo={escolherArquivo} />
+            <Entrada rotulo="Feriados extras (opcional)" classeCampo="md:col-span-4" value={feriadosTxt}
+              onChange={(e) => setFeriadosTxt(e.target.value)}
+              placeholder={feriadosCad.length ? `${feriadosCad.length} do cadastro + extras aqui` : 'AAAA-MM-DD, ex.: 2026-06-19'} />
           </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="font-semibold">Revisão — {MESES[mes]}/{ano}</h2>
-              <span className="text-xs">
-                {nErros > 0 && <b className="text-red-600">{nErros} erro(s) </b>}
-                {nAlertas > 0 && <b className="text-amber-600">{nAlertas} alerta(s)</b>}
-                {nErros + nAlertas === 0 && <b className="text-green-600">tudo certo</b>}
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50">
-                    <th className="border px-1 py-1">Dia</th>
-                    {CAMPOS.map((c) => <th key={c} className="border px-1 py-1">{CAMPO_LABEL[c]}</th>)}
-                    <th className="border px-1 py-1">Marcador</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dias.map((d) => {
-                    const wd = diaSemana(ano, mes, d.dia);
-                    const tipo = tipoDoDia(ano, mes, d.dia, feriados);
-                    const fds = wd === 0 || wd === 6 || tipo === 'feriado';
-                    const geral = alertaPorCampo.get(`${d.dia}:geral`);
-                    return (
-                      <tr key={d.dia} className={fds ? 'bg-slate-50' : ''}>
-                        <td className="border px-1 py-0.5 text-center" title={DIAS_SEMANA[wd]}>
-                          <b>{d.dia}</b>
-                          <span className="ml-1 text-[10px] text-slate-400">{DIAS_SEMANA[wd].slice(0, 3)}</span>
-                        </td>
-                        {CAMPOS.map((campo) => {
-                          const k = `${d.dia}:${campo}`;
-                          const a = alertaPorCampo.get(k);
-                          const inc = incertos.has(k);
-                          const cls = a?.nivel === 'erro'
-                            ? 'border-red-500 bg-red-50'
-                            : inc || a?.nivel === 'alerta'
-                              ? 'border-amber-400 bg-amber-50'
-                              : 'border-slate-300';
-                          return (
-                            <td key={campo} className="border px-0.5 py-0.5">
-                              <input
-                                value={(d[campo] as string) ?? ''}
-                                onChange={(e) => editar(d.dia, campo, e.target.value)}
-                                placeholder="--:--"
-                                title={a?.msg ?? (inc ? 'Leitura incerta — confira' : '')}
-                                className={`w-16 rounded border px-1 py-0.5 text-center ${cls}`}
-                              />
-                            </td>
-                          );
-                        })}
-                        <td className="border px-0.5 py-0.5">
-                          <select value={d.marcador ?? ''}
-                            onChange={(e) => editar(d.dia, 'marcador', e.target.value)}
-                            className="w-28 rounded border border-slate-300 px-1 py-0.5">
-                            <option value="">—</option>
-                            {MARCADORES.map((m) => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                          {geral && <div className="mt-0.5 text-[10px] text-amber-600">{geral.msg}</div>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <button onClick={baixar} disabled={carregando || nErros > 0}
-                className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50"
-                title={nErros > 0 ? 'Corrija os erros antes de baixar' : ''}>
-                Baixar planilha (.xlsx)
-              </button>
-              <button onClick={salvarSheets} disabled={carregando || nErros > 0}
-                className="rounded border border-petroleo-700 px-4 py-2 font-medium text-petroleo-700 disabled:opacity-50"
-                title={nErros > 0 ? 'Corrija os erros antes de salvar' : ''}>
-                Salvar no banco (Sheets)
-              </button>
-            </div>
-            {aviso && <p className="mt-2 rounded bg-green-50 p-2 text-petroleo-700">{aviso}</p>}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {/* Com a revisão aberta, a ação principal da tela passa a ser baixar a planilha. */}
+            <Botao variante={dias ? 'secundaria' : 'primaria'} onClick={lerFolha} carregando={carregando}>
+              {carregando ? 'Lendo…' : 'Ler folha (OCR)'}
+            </Botao>
+            <Botao onClick={preencherManual}>Preencher manualmente</Botao>
           </div>
-        </section>
-      )}
-      </div>
+        </Secao>
+
+        <Cartao className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3.5 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold text-tinta">Gerar em lote</h2>
+            <p className="mt-0.5 text-[13px] text-tinta-suave">
+              Todas as planilhas de {empresaSel?.nome || 'empresa'} em {MESES[mes]}/{ano} salvas no banco.
+            </p>
+          </div>
+          <Botao onClick={gerarLote} disabled={carregando} icone={<IconeBaixar />}>Baixar todas (.zip)</Botao>
+        </Cartao>
+
+        {dias && (
+          <section className="grid grid-cols-1 gap-5 lg:grid-cols-2" aria-label="Revisão da folha">
+            <div className="lg:sticky lg:top-4 lg:self-start">
+              <h2 className="mb-2 text-[15px] font-semibold text-tinta">Folha original</h2>
+              {imgUrl
+                ? <LupaImagem src={imgUrl} />
+                : <EstadoVazio titulo="Sem imagem" descricao="Preenchimento manual — não há folha para conferir." />}
+            </div>
+
+            <div>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[15px] font-semibold text-tinta">Revisão — {MESES[mes]}/{ano}</h2>
+                <span className="flex flex-wrap gap-1.5" role="status">
+                  {nErros > 0 && <Selo tom="perigo">{nErros} erro(s)</Selo>}
+                  {nAlertas > 0 && <Selo tom="aviso">{nAlertas} alerta(s)</Selo>}
+                  {nErros + nAlertas === 0 && <Selo tom="sucesso">tudo certo</Selo>}
+                </span>
+              </div>
+
+              <div className={tb.moldura}>
+                <table className={`${tb.tabela} text-[13px]`}>
+                  <thead className={tb.cabeca}>
+                    <tr>
+                      <th className={`${tb.th} text-center`}>Dia</th>
+                      {CAMPOS.map((c) => <th key={c} className={`${tb.th} text-center`}>{CAMPO_LABEL[c]}</th>)}
+                      <th className={tb.th}>Marcador</th>
+                    </tr>
+                  </thead>
+                  <tbody className={tb.corpo}>
+                    {dias.map((d) => {
+                      const wd = diaSemana(ano, mes, d.dia);
+                      const tipo = tipoDoDia(ano, mes, d.dia, feriados);
+                      const fds = wd === 0 || wd === 6 || tipo === 'feriado';
+                      const geral = alertaPorCampo.get(`${d.dia}:geral`);
+                      return (
+                        <tr key={d.dia} className={fds ? 'bg-superficie-suave' : ''}>
+                          <td className="whitespace-nowrap px-2 py-1 text-center" data-dica={DIAS_SEMANA[wd]}>
+                            <span className="font-semibold text-tinta">{d.dia}</span>
+                            <span className="ml-1 text-[11px] text-tinta-suave">{DIAS_SEMANA[wd].slice(0, 3)}</span>
+                          </td>
+                          {CAMPOS.map((campo) => {
+                            const k = `${d.dia}:${campo}`;
+                            const a = alertaPorCampo.get(k);
+                            const inc = incertos.has(k);
+                            const cls = a?.nivel === 'erro'
+                              ? 'border-perigo bg-perigo-suave'
+                              : inc || a?.nivel === 'alerta'
+                                ? 'border-aviso bg-aviso-suave'
+                                : 'border-borda hover:border-borda-forte';
+                            const dica = a?.msg ?? (inc ? 'Leitura incerta — confira' : undefined);
+                            return (
+                              <td key={campo} className="px-1 py-1 text-center">
+                                <input
+                                  value={(d[campo] as string) ?? ''}
+                                  onChange={(e) => editar(d.dia, campo, e.target.value)}
+                                  placeholder="--:--"
+                                  aria-label={`${CAMPO_LABEL[campo]} do dia ${d.dia}`}
+                                  aria-invalid={a?.nivel === 'erro' ? true : undefined}
+                                  aria-description={dica}
+                                  data-dica={dica}
+                                  className={`h-8 w-[4.25rem] rounded-md border bg-superficie px-1 text-center text-tinta transition-colors placeholder:text-tinta-fraca focus:border-foco ${cls}`}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td className="px-1 py-1">
+                            <Selecao aparencia="celula" largura="w-32" aria-label={`Marcador do dia ${d.dia}`} placeholder="—"
+                              valor={d.marcador ?? ''} onChange={(v) => editar(d.dia, 'marcador', v)}
+                              opcoes={[{ valor: '', rotulo: '—' }, ...MARCADORES.map((m) => ({ valor: m, rotulo: m }))]} />
+                            {geral && <div className="mt-0.5 text-[11px] font-medium text-aviso">{geral.msg}</div>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span data-dica={nErros > 0 ? 'Corrija os erros antes de baixar' : undefined}>
+                  <Botao variante="primaria" onClick={baixar} disabled={carregando || nErros > 0} icone={<IconeBaixar />}>
+                    Baixar planilha (.xlsx)
+                  </Botao>
+                </span>
+                <span data-dica={nErros > 0 ? 'Corrija os erros antes de salvar' : undefined}>
+                  <Botao onClick={salvarSheets} disabled={carregando || nErros > 0}>Salvar no banco (Sheets)</Botao>
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
+      </Conteudo>
     </div>
   );
 }

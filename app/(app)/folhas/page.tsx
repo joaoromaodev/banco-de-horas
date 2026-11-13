@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Empresa, Funcionario } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
 import { AbasPonto } from '../AbasPonto';
+import { IconeBaixar } from '../icones';
+import { Botao, CabecalhoPagina, Cartao, Conteudo, Entrada, Secao } from '@/components/ui';
+import { EntradaSugestoes, Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 
 export default function Folhas() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -66,69 +70,50 @@ export default function Folhas() {
     baixar(url, `folhas_${empresaSel?.nome ?? 'empresa'}_${MESES[mes]}_${ano}.zip`);
   }
 
-  const input = 'rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-petroleo-600';
-
   return (
     <div className="text-sm">
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-slate-900">Folhas de ponto em branco</h1>
-        <p className="text-xs text-slate-500">Gere as folhas para os funcionários preencherem à mão</p>
-      </header>
+      <CabecalhoPagina titulo="Folhas de ponto em branco" subtitulo="Gere as folhas para os funcionários preencherem à mão"
+        abas={<AbasPonto ativa="folhas" />} />
 
-      <div className="space-y-6 p-6">
-        <AbasPonto ativa="folhas" />
-        {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+      </Toasts>
 
-        <section className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-4">
-          <label className="flex flex-col gap-1 md:col-span-2">
-            <span className="font-medium">Empresa</span>
-            <select className={input} value={empresa} onChange={(e) => { setEmpresa(e.target.value); setFuncionario(''); }}>
-              {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
-              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="font-medium">Mês</span>
-            <select className={input} value={mes} onChange={(e) => setMes(Number(e.target.value))}>
-              {MESES.slice(1).map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="font-medium">Ano</span>
-            <input type="number" className={input} value={ano} onChange={(e) => setAno(Number(e.target.value))} />
-          </label>
-        </section>
+      <Conteudo largura="media">
+        <Secao titulo="Empresa e período">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <Selecao rotulo="Empresa" classeCampo="sm:col-span-2" valor={empresa} placeholder="— cadastre uma empresa —"
+              onChange={(v) => { setEmpresa(v); setFuncionario(''); }}
+              opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
+            <Selecao rotulo="Mês" busca={false} valor={String(mes)} onChange={(v) => setMes(Number(v))}
+              opcoes={MESES.slice(1).map((m, i) => ({ valor: String(i + 1), rotulo: m }))} />
+            <Entrada rotulo="Ano" type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} />
+          </div>
+        </Secao>
 
         {/* Uma folha */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-2 font-semibold">Folha de um funcionário</h2>
+        <Secao titulo="Folha de um funcionário" descricao="Gera o PDF da folha do mês já com o nome do funcionário.">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="font-medium">Funcionário</span>
-              <input className={`${input} w-72`} value={funcionario} list="lista-funcs"
-                onChange={(e) => setFuncionario(e.target.value)}
-                placeholder={empresa ? 'Nome (ou selecione)' : 'Selecione a empresa primeiro'} />
-              <datalist id="lista-funcs">
-                {funcList.map((f) => <option key={f.nome} value={f.nome} />)}
-              </datalist>
-            </label>
-            <button onClick={baixarFuncionario} disabled={carregando}
-              className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
+            <EntradaSugestoes rotulo="Funcionário" classeCampo="w-full sm:w-80" value={funcionario} onChange={setFuncionario}
+              sugestoes={funcList.map((f) => f.nome)}
+              placeholder={empresa ? 'Nome (ou selecione)' : 'Selecione a empresa primeiro'} />
+            <Botao variante="primaria" onClick={baixarFuncionario} carregando={carregando} icone={<IconeBaixar />}>
               {carregando ? 'Gerando…' : 'Baixar folha (PDF)'}
-            </button>
+            </Botao>
           </div>
-        </section>
+        </Secao>
 
         {/* Em lote */}
-        <section className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-4">
-          <span className="font-medium">Em lote:</span>
-          <span className="text-slate-500">folhas de todos os funcionários de {empresaSel?.nome || 'empresa'} em {MESES[mes]}/{ano} →</span>
-          <button onClick={baixarLote} disabled={carregando}
-            className="rounded-lg bg-petroleo-900 px-4 py-2 font-medium text-white disabled:opacity-50">
-            Baixar todas (.zip)
-          </button>
-        </section>
-      </div>
+        <Cartao className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3.5 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold text-tinta">Em lote</h2>
+            <p className="mt-0.5 text-[13px] text-tinta-suave">
+              Folhas de todos os funcionários de {empresaSel?.nome || 'empresa'} em {MESES[mes]}/{ano}.
+            </p>
+          </div>
+          <Botao onClick={baixarLote} disabled={carregando} icone={<IconeBaixar />}>Baixar todas (.zip)</Botao>
+        </Cartao>
+      </Conteudo>
     </div>
   );
 }

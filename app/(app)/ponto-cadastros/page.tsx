@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { Empresa, Funcionario } from '@/lib/tipos';
-import { IconeExcluir } from '../icones';
+import { IconeExcluir, IconeMais } from '../icones';
+import { Alternador, Botao, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Secao, tb } from '@/components/ui';
+import { Selecao } from '@/components/selecao';
+import { Toast, Toasts } from '@/components/retorno';
 import { AbasPonto } from '../AbasPonto';
 
 interface Feriado { data: string; descricao: string; }
@@ -105,168 +108,155 @@ export default function PontoCadastros() {
   const setH = (i: number, campo: keyof Feriado, v: string) =>
     setFeriados((p) => p.map((f, j) => j === i ? { ...f, [campo]: v } : f));
 
-  // Estilos compartilhados das tabelas (mesmo padrão do módulo Cadastro): sem
-  // grade dura; cabeçalho petróleo, linhas com separador suave, input discreto
-  // que só ganha contorno no hover/foco.
-  const tblWrap = 'overflow-x-auto rounded-xl border border-slate-200';
-  const thTop = 'border-b border-slate-200 bg-petroleo-50/70 text-[11px] font-semibold uppercase tracking-wide text-petroleo-800';
-  const cell = 'w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-200 focus:border-petroleo-500 focus:bg-white focus:ring-2 focus:ring-petroleo-100';
+  const cell = `${celulaCls} w-full`;
   const cellC = `${cell} text-center`;
-  const delBtn = 'rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600 group-hover:text-slate-400';
 
   const seletorEmpresa = (
-    <label className="flex items-center gap-2 text-xs">
-      <span className="text-slate-500">Empresa:</span>
-      <select value={empresaSel} onChange={(e) => setEmpresaSel(e.target.value)}
-        className="rounded-lg border border-slate-300 px-2 py-1">
-        {empresas.length === 0 && <option value="">— cadastre uma empresa —</option>}
-        {empresas.map((e) => <option key={e.id || e.nome} value={e.id}>{e.nome}</option>)}
-      </select>
-    </label>
+    <Selecao aria-label="Empresa" tamanho="sm" largura="w-56 max-w-full" valor={empresaSel} onChange={setEmpresaSel}
+      placeholder="— cadastre uma empresa —"
+      opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
   );
 
   return (
     <div className="text-sm">
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-slate-900">Folha de Ponto · Cadastros</h1>
-        <p className="text-xs text-slate-500">Jornada das empresas, funcionários e feriados</p>
-      </header>
-      <div className="space-y-6 p-6">
-        <AbasPonto ativa="cadastros" />
-        {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{erro}</p>}
-        {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-green-700">{msg}</p>}
+      <CabecalhoPagina titulo="Folha de Ponto · Cadastros" subtitulo="Jornada das empresas, funcionários e feriados"
+        abas={<AbasPonto ativa="cadastros" />} />
 
+      <Toasts>
+        {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
+        {msg && <Toast onFechar={() => setMsg(null)}>{msg}</Toast>}
+      </Toasts>
+
+      <Conteudo largura="media">
         {/* Jornada por empresa */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-1 font-semibold">Jornada das empresas</h2>
-          <p className="mb-2 text-xs text-slate-500">
-            Marque se a empresa trabalha aos sábados e defina a jornada padrão (em minutos).
-            O funcionário pode sobrescrever a jornada individualmente abaixo.
-          </p>
-          <div className={tblWrap}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={thTop}>
-                  <th className="px-3 py-2.5 text-left">Razão social</th>
-                  <th className="px-3 py-2.5">Trabalha sáb.?</th>
-                  <th className="px-3 py-2.5">Jornada útil (min)</th>
-                  <th className="px-3 py-2.5">Jornada sáb. (min)</th>
+        <Secao titulo="Jornada das empresas"
+          descricao="Marque se a empresa trabalha aos sábados e defina a jornada padrão (em minutos). O funcionário pode sobrescrever a jornada individualmente abaixo.">
+          <div className={`${tb.moldura} shadow-none`}>
+            <table className={tb.tabela}>
+              <thead className={tb.cabeca}>
+                <tr>
+                  <th className={tb.th}>Razão social</th>
+                  <th className={`${tb.th} text-center`}>Trabalha sáb.?</th>
+                  <th className={`${tb.th} text-center`}>Jornada útil (min)</th>
+                  <th className={`${tb.th} text-center`}>Jornada sáb. (min)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={tb.corpo}>
                 {empresas.map((e, i) => (
-                  <tr key={i} className="transition-colors hover:bg-slate-50/70">
-                    <td className="px-3 py-1.5 text-slate-800">{e.nome || <span className="text-slate-400">(sem nome)</span>}</td>
-                    <td className="px-3 py-1.5 text-center"><input type="checkbox" checked={e.trabalhaSabado}
-                      className="h-4 w-4 accent-petroleo-700"
-                      onChange={(ev) => setE(i, 'trabalhaSabado', ev.target.checked)} /></td>
-                    <td className="px-2 py-1"><input className={cellC} value={e.jornadaUtilMin ?? ''}
+                  <tr key={i} className={tb.linha}>
+                    <td className={tb.td}>{e.nome || <span className="text-tinta-fraca">(sem nome)</span>}</td>
+                    <td className={`${tb.td} text-center`}>
+                      <Alternador checked={e.trabalhaSabado} aria-label={`${e.nome || 'Empresa'} trabalha aos sábados`}
+                        onChange={(ev) => setE(i, 'trabalhaSabado', ev.target.checked)} />
+                    </td>
+                    <td className={tb.tdCampo}><input className={cellC} inputMode="numeric" value={e.jornadaUtilMin ?? ''}
+                      aria-label={`Jornada útil de ${e.nome || 'empresa'}, em minutos`}
                       placeholder="480" onChange={(ev) => setE(i, 'jornadaUtilMin', ev.target.value)} /></td>
-                    <td className="px-2 py-1"><input className={cellC} value={e.jornadaSabadoMin ?? ''}
+                    <td className={tb.tdCampo}><input className={cellC} inputMode="numeric" value={e.jornadaSabadoMin ?? ''}
+                      aria-label={`Jornada de sábado de ${e.nome || 'empresa'}, em minutos`}
                       placeholder="240" onChange={(ev) => setE(i, 'jornadaSabadoMin', ev.target.value)} /></td>
                   </tr>
                 ))}
                 {empresas.length === 0 && (
-                  <tr><td colSpan={4} className="px-3 py-8 text-center text-slate-400">Cadastre empresas no módulo Cadastro.</td></tr>
+                  <tr><td colSpan={4} className={tb.vazio}>Cadastre empresas no módulo Cadastro.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          <div className="mt-2 flex gap-2">
-            <button onClick={salvarEmpresas} disabled={empresas.length === 0}
-              className="rounded-lg bg-petroleo-900 px-3 py-1 text-white disabled:opacity-50">Salvar jornadas</button>
+          <div className="mt-4 flex gap-2">
+            <Botao variante="primaria" onClick={salvarEmpresas} disabled={empresas.length === 0}>Salvar jornadas</Botao>
           </div>
-        </section>
+        </Secao>
 
         {/* Funcionários — por empresa */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold">Funcionários</h2>
-            {seletorEmpresa}
-          </div>
-          <div className={tblWrap}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={thTop}>
-                  <th className="px-3 py-2.5 text-left">Nome</th>
-                  <th className="px-3 py-2.5 text-left">Cargo</th>
-                  <th className="px-3 py-2.5">Jornada útil (min)</th>
-                  <th className="px-3 py-2.5">Jornada sábado (min)</th>
-                  <th className="w-12 px-3 py-2.5"></th>
+        <Secao titulo="Funcionários" acoes={seletorEmpresa}>
+          <div className={`${tb.moldura} shadow-none`}>
+            <table className={tb.tabela}>
+              <thead className={tb.cabeca}>
+                <tr>
+                  <th className={tb.th}>Nome</th>
+                  <th className={tb.th}>Cargo</th>
+                  <th className={`${tb.th} text-center`}>Jornada útil (min)</th>
+                  <th className={`${tb.th} text-center`}>Jornada sábado (min)</th>
+                  <th className={`${tb.th} w-12`}><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={tb.corpo}>
                 {funcs.map((f, i) => (
-                  <tr key={i} className="group transition-colors hover:bg-slate-50/70">
-                    <td className="px-2 py-1"><input className={cell} value={f.nome}
+                  <tr key={i} className={tb.linha}>
+                    <td className={tb.tdCampo}><input className={`${cell} min-w-40`} value={f.nome} aria-label="Nome do funcionário"
                       onChange={(e) => setF(i, 'nome', e.target.value)} /></td>
-                    <td className="px-2 py-1"><input className={cell} value={f.cargo ?? ''}
+                    <td className={tb.tdCampo}><input className={`${cell} min-w-32`} value={f.cargo ?? ''} aria-label={`Cargo de ${f.nome || 'funcionário'}`}
                       onChange={(e) => setF(i, 'cargo', e.target.value)} /></td>
-                    <td className="px-2 py-1"><input className={cellC} value={f.jornadaUtilMin ?? ''}
+                    <td className={tb.tdCampo}><input className={cellC} inputMode="numeric" value={f.jornadaUtilMin ?? ''}
+                      aria-label={`Jornada útil de ${f.nome || 'funcionário'}, em minutos`}
                       placeholder="480" onChange={(e) => setF(i, 'jornadaUtilMin', e.target.value)} /></td>
-                    <td className="px-2 py-1"><input className={cellC} value={f.jornadaSabadoMin ?? ''}
+                    <td className={tb.tdCampo}><input className={cellC} inputMode="numeric" value={f.jornadaSabadoMin ?? ''}
+                      aria-label={`Jornada de sábado de ${f.nome || 'funcionário'}, em minutos`}
                       placeholder="240" onChange={(e) => setF(i, 'jornadaSabadoMin', e.target.value)} /></td>
-                    <td className="px-2 py-1 text-center">
-                      <button onClick={() => setFuncs((p) => p.filter((_, j) => j !== i))}
-                        title="Remover" aria-label="Remover funcionário" className={delBtn}>
-                        <IconeExcluir size={16} className="inline" />
-                      </button>
+                    <td className={`${tb.tdCampo} text-center`}>
+                      <BotaoIcone rotulo="Remover funcionário" title="Remover" tom="perigo"
+                        onClick={() => setFuncs((p) => p.filter((_, j) => j !== i))}>
+                        <IconeExcluir size={16} />
+                      </BotaoIcone>
                     </td>
                   </tr>
                 ))}
                 {empresaSel && funcs.length === 0 && (
-                  <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-400">Nenhum funcionário nesta empresa.</td></tr>
+                  <tr><td colSpan={5} className={tb.vazio}>Nenhum funcionário nesta empresa.</td></tr>
+                )}
+                {!empresaSel && (
+                  <tr><td colSpan={5} className={tb.vazio}>Selecione uma empresa para ver os funcionários.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          <div className="mt-2 flex gap-2">
-            <button onClick={() => setFuncs((p) => [...p, { empresa: empresaSel, nome: '', cargo: '' }])}
-              disabled={!empresaSel} className="rounded-lg border border-slate-300 px-3 py-1 disabled:opacity-50">+ Linha</button>
-            <button onClick={salvarFuncs} disabled={!empresaSel} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white disabled:opacity-50">Salvar funcionários</button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Botao variante="primaria" onClick={salvarFuncs} disabled={!empresaSel}>Salvar funcionários</Botao>
+            <Botao onClick={() => setFuncs((p) => [...p, { empresa: empresaSel, nome: '', cargo: '' }])}
+              disabled={!empresaSel} icone={<IconeMais />}>Linha</Botao>
           </div>
-        </section>
+        </Secao>
 
         {/* Feriados — globais */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-2 font-semibold">Feriados</h2>
-          <p className="mb-2 text-xs text-slate-500">Data no formato AAAA-MM-DD. Valem para todas as empresas (usados na coluna “a cumprir” e na validação).</p>
-          <div className={tblWrap}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={thTop}>
-                  <th className="px-3 py-2.5 text-left">Data</th>
-                  <th className="px-3 py-2.5 text-left">Descrição</th>
-                  <th className="w-12 px-3 py-2.5"></th>
+        <Secao titulo="Feriados"
+          descricao="Valem para todas as empresas (usados na coluna “a cumprir” e na validação).">
+          <div className={`${tb.moldura} shadow-none`}>
+            <table className={tb.tabela}>
+              <thead className={tb.cabeca}>
+                <tr>
+                  <th className={tb.th}>Data</th>
+                  <th className={tb.th}>Descrição</th>
+                  <th className={`${tb.th} w-12`}><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={tb.corpo}>
                 {feriados.map((f, i) => (
-                  <tr key={i} className="group transition-colors hover:bg-slate-50/70">
-                    <td className="px-2 py-1"><input type="date" className={`${cell} w-40`} value={f.data}
+                  <tr key={i} className={tb.linha}>
+                    <td className={`${tb.tdCampo} w-44`}><input type="date" className={`${celulaCls} w-40`} value={f.data} aria-label="Data do feriado"
                       onChange={(e) => setH(i, 'data', e.target.value)} /></td>
-                    <td className="px-2 py-1"><input className={cell} value={f.descricao}
+                    <td className={tb.tdCampo}><input className={`${cell} min-w-40`} value={f.descricao} aria-label="Descrição do feriado"
                       onChange={(e) => setH(i, 'descricao', e.target.value)} /></td>
-                    <td className="px-2 py-1 text-center">
-                      <button onClick={() => setFeriados((p) => p.filter((_, j) => j !== i))}
-                        title="Remover" aria-label="Remover feriado" className={delBtn}>
-                        <IconeExcluir size={16} className="inline" />
-                      </button>
+                    <td className={`${tb.tdCampo} text-center`}>
+                      <BotaoIcone rotulo="Remover feriado" title="Remover" tom="perigo"
+                        onClick={() => setFeriados((p) => p.filter((_, j) => j !== i))}>
+                        <IconeExcluir size={16} />
+                      </BotaoIcone>
                     </td>
                   </tr>
                 ))}
                 {feriados.length === 0 && (
-                  <tr><td colSpan={3} className="px-3 py-8 text-center text-slate-400">Nenhum feriado cadastrado.</td></tr>
+                  <tr><td colSpan={3} className={tb.vazio}>Nenhum feriado cadastrado.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          <div className="mt-2 flex gap-2">
-            <button onClick={() => setFeriados((p) => [...p, { data: '', descricao: '' }])} className="rounded-lg border border-slate-300 px-3 py-1">+ Linha</button>
-            <button onClick={salvarFeriados} className="rounded-lg bg-petroleo-900 px-3 py-1 text-white">Salvar feriados</button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Botao variante="primaria" onClick={salvarFeriados}>Salvar feriados</Botao>
+            <Botao onClick={() => setFeriados((p) => [...p, { data: '', descricao: '' }])} icone={<IconeMais />}>Linha</Botao>
           </div>
-        </section>
-      </div>
+        </Secao>
+      </Conteudo>
     </div>
   );
 }

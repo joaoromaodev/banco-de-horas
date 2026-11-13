@@ -516,6 +516,6 @@ export const tb = {
   rodape: 'border-t border-borda bg-superficie-suave',
 };
 
-/** Campo editável dentro de célula de tabela: contorno leve, realça no foco. */
+/** Campo editável dentro de célula de tabela: contorno leve, realça no foco. Some a largura (`w-full`, `w-40`…). */
 export const celulaCls =
-  'h-8 w-full rounded-md border border-borda bg-transparent px-2.5 text-base text-tinta transition-colors placeholder:text-tinta-fraca hover:border-borda-forte focus:border-foco focus:bg-superficie sm:text-sm';
+  'h-8 rounded-md border border-borda bg-transparent px-2.5 text-base text-tinta transition-colors placeholder:text-tinta-fraca hover:border-borda-forte focus:border-foco focus:bg-superficie sm:text-sm';

@@ -59,12 +59,12 @@ export default function LupaImagem({
         src={src}
         alt="Folha de ponto"
         draggable={false}
-        className="block w-full select-none rounded-lg border border-slate-200"
+        className="block w-full select-none rounded-xl border border-borda bg-superficie shadow-cartao"
       />
 
       {ativo && (
         <div
-          className="pointer-events-none absolute z-20 rounded-full border-2 border-petroleo-600 shadow-xl ring-2 ring-white"
+          className="pointer-events-none absolute z-20 rounded-full border-2 border-petroleo-600 shadow-flutuante ring-2 ring-white"
           style={{
             width: tam,
             height: tam,
@@ -80,7 +80,7 @@ export default function LupaImagem({
       )}
 
       {!ativo && (
-        <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-slate-900/70 px-2.5 py-1 text-[11px] font-medium text-white">
+        <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-petroleo-950/80 px-2.5 py-1 text-[11px] font-medium text-white">
           Passe o mouse para ampliar
         </span>
       )}
