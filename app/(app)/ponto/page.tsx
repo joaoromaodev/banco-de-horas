@@ -12,6 +12,7 @@ import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar } from '../icones';
 import { DialogoConfirmacao } from '../Dialogo';
 import { AchadosDoMes, PainelRevisaoMes, RevisaoDoMes, SeloAchados } from './RevisaoPonto';
+import { ResumoFolha } from './ResumoFolha';
 import { Alternador, Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
@@ -80,6 +81,8 @@ export default function Home() {
   const [pedidoAbrir, setPedidoAbrir] = useState<string | null>(null);
   const editorRef = useRef<HTMLElement | null>(null);
   const chaveRevisao = useRef('');
+  /** Conta as gravações de folha: o Resumo para a folha se recalcula quando muda. */
+  const [salvos, setSalvos] = useState(0);
 
   const carregarRevisao = useCallback(async () => {
     if (!empresa) { setRevisaoMes(null); return; }
@@ -311,6 +314,7 @@ export default function Home() {
       setAviso(`Salvo: ${data.dias} dia(s) de ${funcionario} (${MESES[mes]}/${ano}).`);
       setSujo(false);
       carregarRevisao();
+      setSalvos((x) => x + 1);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -414,6 +418,11 @@ export default function Home() {
         {empresa && !bancoPendente && (
           <PainelRevisaoMes revisao={revisaoMes} carregando={carregandoRevisao} ano={ano} mes={mes}
             funcionarioAberto={dias ? funcionario : ''} onAbrir={(nome) => abrirFolha(nome)} />
+        )}
+
+        {empresa && !bancoPendente && (
+          <ResumoFolha key={empresa} empresa={empresa} empresaNome={empresaSel?.nome ?? ''} ano={ano} mes={mes}
+            funcionarioAberto={dias ? funcionario : ''} onAbrir={(nome) => abrirFolha(nome)} recarregar={salvos} />
         )}
 
         {dias && (
