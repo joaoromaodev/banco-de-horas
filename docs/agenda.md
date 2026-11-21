@@ -95,6 +95,34 @@ O build não precisa de nenhuma delas (`npm run build` passou sem `.env.local`).
    `select * from agenda_envios order by criado_em desc;`.
 7. Nos logs da Vercel (Cron Jobs), conferir a execução das 10h UTC do dia seguinte.
 
+## Sprint 5 · Frente B — agenda proposta pelo cadastro e contratos na agenda
+
+Migração **0018** (`empresa_regime`; **não aplicada**). Regras puras em `lib/agendaDerivada.ts`
+(`tests/agendaDerivada.test.ts`), rota `app/api/agenda/proposta/route.ts`, tela
+`app/(app)/agenda/PropostaAgenda.tsx` (dentro de **Obrigações por empresa**).
+
+| Tema | Decisão |
+|---|---|
+| Regime | **Não se deduz** por CNAE nem faturamento. A contadora registra o regime da empresa (MEI · Simples · Lucro Presumido · Pessoa física) numa tela da agenda; fica em `empresa_regime`. O cadastro fiscal (`empresa_fiscal`, do Caixa) não tem regime e não foi tocado. |
+| Proposta | A partir do regime registrado + sinais: Simples **com** funcionário no ponto ou contrato de experiência ativo → modelo "Simples com folha"; sem regime, **pessoa física** ou "identifica pagador" → modelo PF; sem regime e sem sinal → só pergunta o regime. Compara com o que a empresa já tem e propõe **só o que falta** (por isso reaparece quando o regime ou a situação de funcionários muda, sem guardar histórico). Mostra também o que sobrou de outro modelo (informativo, nunca apaga). |
+| Aplicar | Um clique em "Aplicar modelo (N)", pelo mesmo `POST /api/agenda/modelo` de sempre, com o toast **Desfazer**. Nunca aplica sozinho. "Agora não" dispensa a sugestão naquele navegador (localStorage, por empresa e modelo). |
+| Sinal que falha | Sem o módulo ponto ou com erro, funcionários e contratos viram "desconhecido" (`null`): a tela avisa para conferir, não afirma. |
+| Contratos | Fim do 1º período e da prorrogação aparecem em **Visão geral** (seção "Contratos de experiência", janela de 30 dias, vencidos sempre) e no **resumo por e-mail**. Derivados dos contratos salvos (`alertaDe` de `lib/contratos.ts`): não há obrigação duplicada nem "feita" — some quando a contadora marca efetivado/encerrado em `/contratos`. Só para quem tem o módulo ponto. |
+| Limite do e-mail | O resumo só sai para escritório que tem alguma obrigação na agenda (`escritoriosComAgenda`); escritório só com contratos ainda não recebe. |
+
+### Para o integrador (Frente B)
+
+- **Migração 0018** (`supabase/migrations/0018_fechamento_mensal.sql`): cria `empresa_regime` (esta parte),
+  `pendencias_recorrentes` e a coluna `pendencias.modelo_id` (ver `docs/documentos.md`). Idempotente; só
+  cria; compatível com o código antigo. Antes dela a tela avisa e só deixa de gravar o regime (a sugestão
+  por pessoa física continua).
+- Conferir `supabase migration list --remote`: o número 0017 pode estar com outra frente.
+- Testar em produção (conta de teste, nunca as empresas da Edilse): Agenda → Obrigações por empresa →
+  empresa sem obrigações → "Regime e sugestão" → escolher Simples → "Aplicar modelo" → Desfazer →
+  cadastrar um funcionário no ponto e voltar: a sugestão passa a ser "com folha" e propõe só folha, FGTS e
+  IRRF. Criar um contrato de experiência com 1º período a vencer em até 30 dias: aparece em Visão geral e
+  no resumo (cron com `?dia=` de uma segunda).
+
 ## Pendências
 
 - **Feriados estaduais/municipais** não entram no cálculo (afetam ISS, ICMS e

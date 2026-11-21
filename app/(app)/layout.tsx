@@ -95,6 +95,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { itens: [
           // Agenda de obrigações: da contabilidade, independe de módulo (ver docs/agenda.md).
           { href: '/agenda', label: 'Agenda', icon: 'agenda' },
+          // Documentos que o escritório pede todo mês (ver docs/documentos.md).
+          { href: '/fechamento', label: 'Pedidos mensais', icon: 'folha' },
           { href: '/cadastros', label: 'Cadastro', icon: 'cadastros' },
           // O administrador do escritório convida os outros contadores.
           ...(me?.role === 'usuario' && me.adminEscritorio ? [{ href: '/equipe', label: 'Equipe', icon: 'equipe' }] : []),

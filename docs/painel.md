@@ -73,6 +73,32 @@ Sem migração. Depende de tabelas das outras frentes — o que faltar vira bloc
 6. Contador de outro escritório não vê empresas, documentos nem obrigações da Edilse.
 7. Tema escuro e 375 px.
 
+## Sprint 5 · Frente B — checklist de fechamento do mês
+
+Sem tabela própria (o bloco de documentos lê `pendencias`, da 0015). Regras puras em `lib/fechamento.ts`
+(`tests/fechamento.test.ts`), consultas em `lib/fechamentoServidor.ts` (`fontesDoFechamento`, só
+leitura), rota `app/api/painel/fechamento/route.ts`, tela `app/(app)/painel/Fechamento.tsx` (seção no
+topo dos blocos, carrega sozinha).
+
+| Tema | Decisão |
+|---|---|
+| O que mostra | Para cada empresa, o **mês anterior** em 5 etapas: lançou no caixa · conferiu os lançamentos · confirmou o mês · documentos pedidos chegaram · obrigações da agenda feitas — e o resumo "**X de Y empresas fechadas**". As empresas em aberto vêm primeiro; cada etapa que falta leva à tela de origem. |
+| Regras | **Lançou**: há lançamento no mês **ou** o mês foi confirmado (sem movimento é decisão da contadora). **Conferiu**: nenhum lançamento sem `conferido_em` (n/a sem lançamentos). **Confirmou**: linha em `meses_confirmados`. **Documentos**: pendências da competência; fechado quando nenhuma está aberta (n/a sem pedidos). **Obrigações**: ocorrências **mensais** cuja competência é o mês (respeita `inicio` e `ativa`) com conclusão; trimestrais/anuais não são "do mês". |
+| Situação da empresa | `fechada` (tudo ok) · `aberta` (algo falta) · `incompleta` (nada falta, mas uma fonte não carregou — **não afirma "fechada"**) · `sem_etapas` (nada aplicável: fica fora de "X de Y"). |
+| Cada fonte degrada sozinha | Caixa, documentos e agenda são consultados em paralelo e isolados: a que falha vira etapa "indisponível" (`?`), as outras seguem. Sem o módulo `caixa` as três etapas do caixa são n/a (não "indisponível"). Se o endpoint inteiro falhar, só a seção mostra o aviso; o painel continua. |
+| Caixa | Leitura de `exercicios`, `lancamentos` e `meses_confirmados` — **nada é gravado** e nada de `app/(app)/caixa`, `app/api/caixa` ou `lib/caixa*` foi tocado. Contagens exatas por exercício (`count`, head), para o limite de linhas do PostgREST não cortar a soma. |
+| Acesso | `exigirGestor`, recortado pelas empresas visíveis (arquivadas não entram) e por `escritorio_id`; contador sem escritório não vê nada. |
+| `?dia=AAAA-MM-DD` | Simula outro "hoje" (só leitura; serve para conferir o fechamento de outro mês). |
+
+### Para o integrador (Frente B)
+
+- Sem migração própria; os pedidos mensais (0018) estão em `docs/documentos.md`.
+- Testar em produção (só leitura, pode ser nas empresas reais): `/painel` → seção "Fechamento de <mês>";
+  conferir uma empresa contra `/caixa/resumo` (lançamentos, conferência, confirmação) e contra a Agenda
+  (obrigações do mês). Contador sem módulo caixa: etapas do caixa aparecem "–". Fonte fora do ar (ex.:
+  antes da 0014 a agenda): etapa "?" e a empresa **não** aparece como fechada.
+- Pendência: o link de cada etapa leva à tela, não à empresa (as telas ainda não leem `?empresa=`).
+
 ## Pendências
 
 - **Link já na empresa**: levar o clique direto à empresa do item (`/documentos?empresa=`,

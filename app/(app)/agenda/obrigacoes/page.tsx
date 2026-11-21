@@ -18,6 +18,7 @@ import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao, Modal } from '../../Dialogo';
 import { IconeExcluir, IconeLapis, IconeMais } from '../../icones';
 import { AbasAgenda, AVISO_MIGRACAO, Membro, useAgenda } from '../comum';
+import PropostaAgenda from '../PropostaAgenda';
 
 const RECORRENCIA: { valor: Recorrencia; rotulo: string }[] = [
   { valor: 'mensal', rotulo: 'Mensal' }, { valor: 'trimestral', rotulo: 'Trimestral' },
@@ -74,18 +75,19 @@ export default function ObrigacoesPage() {
   const tiposJa = new Set(daEmpresa.map((o) => o.tipo));
   const novasDoModelo = modelo.tipos.filter((t) => !tiposJa.has(t) && TIPO_POR_CODIGO.get(t)?.padrao.recorrencia !== 'unica');
 
-  async function aplicarModelo() {
+  async function aplicarModelo(regimeAplicado: Regime = regime) {
     setOcupado('modelo'); ag.setErro(null); setMsg(null);
+    const modeloAplicado = MODELOS.find((m) => m.regime === regimeAplicado)!;
     try {
       const r = await fetch('/api/agenda/modelo', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ empresa, regime }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ empresa, regime: regimeAplicado }),
       });
       const x = await r.json();
       if (!r.ok) throw new Error(x.erro);
       const criadas: Obrigacao[] = x.obrigacoes ?? [];
       ag.setObrigacoes((l) => [...l, ...criadas]);
       if (criadas.length) {
-        setDesfazer({ ids: criadas.map((o) => o.id), acao: 'excluir', texto: `${criadas.length} obrigaç${criadas.length > 1 ? 'ões criadas' : 'ão criada'} pelo modelo ${modelo.nome}.` });
+        setDesfazer({ ids: criadas.map((o) => o.id), acao: 'excluir', texto: `${criadas.length} obrigaç${criadas.length > 1 ? 'ões criadas' : 'ão criada'} pelo modelo ${modeloAplicado.nome}.` });
       } else {
         setMsg('A empresa já tem todas as obrigações deste modelo.');
       }
@@ -170,12 +172,16 @@ export default function ObrigacoesPage() {
 
         {!ag.carregando && empresa && (
           <>
+            {!ag.semTabela && (
+              <PropostaAgenda empresa={empresa} nomeEmpresa={nomeEmpresa} versao={ag.obrigacoes.length}
+                ocupado={ocupado === 'modelo'} desabilitado={!!ocupado} onAplicar={(m) => aplicarModelo(m)} />
+            )}
             <Secao titulo="Modelo padrão por regime"
               descricao="Cria de uma vez as obrigações típicas do regime, com os prazos de 2026. Só entra o que a empresa ainda não tem; depois é só ajustar.">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <Selecao rotulo="Regime da empresa" classeCampo="sm:w-80" valor={regime} onChange={(v) => setRegime(v as Regime)}
                   opcoes={MODELOS.map((m) => ({ valor: m.regime, rotulo: m.nome }))} />
-                <Botao variante="tonal" onClick={aplicarModelo} carregando={ocupado === 'modelo'}
+                <Botao variante="tonal" onClick={() => aplicarModelo()} carregando={ocupado === 'modelo'}
                   disabled={!!ocupado || ag.semTabela || novasDoModelo.length === 0}>
                   {novasDoModelo.length ? `Aplicar em ${nomeEmpresa || 'esta empresa'} (${novasDoModelo.length})` : 'Já aplicado'}
                 </Botao>
