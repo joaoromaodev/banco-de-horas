@@ -10,7 +10,7 @@
 
 | Frente | Sessão | Branch | Status |
 |---|---|---|---|
-| A. Multi-escritório (inquilinos) + cadastro self-service com teste grátis | `multi-escritorio` | a definir | ⏳ |
+| A. Multi-escritório (inquilinos) + cadastro self-service com teste grátis | `multi-escritorio` | `claude/multi-escritorio-1e4a33` | ✅ código; migração `0010` **pendente** (ver `docs/multi-escritorio.md`) |
 | B. Site público: landing, planos, termos de uso, privacidade (LGPD) | `site-publico` | a definir | ⏳ |
 | C. Qualidade: testes (Vitest) das regras puras + CI no GitHub Actions | `testes-ci` | a definir | ⏳ |
 

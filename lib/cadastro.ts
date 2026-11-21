@@ -6,12 +6,15 @@
 // estas funções, então os call sites (login, acesso, rotas, ponto) não mudam.
 //
 // Autorização não é por RLS: as rotas usam a secret key (ignora RLS) e aplicam a
-// checagem em lib/acesso.ts, igual ao resto do módulo caixa.
+// checagem em lib/acesso.ts, igual ao resto do módulo caixa. Empresas e usuários
+// pertencem a um escritório (`escritorio_id`, migração 0010) — `lerEmpresas` e
+// `lerUsuarios` devolvem tudo; o recorte por escritório é de quem chama.
 import { randomUUID } from 'crypto';
 import { getDb } from './db';
 import { Empresa } from './tipos';
 import { Papel, Modulo, MODULOS } from './auth';
 import { Jornada, JORNADA_PADRAO } from './calendario';
+import { ESCRITORIO_FUNDADOR_ID } from './escritorios';
 
 // Id/empresa das linhas legadas (antes do multiempresa). Mantidos para a
 // resolução de vínculos antigos em lib/sheets.ts (funcionários/frequências).
@@ -28,8 +31,17 @@ export interface UsuarioRec {
   empresa?: string | null;
   /** Módulos habilitados pelo master. Vazio = legado (ver `resolverModulos`). */
   modulos?: Modulo[];
-  /** E-mail do contador que criou este `cliente` (escopo de gestão). */
+  /** E-mail de quem criou este `cliente` (informativo desde o multi-escritório). */
   dono?: string | null;
+  /** Escritório contábil do usuário. Nulo só para `master` (administra a plataforma). */
+  escritorioId?: string | null;
+  /** Administrador do escritório: cadastra contadores e clientes dele. */
+  adminEscritorio?: boolean;
+}
+
+/** E-mail já cadastrado (corrida no INSERT de `criarUsuario`). */
+export class ErroEmailEmUso extends Error {
+  constructor() { super('Este e-mail já está cadastrado.'); }
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -53,6 +65,7 @@ function linhaParaEmpresa(r: any): Empresa {
     jornadaSabadoMin: r.jornada_sabado_min ?? undefined,
     ordem: r.ordem ?? null,
     contador: r.contador ? String(r.contador).trim().toLowerCase() : null,
+    escritorioId: r.escritorio_id ? String(r.escritorio_id) : null,
   };
 }
 
@@ -71,16 +84,29 @@ export async function lerEmpresa(id: string): Promise<Empresa | null> {
 }
 
 /**
- * Substitui o conjunto de empresas (mesma semântica de antes): faz upsert das
- * enviadas e remove as que sumiram da lista. Ids são imutáveis — mantém o
- * existente e gera um novo (uuid) para empresas sem id.
+ * Para onde vai um salvamento do cadastro de empresas:
+ * - `{ escritorioId }` — o conjunto daquele escritório: as enviadas são gravadas
+ *   nele e as que sumiram da lista são removidas **só dentro dele**;
+ * - `'plataforma'` — o master: grava como veio (cada empresa mantém o
+ *   `escritorioId` que trouxer) e remove o que sumiu, globalmente.
  */
-export async function salvarEmpresas(lista: Empresa[]): Promise<number> {
+export type EscopoEmpresas = { escritorioId: string } | 'plataforma';
+
+/**
+ * Substitui o conjunto de empresas do escopo: faz upsert das enviadas e remove as
+ * que sumiram da lista. Ids são imutáveis — mantém o existente e gera um novo
+ * (uuid) para empresas sem id. Quem chama garante que nenhum id enviado é de
+ * outro escritório (ver /api/empresas).
+ */
+export async function salvarEmpresas(lista: Empresa[], escopo: EscopoEmpresas): Promise<number> {
   const db = getDb();
+  const escritorio = escopo === 'plataforma' ? null : escopo.escritorioId;
   const linhas = lista
     .filter((e) => e.nome?.trim())
     .map((e, i) => ({
-      id: e.id?.trim() || (e.nome.trim() === EMPRESA_PADRAO ? EMPRESA_PADRAO_ID : randomUUID()),
+      // O id legado de VAZ E VOUZELA só vale no escritório da Edilce.
+      id: e.id?.trim()
+        || (e.nome.trim() === EMPRESA_PADRAO && escritorio === ESCRITORIO_FUNDADOR_ID ? EMPRESA_PADRAO_ID : randomUUID()),
       nome: e.nome.trim(),
       tipo_pessoa: e.tipoPessoa === 'fisica' ? 'fisica' : 'juridica',
       cnpj: e.cnpj?.trim() || null,
@@ -90,11 +116,15 @@ export async function salvarEmpresas(lista: Empresa[]): Promise<number> {
       jornada_sabado_min: e.jornadaSabadoMin ?? null,
       ordem: e.ordem ?? i + 1,
       contador: e.contador?.trim().toLowerCase() || null,
+      escritorio_id: escritorio ?? e.escritorioId ?? null,
     }));
 
   const manter = new Set(linhas.map((e) => e.id));
-  // remove o que não veio na lista (equivale ao "reescrever tudo" do Sheets)
-  const { data: existentes, error: eLer } = await db.from('empresas').select('id');
+  // remove o que não veio na lista (equivale ao "reescrever tudo" do Sheets),
+  // restrito ao escritório quando o escopo é um escritório
+  let consulta = db.from('empresas').select('id');
+  if (escritorio) consulta = consulta.eq('escritorio_id', escritorio);
+  const { data: existentes, error: eLer } = await consulta;
   if (eLer) throw new Error(eLer.message);
   const remover = (existentes ?? []).map((r: any) => String(r.id)).filter((id) => !manter.has(id));
 
@@ -103,7 +133,9 @@ export async function salvarEmpresas(lista: Empresa[]): Promise<number> {
     if (error) throw new Error(error.message);
   }
   if (remover.length) {
-    const { error } = await db.from('empresas').delete().in('id', remover);
+    let del = db.from('empresas').delete().in('id', remover);
+    if (escritorio) del = del.eq('escritorio_id', escritorio);
+    const { error } = await del;
     if (error) throw new Error(error.message);
   }
   cacheEmpresas = null; // cadastro mudou: força releitura
@@ -137,6 +169,8 @@ function linhaParaUsuario(r: any): UsuarioRec {
     empresa: r.empresa ? String(r.empresa).trim() : null,
     modulos: normalizaModulos(r.modulos),
     dono: r.dono ? String(r.dono).trim().toLowerCase() : null,
+    escritorioId: r.escritorio_id ? String(r.escritorio_id) : null,
+    adminEscritorio: Boolean(r.admin_escritorio),
   };
 }
 
@@ -155,10 +189,8 @@ export async function buscarUsuario(email: string): Promise<UsuarioRec | null> {
   return data ? linhaParaUsuario(data) : null;
 }
 
-/** Adiciona/atualiza um usuário (upsert por email). */
-export async function salvarUsuario(u: UsuarioRec): Promise<void> {
-  const db = getDb();
-  const linha = {
+function usuarioParaLinha(u: UsuarioRec) {
+  return {
     email: u.email.trim().toLowerCase(),
     nome: u.nome,
     role: u.role,
@@ -167,9 +199,25 @@ export async function salvarUsuario(u: UsuarioRec): Promise<void> {
     empresa: u.empresa ?? null,
     modulos: u.modulos ?? [],
     dono: u.dono ?? null,
+    // master administra a plataforma: nunca tem escritório
+    escritorio_id: u.role === 'master' ? null : u.escritorioId ?? null,
+    admin_escritorio: u.role === 'usuario' && Boolean(u.adminEscritorio),
   };
-  const { error } = await db.from('usuarios').upsert(linha, { onConflict: 'email' });
+}
+
+/** Adiciona/atualiza um usuário (upsert por email). */
+export async function salvarUsuario(u: UsuarioRec): Promise<void> {
+  const { error } = await getDb().from('usuarios').upsert(usuarioParaLinha(u), { onConflict: 'email' });
   if (error) throw new Error(error.message);
+}
+
+/** Cria um usuário novo; e-mail já existente vira `ErroEmailEmUso` (nunca sobrescreve). */
+export async function criarUsuario(u: UsuarioRec): Promise<void> {
+  const { error } = await getDb().from('usuarios').insert(usuarioParaLinha(u));
+  if (error) {
+    if (error.code === '23505') throw new ErroEmailEmUso(); // unique_violation (PK email)
+    throw new Error(error.message);
+  }
 }
 
 export async function removerUsuario(email: string): Promise<void> {

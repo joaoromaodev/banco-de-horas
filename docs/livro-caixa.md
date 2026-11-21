@@ -598,14 +598,11 @@ de ideia.
 
 ## Armadilhas conhecidas
 
-- **Empresa sem dono é visível a todo contador (transitório).** No modelo por dono,
-  uma empresa com a coluna `contador` vazia é tratada como legado e aparece para
-  **qualquer** `usuario` — é o que evita que VAZ E VOUZELA e TESTE sumissem para a
-  Edilse quando o campo foi criado. O isolamento de verdade só vale entre empresas
-  **com dono**: assim que um contador salva o cadastro, as dele são carimbadas e
-  passam a ser invisíveis aos outros. Para migrar de vez, atribua o dono de cada
-  empresa (o master faz isso na tela de Cadastros, ou cada contador salva a sua).
-  Enquanto houver empresa sem dono, dois contadores ainda a enxergam.
+- **~~Empresa sem dono é visível a todo contador~~ — removida (multi-escritório).**
+  Desde a migração `0010` a visibilidade é por **escritório**, não por `contador`:
+  o contador vê as empresas do escritório dele; empresa sem escritório só o master
+  vê. Ver [`multi-escritorio.md`](multi-escritorio.md). O catálogo do caixa
+  (`plano_contas`, `historicos_padrao`) continua global entre escritórios.
 
 - **As variáveis do Supabase só entraram na Vercel em 23/07/2026** —
   `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`, em Production e Preview.

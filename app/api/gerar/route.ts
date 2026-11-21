@@ -1,6 +1,6 @@
 // POST /api/gerar — recebe a frequência revisada e devolve o .xlsx (anexo 2).
 import { NextRequest } from 'next/server';
-import { exigirGestor } from '@/lib/acesso';
+import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { gerarPlanilha } from '@/lib/planilha';
 import { Frequencia } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
   if (!freq || !freq.empresa || !freq.funcionario || !freq.ano || !freq.mes) {
     return Response.json({ erro: 'Frequência incompleta (empresa, funcionário, mês e ano são obrigatórios).' }, { status: 400 });
   }
+  if (!(await podeAcessarEmpresa(g.sessao, freq.empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
 
   const feriados = new Set(body.feriados ?? []);
   // Empresa (por id): jornada + razão social para o cabeçalho da planilha.
