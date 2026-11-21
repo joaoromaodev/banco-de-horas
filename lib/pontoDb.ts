@@ -10,6 +10,7 @@
 import { getDb, lerTudo } from './db';
 import { DiaFreq, Frequencia, Funcionario, Marcador, MARCADORES } from './tipos';
 import { RESERVA_VALIDA_MIN, RITMO } from './cotaOcr';
+import { PREFIXO_LEITURA_CLIENTE } from './documentoLancamento';
 
 export interface Feriado {
   data: string; // AAAA-MM-DD
@@ -295,14 +296,17 @@ export async function contarLeiturasOcr(escritorioId: string, competencia: strin
 }
 
 /**
- * Leituras de DOCUMENTO (0029) de uma empresa na competência que contam: concluídas
- * e reservas recentes. É a subcota do cliente — um cliente não esgota o escritório.
+ * Leituras de DOCUMENTO (0029) feitas PELO CLIENTE numa empresa, na competência, que
+ * contam: concluídas e reservas recentes. É a subcota do cliente — um cliente não
+ * esgota o escritório. As leituras da contabilidade na mesma empresa não entram
+ * (contam só na cota do escritório): quem leu vem do prefixo em `usuario`.
  */
-export async function contarLeiturasDocumentoEmpresa(empresaId: string, competencia: string, agora = new Date()): Promise<number> {
+export async function contarLeiturasDocumentoDoCliente(empresaId: string, competencia: string, agora = new Date()): Promise<number> {
   const desde = new Date(agora.getTime() - RESERVA_VALIDA_MIN * 60_000).toISOString();
   const { count, error } = await getDb().from('ponto_leituras_ocr')
     .select('id', { count: 'exact', head: true })
     .eq('empresa_id', empresaId).eq('competencia', competencia).eq('origem', 'documento')
+    .like('usuario', `${PREFIXO_LEITURA_CLIENTE}%`)
     .or(`situacao.eq.concluida,and(situacao.eq.reservada,criado_em.gte.${desde})`);
   if (error) falhar(error);
   if (count === null) throw new ErroBancoPendente();

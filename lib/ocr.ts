@@ -1,6 +1,7 @@
 // Extração da folha de ponto manuscrita via Gemini (saída estruturada em JSON).
 import { GoogleGenAI, Type } from '@google/genai';
 import { Frequencia, DiaFreq, Marcador, MARCADORES } from './tipos';
+import { fotoParaIa } from './fotoParaIa';
 
 export interface CampoIncerto {
   dia: number;
@@ -72,6 +73,12 @@ export async function extrairFolha(opts: {
   funcionario?: string;
   modelo?: string;
 }): Promise<ResultadoOCR> {
+  // A foto vai em pé (orientação do EXIF aplicada) e sem metadados (localização,
+  // aparelho). Foto pequena do celular sobe crua, com o EXIF; HEIC ou arquivo que
+  // não dá para limpar vai como veio — é como sempre foi, e a leitura não trava.
+  const original = Buffer.from(opts.imagemBase64, 'base64');
+  const pronta = await fotoParaIa(new Uint8Array(original), opts.mimeType);
+  const imagem = pronta ? Buffer.from(pronta).toString('base64') : opts.imagemBase64;
   const ai = new GoogleGenAI({ apiKey: opts.apiKey });
   const res = await ai.models.generateContent({
     model: opts.modelo ?? 'gemini-2.5-flash',
@@ -79,7 +86,7 @@ export async function extrairFolha(opts: {
       {
         role: 'user',
         parts: [
-          { inlineData: { mimeType: opts.mimeType, data: opts.imagemBase64 } },
+          { inlineData: { mimeType: opts.mimeType, data: imagem } },
           { text: prompt(opts.ano, opts.mes, opts.funcionario) },
         ],
       },

@@ -46,6 +46,20 @@ export const PAGINAS_PDF_PARA_IA = 2;
  */
 export const LIMITE_DOCUMENTOS_EMPRESA_CLIENTE = 30;
 
+/**
+ * Prefixo de `ponto_leituras_ocr.usuario` quando quem leu o documento é o CLIENTE.
+ * É por ele que a subcota acima conta: só as leituras do cliente, não as que a
+ * contabilidade faz na mesma empresa. Não começa por `cliente:` de propósito — esse
+ * prefixo é o das leituras automáticas da folha de ponto (teto e ritmo próprios em
+ * lib/envioPontoServidor.ts), que não devem enxergar as do caixa.
+ */
+export const PREFIXO_LEITURA_CLIENTE = 'cliente-documento:';
+
+/** O que vai em `usuario` na reserva da leitura: o e-mail, marcado quando é o cliente. */
+export function leitorDaLeitura(sessao: { email: string; role: string }): string {
+  return sessao.role === 'cliente' ? `${PREFIXO_LEITURA_CLIENTE}${sessao.email}` : sessao.email;
+}
+
 // ------------------------------------------------------------------ metadados
 
 const u32be = (b: Uint8Array, i: number) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
@@ -124,13 +138,90 @@ function webpSemMetadados(b: Uint8Array): Uint8Array | null {
 /**
  * A foto sem metadados (localização, aparelho, horário) antes de ir à IA. `null` =
  * não deu para limpar (arquivo fora do formato) — a rota recusa em vez de mandar
- * como está. A imagem em si não muda.
+ * como está. A imagem em si não muda — por isso, foto com orientação EXIF (celular
+ * em pé gravando "gire 90°") precisa ser endireitada ANTES (lib/fotoParaIa.ts), ou
+ * chegaria deitada à IA, já que a marca de orientação sai junto com o EXIF.
  */
 export function imagemSemMetadados(bytes: Uint8Array, mime: string): Uint8Array | null {
   if (mime === 'image/jpeg') return jpegSemMetadados(bytes);
   if (mime === 'image/png') return pngSemMetadados(bytes);
   if (mime === 'image/webp') return webpSemMetadados(bytes);
   return null;
+}
+
+// ------------------------------------------------------------------ orientação
+
+/** Orientação (tag 0x0112) de um bloco TIFF/EXIF; 1 quando não há ou não dá para ler. */
+function orientacaoTiff(b: Uint8Array, ini: number, fim: number): number {
+  if (ini + 8 > fim) return 1;
+  const le = b[ini] === 0x49 && b[ini + 1] === 0x49; // "II" = little-endian; "MM" = big-endian
+  if (!le && !(b[ini] === 0x4d && b[ini + 1] === 0x4d)) return 1;
+  const u16 = (i: number) => (le ? b[i] | (b[i + 1] << 8) : (b[i] << 8) | b[i + 1]);
+  const u32 = (i: number) => (le ? u32le(b, i) : u32be(b, i));
+  if (u16(ini + 2) !== 42) return 1;
+  const ifd = ini + u32(ini + 4);
+  if (ifd + 2 > fim) return 1;
+  const n = u16(ifd);
+  for (let k = 0; k < n; k++) {
+    const e = ifd + 2 + k * 12;
+    if (e + 12 > fim) return 1;
+    if (u16(e) === 0x0112) {
+      const v = u16(e + 8);
+      return v >= 1 && v <= 8 ? v : 1;
+    }
+  }
+  return 1;
+}
+
+const EXIF_CAB = [0x45, 0x78, 0x69, 0x66, 0, 0]; // "Exif" + dois zeros
+const comCabExif = (b: Uint8Array, i: number) => EXIF_CAB.every((x, k) => b[i + k] === x);
+
+/**
+ * A orientação EXIF da foto (1 a 8; 1 = já está em pé). Lê JPEG (APP1 Exif), PNG
+ * (eXIf) e WEBP (bloco EXIF). Arquivo torto ou sem a marca → 1 (nada a girar).
+ */
+export function orientacaoExif(b: Uint8Array, mime: string): number {
+  try {
+    if (mime === 'image/jpeg') {
+      if (b[0] !== 0xff || b[1] !== 0xd8) return 1;
+      let i = 2;
+      while (i + 4 <= b.length && b[i] === 0xff) {
+        const m = b[i + 1];
+        if (m === 0xda) return 1;
+        if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+        const fim = i + 2 + ((b[i + 2] << 8) | b[i + 3]);
+        if (fim > b.length) return 1;
+        if (m === 0xe1 && comCabExif(b, i + 4)) return orientacaoTiff(b, i + 10, fim);
+        i = fim;
+      }
+      return 1;
+    }
+    if (mime === 'image/png') {
+      let i = 8;
+      while (i + 12 <= b.length) {
+        const tam = u32be(b, i);
+        const tipo = tag(b, i + 4);
+        if (tipo === 'eXIf') return orientacaoTiff(b, i + 8, Math.min(b.length, i + 8 + tam));
+        if (tipo === 'IDAT' || tipo === 'IEND') return 1; // eXIf vem antes da imagem
+        i += 12 + tam;
+      }
+      return 1;
+    }
+    if (mime === 'image/webp') {
+      if (b.length < 12 || tag(b, 0) !== 'RIFF' || tag(b, 8) !== 'WEBP') return 1;
+      let i = 12;
+      while (i + 8 <= b.length) {
+        const tam = u32le(b, i + 4);
+        if (tag(b, i) === 'EXIF') {
+          const ini = comCabExif(b, i + 8) ? i + 14 : i + 8;
+          return orientacaoTiff(b, ini, Math.min(b.length, i + 8 + tam));
+        }
+        i += 8 + tam + (tam % 2);
+      }
+      return 1;
+    }
+  } catch { /* torto: trata como em pé */ }
+  return 1;
 }
 
 /** A plataforma ligou a leitura de documentos? (trava 1) */
