@@ -4,6 +4,7 @@
 // chama a guarda de lib/acesso antes de encostar nestas funções.
 import { getDb } from './db';
 import { lerEmpresa } from './cadastro';
+import { filtrarCatalogo, itemVisivel, proximoCodigo, type VisaoCatalogo } from './visibilidadeCatalogo';
 
 /** Conta do catálogo, com a marca de já ser usada por aquela empresa. */
 export interface ContaCaixa {
@@ -13,6 +14,8 @@ export interface ContaCaixa {
   grupo: string;
   natureza: 'receita' | 'despesa';
   daEmpresa: boolean;
+  /** Dono: nulo = catálogo base da plataforma; preenchido = extensão de um escritório (0013). */
+  escritorioId: string | null;
 }
 
 export interface LancamentoCaixa {
@@ -171,6 +174,8 @@ export interface HistoricoCaixa {
   natureza: 'receita' | 'despesa';
   contaId: string | null;
   daEmpresa: boolean;
+  /** Dono: nulo = base; preenchido = extensão de um escritório (0013). */
+  escritorioId: string | null;
 }
 
 // Numeric do Postgres pode chegar como string dependendo do driver — normaliza.
@@ -215,24 +220,100 @@ export async function garantirExercicio(empresaId: string, ano: number): Promise
   throw new ErroCaixa(`Não foi possível abrir o exercício de ${ano}: ${errIns?.message ?? 'erro desconhecido'}`, 502);
 }
 
-/** Catálogo inteiro, com as contas da empresa marcadas e no topo. */
-export async function contasDaEmpresa(empresaId: string): Promise<ContaCaixa[]> {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Filtro PostgREST da visão do catálogo (base + escritório). `null` = sem filtro
+ * (master). O id vem da sessão, mas só entra na expressão se for um uuid.
+ * A regra de verdade é `itemVisivel`; isto só evita trazer linha alheia do banco
+ * e cada leitura ainda passa por `filtrarCatalogo` (defesa em profundidade).
+ */
+function filtroVisao(v: VisaoCatalogo): string | null {
+  if (v.todos) return null;
+  if (v.escritorioId && UUID.test(v.escritorioId)) {
+    return `escritorio_id.is.null,escritorio_id.eq.${v.escritorioId}`;
+  }
+  return 'escritorio_id.is.null';
+}
+
+const visaoDoDono = (dono: string | null): VisaoCatalogo =>
+  dono === null ? { todos: true } : { todos: false, escritorioId: dono };
+
+/** Catálogo visível, com as contas da empresa marcadas e no topo. */
+export async function contasDaEmpresa(empresaId: string, visao: VisaoCatalogo): Promise<ContaCaixa[]> {
   const db = getDb();
+  const filtro = filtroVisao(visao);
+  const consulta = db.from('plano_contas').select('id, codigo, nome, grupo, natureza, escritorio_id').eq('ativa', true);
   const [cat, vinculos] = await Promise.all([
     // `codigo` desempata: contas criadas depois entram no fim do próprio grupo,
     // com a mesma `ordem` da última conta dele.
-    db.from('plano_contas').select('id, codigo, nome, grupo, natureza').eq('ativa', true)
-      .order('ordem').order('codigo'),
+    (filtro ? consulta.or(filtro) : consulta).order('ordem').order('codigo'),
     db.from('empresa_contas').select('conta_id').eq('empresa_id', empresaId),
   ]);
   if (cat.error) throw new ErroCaixa(`plano_contas: ${cat.error.message}`, 502);
   if (vinculos.error) throw new ErroCaixa(`empresa_contas: ${vinculos.error.message}`, 502);
 
   const usadas = new Set((vinculos.data ?? []).map((v) => v.conta_id as string));
-  return (cat.data ?? []).map((c) => ({
-    id: c.id, codigo: c.codigo, nome: c.nome, grupo: c.grupo,
-    natureza: c.natureza, daEmpresa: usadas.has(c.id),
-  }));
+  return filtrarCatalogo(
+    visao,
+    (cat.data ?? []).map((c) => ({
+      id: c.id, codigo: c.codigo, nome: c.nome, grupo: c.grupo, natureza: c.natureza,
+      daEmpresa: usadas.has(c.id), escritorioId: (c.escritorio_id as string | null) ?? null,
+    })),
+  );
+}
+
+/**
+ * Cria uma conta titular nova num grupo existente. `dono` é o escritório da
+ * criação (`null` = base, só o master — ver `donoDaCriacao`). O código sai do
+ * grupo: N.GG.CC com CC = próximo livre entre o que o dono não pode repetir
+ * (escritório: base + as dele; base: tudo, para não esbarrar em extensão).
+ */
+export async function criarConta(dono: string | null, grupo: string, nome: string): Promise<ContaCaixa> {
+  const db = getDb();
+  const { data: irmas, error } = await db
+    .from('plano_contas').select('codigo, natureza, ordem, escritorio_id').eq('grupo', grupo);
+  if (error) throw new ErroCaixa(`plano_contas: ${error.message}`, 502);
+  const visao = visaoDoDono(dono);
+  const visiveis = (irmas ?? []).filter((c) => itemVisivel(visao, { escritorioId: c.escritorio_id }));
+  // Todas as contas do grupo compartilham o prefixo N.GG e a natureza.
+  const codigo = proximoCodigo(visiveis.map((c) => c.codigo as string));
+  if (!codigo) throw new ErroCaixa('Grupo não encontrado no catálogo.');
+  const ordem = Math.max(...visiveis.map((c) => Number(c.ordem) || 0));
+
+  const { data: nova, error: errIns } = await db.from('plano_contas')
+    .insert({ codigo, nome, grupo, natureza: visiveis[0].natureza, linha_balanco: null, ordem, escritorio_id: dono })
+    .select('id, codigo, nome, grupo, natureza, escritorio_id').single();
+  if (errIns) throw new ErroCaixa(`plano_contas: ${errIns.message}`, 502);
+  return {
+    id: nova.id, codigo: nova.codigo, nome: nova.nome, grupo: nova.grupo, natureza: nova.natureza,
+    daEmpresa: false, escritorioId: (nova.escritorio_id as string | null) ?? null,
+  };
+}
+
+/**
+ * Garante que a conta titular e a analítica que o lançamento cita existem e são
+ * visíveis para quem lança (base + o escritório dele). Sem isto, um id de conta
+ * de outro escritório entraria no lançamento e na lista da empresa.
+ */
+export async function exigirCatalogoVisivel(
+  visao: VisaoCatalogo, contaId: string | null, historicoId: string | null,
+): Promise<void> {
+  const db = getDb();
+  if (contaId) {
+    const { data, error } = await db.from('plano_contas').select('escritorio_id').eq('id', contaId).maybeSingle();
+    if (error) throw new ErroCaixa(`plano_contas: ${error.message}`, 502);
+    if (!data || !itemVisivel(visao, { escritorioId: data.escritorio_id })) {
+      throw new ErroCaixa('Conta titular não encontrada no catálogo.');
+    }
+  }
+  if (historicoId) {
+    const { data, error } = await db.from('historicos_padrao').select('escritorio_id').eq('id', historicoId).maybeSingle();
+    if (error) throw new ErroCaixa(`historicos_padrao: ${error.message}`, 502);
+    if (!data || !itemVisivel(visao, { escritorioId: data.escritorio_id })) {
+      throw new ErroCaixa('Conta analítica não encontrada no catálogo.');
+    }
+  }
 }
 
 /**
@@ -247,20 +328,26 @@ export async function vincularConta(empresaId: string, contaId: string): Promise
   if (error) throw new ErroCaixa(`empresa_contas: ${error.message}`, 502);
 }
 
-/** Catálogo de analíticas, com as da empresa marcadas (e no topo, na UI). */
-export async function historicosDaEmpresa(empresaId: string): Promise<HistoricoCaixa[]> {
+/** Catálogo de analíticas visível, com as da empresa marcadas (e no topo, na UI). */
+export async function historicosDaEmpresa(empresaId: string, visao: VisaoCatalogo): Promise<HistoricoCaixa[]> {
   const db = getDb();
+  const filtro = filtroVisao(visao);
+  const consulta = db.from('historicos_padrao').select('id, texto, natureza, conta_id, escritorio_id');
   const [cat, vinculos] = await Promise.all([
-    db.from('historicos_padrao').select('id, texto, natureza, conta_id').order('ordem'),
+    (filtro ? consulta.or(filtro) : consulta).order('ordem'),
     db.from('empresa_historicos').select('historico_id').eq('empresa_id', empresaId),
   ]);
   if (cat.error) throw new ErroCaixa(`historicos_padrao: ${cat.error.message}`, 502);
   if (vinculos.error) throw new ErroCaixa(`empresa_historicos: ${vinculos.error.message}`, 502);
 
   const usadas = new Set((vinculos.data ?? []).map((v) => v.historico_id as string));
-  return (cat.data ?? []).map((h) => ({
-    id: h.id, texto: h.texto, natureza: h.natureza, contaId: h.conta_id, daEmpresa: usadas.has(h.id),
-  }));
+  return filtrarCatalogo(
+    visao,
+    (cat.data ?? []).map((h) => ({
+      id: h.id, texto: h.texto, natureza: h.natureza, contaId: h.conta_id, daEmpresa: usadas.has(h.id),
+      escritorioId: (h.escritorio_id as string | null) ?? null,
+    })),
+  );
 }
 
 /**
@@ -278,26 +365,37 @@ export async function vincularHistorico(empresaId: string, historicoId: string):
 /**
  * Cria uma analítica nova no catálogo, sob uma titular, e já a vincula à empresa.
  * A natureza sai da titular (a analítica é subgrupo dela). Só a contadora cria —
- * a autorização é da rota.
+ * a autorização é da rota. `dono` é o escritório da criação (`null` = base, só
+ * o master); a titular tem que ser visível para ele.
  */
-export async function criarAnalitica(empresaId: string, texto: string, contaId: string): Promise<HistoricoCaixa> {
+export async function criarAnalitica(
+  empresaId: string, texto: string, contaId: string, dono: string | null,
+): Promise<HistoricoCaixa> {
   const db = getDb();
+  const visao = visaoDoDono(dono);
   const { data: conta, error: errConta } = await db
-    .from('plano_contas').select('id, natureza').eq('id', contaId).maybeSingle();
+    .from('plano_contas').select('id, natureza, escritorio_id').eq('id', contaId).maybeSingle();
   if (errConta) throw new ErroCaixa(`plano_contas: ${errConta.message}`, 502);
-  if (!conta) throw new ErroCaixa('Conta titular não encontrada no catálogo.');
+  if (!conta || !itemVisivel(visao, { escritorioId: conta.escritorio_id })) {
+    throw new ErroCaixa('Conta titular não encontrada no catálogo.');
+  }
 
   // Entra no fim da lista (ordem = maior + 1), para não se intrometer entre as padrão.
-  const { data: ult } = await db.from('historicos_padrao').select('ordem').order('ordem', { ascending: false }).limit(1);
+  const filtro = filtroVisao(visao);
+  const consulta = db.from('historicos_padrao').select('ordem');
+  const { data: ult } = await (filtro ? consulta.or(filtro) : consulta).order('ordem', { ascending: false }).limit(1);
   const ordem = (Number(ult?.[0]?.ordem) || 0) + 1;
 
   const { data: nova, error: errIns } = await db.from('historicos_padrao')
-    .insert({ texto, natureza: conta.natureza, conta_id: contaId, ordem })
-    .select('id, texto, natureza, conta_id').single();
+    .insert({ texto, natureza: conta.natureza, conta_id: contaId, ordem, escritorio_id: dono })
+    .select('id, texto, natureza, conta_id, escritorio_id').single();
   if (errIns) throw new ErroCaixa(`historicos_padrao: ${errIns.message}`, 502);
 
   await vincularHistorico(empresaId, nova.id);
-  return { id: nova.id, texto: nova.texto, natureza: nova.natureza, contaId: nova.conta_id, daEmpresa: true };
+  return {
+    id: nova.id, texto: nova.texto, natureza: nova.natureza, contaId: nova.conta_id, daEmpresa: true,
+    escritorioId: (nova.escritorio_id as string | null) ?? null,
+  };
 }
 
 /** Lançamentos de um mês, na ordem em que aparecem no livro. */
@@ -487,7 +585,8 @@ export async function montarLivro(empresaId: string, ano: number): Promise<Livro
     lerEmpresa(empresaId),
     lerFiscal(empresaId),
     garantirExercicio(empresaId, ano),
-    contasDaEmpresa(empresaId),
+    // Só resolve código/nome das contas dos lançamentos que já existem: sem recorte.
+    contasDaEmpresa(empresaId, { todos: true }),
   ]);
   const termo = await lerTermo(ex.id);
   const mapaConta = new Map(contas.map((c) => [c.id, c]));

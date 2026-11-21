@@ -9,8 +9,8 @@
 // sendo só da contadora.
 import { NextRequest } from 'next/server';
 import { exigirEmpresa, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
-import { contasDaEmpresa, ErroCaixa, historicosDaEmpresa, vincularConta } from '@/lib/caixa';
-import { getDb } from '@/lib/db';
+import { contasDaEmpresa, criarConta, ErroCaixa, historicosDaEmpresa, vincularConta } from '@/lib/caixa';
+import { donoDaCriacao, visaoDoCatalogo } from '@/lib/visibilidadeCatalogo';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +24,11 @@ export async function GET(req: NextRequest) {
   const g = await exigirEmpresa(req, empresa);
   if (!g.ok) return g.resposta;
   try {
-    const [todas, historicosTodos] = await Promise.all([contasDaEmpresa(empresa), historicosDaEmpresa(empresa)]);
+    // Catálogo base + as extensões do escritório da sessão (o master vê tudo).
+    const visao = visaoDoCatalogo(g.sessao);
+    const [todas, historicosTodos] = await Promise.all([
+      contasDaEmpresa(empresa, visao), historicosDaEmpresa(empresa, visao),
+    ]);
 
     // O cliente não navega o catálogo inteiro: ele só usa as contas titulares e
     // as analíticas da própria empresa. A lista aberta (o catálogo completo) é só
@@ -64,23 +68,11 @@ export async function POST(req: NextRequest) {
     if (!grupo) throw new ErroCaixa('Escolha o grupo da conta.');
     if (!nome) throw new ErroCaixa('Informe o nome da conta.');
 
-    const db = getDb();
-    const { data: irmas, error } = await db
-      .from('plano_contas').select('codigo, natureza, ordem').eq('grupo', grupo);
-    if (error) throw new ErroCaixa(`plano_contas: ${error.message}`, 502);
-    if (!irmas?.length) throw new ErroCaixa('Grupo não encontrado no catálogo.');
+    // A conta nova pertence ao escritório da sessão; o master cria no catálogo base.
+    const dono = donoDaCriacao(g.sessao);
+    if (dono === undefined) throw new ErroCaixa('Seu usuário não está vinculado a um escritório.', 403);
 
-    // Todas as contas do grupo compartilham o prefixo N.GG e a natureza.
-    const prefixo = (irmas[0].codigo as string).slice(0, 4);
-    const proximo = Math.max(...irmas.map((c) => Number((c.codigo as string).slice(5)) || 0)) + 1;
-    const codigo = `${prefixo}.${String(proximo).padStart(2, '0')}`;
-    const ordem = Math.max(...irmas.map((c) => Number(c.ordem) || 0));
-
-    const { data: nova, error: errIns } = await db.from('plano_contas')
-      .insert({ codigo, nome, grupo, natureza: irmas[0].natureza, linha_balanco: null, ordem })
-      .select('id, codigo, nome, grupo, natureza').single();
-    if (errIns) throw new ErroCaixa(`plano_contas: ${errIns.message}`, 502);
-
+    const nova = await criarConta(dono, grupo, nome);
     await vincularConta(empresa, nova.id);
     return Response.json({ ok: true, conta: { ...nova, daEmpresa: true } });
   } catch (e) {
