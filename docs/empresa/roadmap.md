@@ -121,13 +121,23 @@ Teste de ponta a ponta da folha pelo cliente com conta de teste: envio, foto no 
 leitura ("lida"), fila da contadora, 2 avisos no sino, cliente barrado na empresa da
 Edilse e na Timesheet; conta, foto e dados apagados.
 
+## Sprint 11 — Cliente, rescisão completa e QA visual (🔄 em andamento)
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Página inicial do cliente (`/inicio`): movimento a lançar, pedidos da contabilidade, folhas devolvidas e último Demonstrativo; cada bloco falha sozinho; vira a home do cliente | `claude/inicio-cliente` | ✅ publicada em 21/11, sem migração |
+| B. Rescisão completa: INSS/IRRF, médias de horas extras do ponto, valores líquidos | `claude/rescisao-completa` | 🔄 refeita em 21/11 (a primeira tentativa não sobreviveu à limpeza da sessão) |
+| C. Pente-fino visual no navegador: 5 defeitos corrigidos (rolagem horizontal no celular, checkboxes do fechamento, fila do ponto repetida, data do DP em lote, rótulo "(Sheets)"); relatório em `docs/qa-visual.md` | `claude/pente-fino-visual-20f3c4` | ✅ publicada em 21/11 |
+
+Publicação de A + C: 930 testes, CI e Vercel verdes; em produção `/inicio` exige login e
+`/api/inicio-cliente` responde 401 sem sessão.
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
 |---|---|---|
 | Carnê-Leão e recibos (PF) | Opus alto | respostas da Edilse (beneficiário ≠ pagador; layout do Carnê-Leão Web) |
 | Documento → lançamento sugerido por IA | Opus alto | aceite da Edilse (opção por empresa) e Gemini pago |
-| Rescisão: INSS/IRRF e médias de horas extras tiradas do ponto | Opus alto | — |
 | Ver no painel de logs da Vercel a duração das funções depois de uso real (ganho da região) | João/dono | acesso à Vercel |
 
 ## Antes de ir ao mercado (adiado por decisão do João)

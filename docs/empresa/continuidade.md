@@ -180,7 +180,7 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
 ### Produção agora
 - Migrações **0000–0028** aplicadas (0024–0026 não usadas). Próximo livre: **0029**.
 - Funções da Vercel em `gru1` (São Paulo), junto do Supabase (`sa-east-1`).
-- 909 testes; CI verde no último push.
+- 930 testes; CI verde no último push (Sprint 11 A + C publicadas; B refeita, em andamento).
 
 ### Pendências que só o João resolve
 - Vercel: `CRON_SECRET` (resumo da agenda), `RESEND_API_KEY` + `EMAIL_REMETENTE`
