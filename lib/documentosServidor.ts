@@ -258,6 +258,23 @@ export async function restaurarDocumento(d: Documento, autor: string): Promise<v
   if (d.pendenciaId && (d.status === 'recebido' || d.status === 'conferido')) await atenderPendencia(d.pendenciaId, autor);
 }
 
+/**
+ * Os bytes de um documento já recebido, conferidos de novo (tamanho e assinatura)
+ * — para a leitura por IA do Livro Caixa (0029). A rota decide o acesso antes.
+ */
+export async function baixarArquivo(d: Documento): Promise<Uint8Array> {
+  const { data: blob, error } = await getDb().storage.from(BUCKET).download(d.caminho);
+  if (error || !blob) {
+    console.error('[documentos] falha ao baixar para leitura:', error?.message);
+    throw new ErroDoc('Arquivo indisponível.', 404);
+  }
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > LIMITE_BYTES || !conferirAssinatura(bytes, extensao(d.caminho))) {
+    throw new ErroDoc('O conteúdo do arquivo não corresponde ao tipo informado.', 422);
+  }
+  return bytes;
+}
+
 /** URL curta de download, com `Content-Disposition: attachment` e o nome original. */
 export async function urlDownload(d: Documento): Promise<string> {
   const { data, error } = await getDb().storage.from(BUCKET)

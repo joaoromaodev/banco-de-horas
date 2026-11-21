@@ -8,9 +8,11 @@ import { NextRequest } from 'next/server';
 import { ehGestor, exigirEmpresa, exigirSessao, motivoNegado } from '@/lib/acesso';
 import {
   empresaDoLancamento, ErroCaixa, exigirCatalogoVisivel, garantirExercicio, HISTORICO_RETIRADA_CHEQUE,
-  lancamentosDoMes, mesesConfirmados, saldoTransportado, validarLancamento,
+  lancamentosDoMes, mesesConfirmados, saldoTransportado, semColunaDocumento, validarLancamento,
   vincularConta, vincularHistorico,
 } from '@/lib/caixa';
+import { podeVerRegistro } from '@/lib/documentos';
+import { lerDocumento } from '@/lib/documentosServidor';
 import { getDb } from '@/lib/db';
 import { avaliarNaConferencia, lerRegistroSugestao, registrarSugestao } from '@/lib/caixaInteligente';
 import { visaoDoCatalogo } from '@/lib/visibilidadeCatalogo';
@@ -95,6 +97,19 @@ export async function POST(req: NextRequest) {
     const cheque = Boolean(body.cheque);
     if (cheque && l.saida <= 0) throw new ErroCaixa('O atalho de cheque vale para pagamento (saída).');
 
+    // Documento de onde o lançamento veio (rascunho da IA, 0029): tem que ser da
+    // MESMA empresa, do escritório da sessão, recebido e não excluído.
+    let documentoId: string | null = null;
+    if (body.documentoId) {
+      const d = await lerDocumento(String(body.documentoId));
+      if (!d || d.excluidoEm || d.empresaId !== empresa || !podeVerRegistro(g.sessao, d)
+        || (d.status !== 'recebido' && d.status !== 'conferido')) {
+        throw new ErroCaixa('O documento anexado não é desta empresa (ou foi excluído).', 400);
+      }
+      documentoId = d.id;
+    }
+    const comDocumento = documentoId ? { documento_id: documentoId } : {};
+
     const linhas: Record<string, unknown>[] = [];
     if (cheque) {
       // `criado_em` explícito porque as duas linhas nascem na mesma transação e
@@ -113,18 +128,21 @@ export async function POST(req: NextRequest) {
       linhas.push({
         exercicio_id: ex.id, data: l.data, historico: l.historico, complemento: l.complemento,
         conta_id: l.contaId, entrada: 0, saida: l.saida, juros: l.juros, multa: l.multa,
-        criado_por: autor, criado_em: new Date(t + 1).toISOString(),
+        criado_por: autor, criado_em: new Date(t + 1).toISOString(), ...comDocumento,
       });
     } else {
       linhas.push({
         exercicio_id: ex.id, data: l.data, historico: l.historico, complemento: l.complemento,
         conta_id: l.contaId, entrada: l.entrada, saida: l.saida, juros: l.juros, multa: l.multa,
         pagador_nome: l.pagadorNome, pagador_documento: l.pagadorDocumento,
-        criado_por: autor,
+        criado_por: autor, ...comDocumento,
       });
     }
 
     const { data, error } = await getDb().from('lancamentos').insert(linhas).select('id, historico, conta_id');
+    if (error && documentoId && semColunaDocumento(error)) {
+      throw new ErroCaixa('O vínculo com o documento ainda não está instalado (falta a migração 0029). Lance sem o anexo.', 503);
+    }
     if (error) throw new ErroCaixa(traduzir(error.message), 400);
 
     // A sugestão de conta que estava na tela (se havia): registra se foi aceita.

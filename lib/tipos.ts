@@ -61,6 +61,12 @@ export interface Empresa {
    * também precisa; é a atividade que manda, não o tipo de pessoa.
    */
   identificaPagador?: boolean;
+  /**
+   * A IA pode ler documentos desta empresa e propor lançamentos do Livro Caixa
+   * (migração 0029)? Desligada por padrão; só a contabilidade liga. Vale só com
+   * `CAIXA_IA_DOCUMENTO=ligada` na plataforma — ver lib/documentoLancamento.ts.
+   */
+  iaDocumento?: boolean;
   /** A empresa trabalha aos sábados? Quando false, sábado vira folga. */
   trabalhaSabado: boolean;
   // jornada padrão da empresa em minutos (funcionário pode sobrescrever)

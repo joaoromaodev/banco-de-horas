@@ -4,8 +4,8 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **21/11/2026** (Sprint 5, Frente A — caixa inteligente: sugestão
-de conta ao lançar e revisão antes da conferência, migração 0017)
+Última atualização: **21/11/2026** (Sprint 12, Frente A — documento → lançamento
+sugerido por IA, desligado atrás de duas travas, migração 0029)
 
 ## Por que este módulo existe
 
@@ -27,7 +27,7 @@ abas: `Ajuda`, `Plano de Contas`, `EXEMPLO`, `Termo de abertura`, os 12 meses,
 | Classificação | Por **código** do plano de contas, obrigatória |
 | Lista de contas | As contas **daquela empresa**, com **barra de pesquisa** — mas a lista é **aberta**: tem que dar para incluir uma conta na hora, porque há contas que aparecem uma vez no mês e não são frequentes |
 | Catálogo | Ela **padroniza um só**; cada empresa usa um subconjunto. Só ela cria conta nova |
-| Comprovantes | **Não** anexa e **não** tem OCR — o administrativo digita, o papel fica na empresa |
+| Comprovantes | **Não** anexa e **não** tem OCR — o administrativo digita, o papel fica na empresa. *(21/11/2026: o dono decidiu construir a leitura de documento por IA, **desligada** por padrão e opcional por empresa — ver "Documento → lançamento sugerido por IA"; só vale para quem ligar, depois do aceite dela.)* |
 | Nº do documento | **Não** quis o campo |
 | Históricos | **Padronizados**, lista pronta para escolher |
 | Edição | **Sempre** editável e excluível, inclusive retroativo |
@@ -806,6 +806,169 @@ inicial de 2026 ainda é zero, pendência 1) e **setembro e outubro sem lançame
 
 Alerta de limite de faturamento (MEI/Simples) e **Demonstrativo de caixa** mensal com envio ao
 cliente: regras, decisões e **"Para o integrador"** em [`resumo-cliente.md`](resumo-cliente.md).
+
+### ✅ Documento → lançamento sugerido por IA (0029) — 21/11/2026 (Sprint 12, Frente A)
+
+Decisão do dono (`docs/empresa/decisoes.md`, 21/11): "o cliente lança, a IA lê, o contador
+confere". Muda a decisão antiga "Comprovantes: não anexa" **só para quem ligar**: o
+lançamento pode nascer de um documento e fica com ele anexado. Construído **desligado**,
+atrás de duas travas.
+
+**Como funciona.** No Livro Caixa, quem lança (cliente ou contabilidade) clica em **Ler
+documento** (botão secundário no cabeçalho, só aparece quando pode). No diálogo escolhe
+o documento — **enviar agora** (foto ou PDF; fica também em Documentos, na competência do
+mês aberto, pelo mesmo fluxo do portal: URL assinada → Storage → servidor confere os
+bytes) ou **um já enviado** em Documentos — e diz se é pagamento (saída, padrão),
+recebimento (entrada) ou "não sei". A IA devolve uma **proposta**: data, valor,
+entrada/saída, complemento e a conta, escolhida **só entre as da empresa** (mesma lista
+da IA do caixa, `opcoesParaIa`; índice fora da lista ou de natureza trocada = sem conta).
+
+A proposta **nunca grava**: vira **rascunho** no formulário de novo lançamento, com um
+aviso "Rascunho lido pela IA — confira antes de lançar" (link para o documento, confiança
+da leitura e o que a IA não leu — data fora do exercício, valor, conta) e um toast com
+**Desfazer** (o formulário volta ao que estava). Quem lança confere e clica em **Lançar**
+(continua a única ação primária). O POST de lançamentos recebe `documentoId` e grava
+`lancamentos.documento_id`; na tabela, o complemento ganha o ícone do anexo, que abre
+pelo `/api/documentos/arquivo` (guarda + URL assinada de 60 s — nenhuma URL fica na tela).
+Desfazer a exclusão de um lançamento recria com o anexo (ou sem ele, avisando, se o
+documento foi excluído nesse meio-tempo).
+
+**Travas** (`situacaoIaDocumento` em `lib/documentoLancamento.ts`):
+
+| Trava | Desligada → |
+|---|---|
+| 1. Plataforma: `CAIXA_IA_DOCUMENTO=ligada` + chave do Gemini | o botão não aparece; `POST` 503 "não está ligada nesta plataforma"; `PATCH` (ligar) 503 |
+| 2. Empresa: `empresas.caixa_ia_documento` (0029), **padrão desligada**; só a contabilidade liga, em Livro Caixa › **Documentos** › "Leitura de documentos por IA" (`PATCH /api/caixa/documento-ia`, `exigirGestor`) | o botão não aparece; `POST` 403 "não está ligada para esta empresa" |
+| Empresa que identifica pagador (saúde) — como a IA do caixa | nunca: `POST` e ligar respondem 403 |
+
+**Rotas.** `app/api/caixa/documento-ia/route.ts` — `GET ?empresa=` (situação; o cliente só
+vê `disponivel`), `PATCH { empresa, ligada }` (só gestor; desligar vale sempre), `POST
+{ empresa, documento, ano, direcao? }` (a leitura). Sob `/api/caixa`: o cliente alcança
+pelo `CLIENTE_PODE` que já existia e a contabilidade precisa do módulo caixa — **sem
+mudança no `proxy.ts`**. Toda rota chama a guarda de `lib/acesso.ts` (`exigirEmpresa`,
+`exigirGestor`, `motivoNegado`). O documento tem que ser **da mesma empresa** e passar em
+`podeVerRegistro` (escritório gravado no documento = o da sessão), recebido ou conferido,
+não excluído — senão 404.
+
+**Isolamento e LGPD (revisado pelo `escudo` em 21/11/2026 — aprovado com ressalvas, sem
+vazamento entre escritórios nem entre empresas).** Testado em
+`tests/documentoLancamentoRotas.test.ts`: cliente de outra empresa e contador de outro
+escritório → 403; documento de outra empresa ou gravado em outro escritório → 404;
+`documentoId` de outra empresa no POST de lançamentos → 400 e nada gravado; cliente não
+liga a opção (403). **Invariante:** `documento_id` tem FK simples para `documentos`; a regra
+"o documento é da mesma empresa do lançamento" só existe em
+`app/api/caixa/lancamentos/route.ts` — não grave `documento_id` por outro caminho.
+
+**O que vai para o Gemini** (`lib/documentoLancamentoServidor.ts` + `montarPromptDocumento`):
+- o arquivo, **minimizado**: do PDF, só as **2 primeiras páginas**, regravado pelo pdf-lib
+  (sai sem os metadados do original — autor, título, programa); a foto (JPG, PNG, WEBP)
+  **sem EXIF/XMP/textos** (localização do celular, aparelho, horário), por
+  `imagemSemMetadados`. O que não dá para minimizar é **recusado (415)**, nunca mandado
+  inteiro: PDF com senha ou torto, imagem fora do formato e **HEIC** (sem biblioteca de
+  imagem não dá para limpar; a foto tirada pelo navegador já é JPG);
+- o texto: o exercício, a direção informada e a lista de contas da empresa;
+- **não vão**: nome/CNPJ da empresa, e-mail de quem lança, nome do arquivo, observação do
+  envio, lançamentos anteriores;
+- só categorias **nota, recibo e outros** — **extrato e folha nunca** (dados bancários de
+  terceiros, nome/CPF/salário de empregados), nem chamando a API direto (415).
+
+O documento em si **pode trazer dado pessoal** de terceiros (nome, CPF, endereço de quem
+emitiu ou recebeu) — não dá para mascarar uma foto antes de a IA lê-la; por isso as duas
+travas e a saúde de fora. O prompt pede para não escrever CPF, endereço, telefone, e-mail,
+nome de pessoa física nem dado de saúde no complemento, e a resposta passa por
+`mascararTexto` (11+ dígitos, CPF, telefone e e-mail viram marcador).
+
+**Cota e abuso.** Cada leitura conta na **cota mensal de IA do escritório** — a mesma da
+folha de ponto (`lib/cotaOcr.ts`, por plano): a rota reserva em `ponto_leituras_ocr` com
+`origem = 'documento'` antes de chamar o Gemini e reconta (corrida), confirma depois (conta
+mesmo se a leitura não serviu) e marca `falhou` se o Gemini cair (não conta na cota, conta
+no ritmo). Além disso: o ritmo do escritório (30 tentativas/10 min, compartilhado com a
+folha), **15 leituras por usuário a cada 10 min** (memória, por instância) e, quando quem
+lê é o **cliente**, **30 leituras de documento por empresa por mês**
+(`LIMITE_DOCUMENTOS_EMPRESA_CLIENTE`, contadas no banco) — um cliente não esgota a cota do
+escritório nem trava a folha de ponto. O arquivo é baixado e preparado **antes** de gastar
+cota. Escritório suspenso ou cota esgotada → 429 com a mensagem "dá para lançar à mão".
+
+**Arquivos.** `supabase/migrations/0029_documento_lancamento.sql`; `lib/documentoLancamento.ts`
+(puro: travas, categorias, opções, prompt, leitura da resposta, máscara, metadados de
+imagem — `tests/documentoLancamento.test.ts`); `lib/documentoLancamentoServidor.ts`
+(preparar o arquivo e chamar o Gemini); `app/api/caixa/documento-ia/route.ts`;
+`app/(app)/caixa/LerDocumento.tsx` (diálogo) e `app/(app)/caixa/page.tsx` (botão, rascunho,
+anexo, alternador no painel Documentos). Mudanças mínimas em `lib/caixa.ts`
+(`lancamentosDoMes` devolve `documentoId`; sem a 0029 relê sem a coluna), `lib/cadastro.ts`
+(`definirIaDocumento`, fora do upsert do cadastro), `lib/documentosServidor.ts`
+(`baixarArquivo`, que reconfere tamanho e assinatura), `lib/pontoDb.ts` (`origem` na
+reserva, `contarLeiturasDocumentoEmpresa`), `lib/tipos.ts` e
+`app/api/caixa/lancamentos/route.ts` (`documentoId`). Nos testes o Gemini é **simulado**
+(`vi.mock('@google/genai')`): nenhum documento sai da máquina.
+
+#### Para o integrador
+
+- **Migração `0029_documento_lancamento.sql`** (só o arquivo; **não aplicada**). Aditiva:
+  `empresas.caixa_ia_documento boolean not null default false`, `lancamentos.documento_id
+  uuid references documentos on delete set null` (+ índice parcial) e
+  `ponto_leituras_ocr.origem text not null default 'folha'` com check `folha|documento`.
+  Depende de **0002, 0012 e 0015**. Ordem livre: sem ela o caixa funciona igual (o GET dos
+  lançamentos relê sem a coluna; o POST só leva `documento_id` quando há documento), e a
+  leitura/ligar respondem **503 "falta a migração 0029"**. Reversão no cabeçalho do arquivo.
+  `supabase migration list` antes do push.
+- **Variáveis:**
+  - `CAIXA_IA_DOCUMENTO` (nova, opcional) — **deixe sem** até cumprir o que está abaixo.
+    Ligada = `ligada`.
+  - `GEMINI_API_KEY_CAIXA` (nova, opcional, **recomendada** pelo `escudo`) — chave do
+    Gemini **do plano pago** só para esta função; sem ela usa a `GEMINI_API_KEY` da
+    plataforma (a mesma da folha de ponto). `GEMINI_MODELO` vale para as duas.
+- **Antes de ligar em produção** (decisão do dono + parecer do `escudo`):
+  1. **Política de privacidade** (`app/(site)/privacidade/page.tsx`, hoje só cita IA na
+     Folha de Ponto, linhas ~43-45) precisa dizer — texto para o **jurídico**: (a) no Livro
+     Caixa, notas, recibos, boletos e comprovantes enviados podem ser lidos por IA para
+     propor o lançamento, e esses documentos podem conter nome, CPF e endereço de terceiros;
+     (b) quem lê é o **Google Gemini**, como suboperador, só para montar a proposta;
+     (c) a leitura é **opcional por empresa**, ligada pelo escritório, e empresas de saúde
+     ficam de fora; (d) a **transferência internacional** (seção ~57) e a lista de
+     suboperadores (~52, ainda com "[endereço...]") passam a cobrir este uso. Retenção e
+     uso para treino dependem do contrato da API paga — **o jurídico confirma**.
+  2. **Gemini no plano pago** (no gratuito o Google pode usar o que é enviado). Nada de
+     documento real no gratuito.
+  3. **Aceite da Edilse** (ela tinha decidido "não anexa") e aviso ao escritório
+     (controlador) de que os documentos dos clientes dele passam pelo Google.
+  4. Então `CAIXA_IA_DOCUMENTO=ligada` (e, de preferência, `GEMINI_API_KEY_CAIXA`). Mesmo
+     assim nada muda até a contabilidade ligar empresa por empresa.
+- **O que testar em produção com conta de teste** (escritório criado em `/criar-conta`,
+  empresa de teste **sem** "identifica pagador"; **nunca** nas empresas da Edilse nem com
+  documento real de cliente):
+  1. Sem a variável: o botão "Ler documento" não aparece; em Documentos (painel do caixa)
+     não há a seção de IA; `POST /api/caixa/documento-ia` → 503.
+  2. Com a variável: como contador, Livro Caixa › Documentos › ligar "A IA pode ler os
+     documentos desta empresa". O botão aparece (para o contador e para o cliente da empresa).
+  3. Como cliente: "Ler documento" → enviar a foto de um recibo de teste (categoria Recibo)
+     → o formulário vem preenchido, com o aviso de rascunho e o toast **Desfazer** (volta
+     ao que estava). Conferir e **Lançar** → o lançamento aparece com o ícone do anexo, que
+     abre o arquivo. O documento também aparece em `/documentos`.
+  4. "Já enviado em Documentos" lista só foto/PDF de nota, recibo ou outros (extrato e
+     folha não aparecem).
+  5. `select origem, situacao, empresa_id from ponto_leituras_ocr order by criado_em desc
+     limit 5;` → a leitura com `origem = 'documento'` e `situacao = 'concluida'`; a cota do
+     ponto (`GET /api/extrair?empresa=`) contou a leitura.
+  6. Isolamento: logado em outro escritório, `POST /api/caixa/documento-ia` com a empresa
+     de teste → 403; com uma empresa sua e o id do documento de teste → 404. Cliente: `PATCH
+     /api/caixa/documento-ia` → 403. Empresa com "identifica pagador" → a seção diz "não
+     disponível" e o POST responde 403.
+  7. PDF com senha → "Salve o PDF sem senha" (415) e nada contado na cota.
+- **Não verificado no navegador** nesta etapa (não há ambiente local com banco; o único
+  `.env.local` aponta para produção). typecheck, lint, testes e build verdes.
+
+**Pendências / próximos passos:**
+- **[Aberto — jurídico/fundador]** política de privacidade, suboperador, Gemini pago e
+  aceite da Edilse (acima) antes de ligar.
+- Releitura do mesmo documento conta de novo na cota (sem aviso "já lido"). Se virar
+  custo, guardar a última proposta por documento.
+- XML de NF-e não passa pela IA (fica fora da lista); um leitor determinístico do XML
+  (sem IA, sem dado saindo) seria o próximo passo natural para notas eletrônicas.
+- HEIC fora da IA (metadados). Se o iPhone mandar HEIC pelo seletor de arquivo, a tela
+  avisa; converter no navegador seria a saída.
+- O ritmo por usuário é em memória (por instância); o que segura de verdade são a cota
+  do escritório e a subcota da empresa, no banco.
 
 ## Estado do banco
 

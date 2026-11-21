@@ -37,6 +37,8 @@ export interface LancamentoCaixa {
   atualizadoPor: string | null;
   conferidoPor: string | null;
   conferidoEm: string | null;
+  /** Documento do portal de onde o lançamento veio (0029) — a tela mostra o anexo. */
+  documentoId?: string | null;
 }
 
 export interface ExercicioCaixa {
@@ -442,15 +444,31 @@ export async function criarAnalitica(
   };
 }
 
+/** Colunas do mês; `documento_id` só existe depois da 0029. */
+const COLS_MES = 'id, data, historico, complemento, conta_id, entrada, saida, juros, multa, pagador_nome, pagador_documento, criado_por, criado_em, atualizado_por, conferido_por, conferido_em';
+
+/** A coluna `documento_id` (0029) ainda não existe no banco? */
+export const semColunaDocumento = (e: { message?: string; code?: string } | null | undefined): boolean =>
+  !!e && (e.code === '42703' || /documento_id/.test(String(e.message ?? '')));
+
 /** Lançamentos de um mês, na ordem em que aparecem no livro. */
 export async function lancamentosDoMes(exercicioId: string, mes: number): Promise<LancamentoCaixa[]> {
   const db = getDb();
   // Paginado: um mês movimentado passa de 1.000 linhas e o Supabase cortaria sem avisar.
-  const data = await lerTudo<LinhaBanco>((de, ate) => db
+  const ler = (colunas: string) => lerTudo<LinhaBanco>((de, ate) => db
     .from('lancamentos')
-    .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, pagador_nome, pagador_documento, criado_por, criado_em, atualizado_por, conferido_por, conferido_em')
+    .select(colunas)
     .eq('exercicio_id', exercicioId).eq('mes', mes)
-    .order('data').order('criado_em').order('id').range(de, ate), { falhar: falhaLancamentos });
+    .order('data').order('criado_em').order('id').range(de, ate) as unknown as PromiseLike<{ data: LinhaBanco[] | null; error: { message: string; code?: string } | null }>,
+  { falhar: (e) => Object.assign(falhaLancamentos(e), { code: e.code, bruto: e.message }) });
+  let data: LinhaBanco[];
+  try {
+    data = await ler(`${COLS_MES}, documento_id`);
+  } catch (e) {
+    // Banco sem a 0029: lê sem o vínculo do documento.
+    if (!semColunaDocumento({ code: (e as { code?: string }).code, message: (e as { bruto?: string }).bruto })) throw e;
+    data = await ler(COLS_MES);
+  }
   return data.map((l) => ({
     id: l.id, data: l.data, historico: l.historico, complemento: l.complemento,
     contaId: l.conta_id, entrada: num(l.entrada), saida: num(l.saida),
@@ -458,6 +476,7 @@ export async function lancamentosDoMes(exercicioId: string, mes: number): Promis
     pagadorNome: l.pagador_nome, pagadorDocumento: l.pagador_documento,
     criadoPor: l.criado_por, criadoEm: l.criado_em, atualizadoPor: l.atualizado_por,
     conferidoPor: l.conferido_por, conferidoEm: l.conferido_em,
+    documentoId: (l.documento_id as string | null | undefined) ?? null,
   }));
 }
 

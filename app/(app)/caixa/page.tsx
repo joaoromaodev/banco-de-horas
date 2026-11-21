@@ -18,6 +18,7 @@ import { IconeBaixar, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerCo
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 import { AbasCaixa } from './AbasCaixa';
 import LimiteFaturamento from './LimiteFaturamento';
+import LerDocumento, { type DocumentoLido } from './LerDocumento';
 import {
   Alternador, Aviso, Botao, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
   EstadoVazio, Indicador, Marcacao, Secao, Selo, seloCls, tb, type Tom,
@@ -27,6 +28,7 @@ import { Toast, Toasts } from '@/components/retorno';
 import { lerMe } from '@/lib/meCliente';
 import { sugerirConta, type ConsultaSugestao, type ExemploConferido, type Sugestao } from '@/lib/sugestaoConta';
 import type { NivelAlerta, ResultadoRevisao, RevisaoLancamento } from '@/lib/revisaoCaixa';
+import type { PropostaDocumento } from '@/lib/documentoLancamento';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; identificaPagador?: boolean; arquivadaEm?: string | null; }
@@ -38,6 +40,8 @@ interface Lancamento {
   pagadorNome: string | null; pagadorDocumento: string | null;
   criadoPor: string; criadoEm: string; atualizadoPor: string | null;
   conferidoPor: string | null; conferidoEm: string | null;
+  /** Documento do portal de onde o lançamento veio (0029). */
+  documentoId?: string | null;
 }
 interface RespostaMes {
   mes: number; lancamentos: Lancamento[];
@@ -87,6 +91,17 @@ const chaveConsulta = (q: ConsultaSugestao) => `${q.complemento.trim()}|${q.dire
 /** Sugestão como a tela guarda: a da IA traz o id do registro (para medir se foi aceita). */
 type SugestaoTela = Sugestao & { id?: string | null };
 
+/** Situação da leitura de documentos por IA para a empresa aberta (GET /api/caixa/documento-ia). */
+interface IaDocumento {
+  disponivel: boolean; podeLigar: boolean;
+  plataforma?: boolean; ligadaNaEmpresa?: boolean; saude?: boolean;
+}
+/** O rascunho que a IA leu de um documento e está no formulário de novo lançamento. */
+interface Rascunho { empresa: string; documento: DocumentoLido; confianca: number; avisos: string[]; antes: Campos }
+
+/** Valor da proposta no formato que o formulário digita ("1234,56"). */
+const valorDigitado = (v: number | null) => (v && v > 0 ? v.toFixed(2).replace('.', ',') : '');
+
 export default function Caixa() {
   const [me, setMe] = useState<Me | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -128,6 +143,15 @@ export default function Caixa() {
   const [soAtencao, setSoAtencao] = useState(false);
   const [ordem, setOrdem] = useState<'livro' | 'risco'>('livro');
 
+  // Documento → lançamento por IA (Sprint 12): duas travas, rascunho no formulário.
+  const [iaDoc, setIaDoc] = useState<IaDocumento | null>(null);
+  const [lendoDoc, setLendoDoc] = useState(false);
+  const [rascunhoGuardado, setRascunho] = useState<Rascunho | null>(null);
+  const [desfazerGuardado, setDesfazerRascunho] = useState<Rascunho | null>(null);
+  // O rascunho é da empresa em que foi lido: trocar de empresa o esconde (e o Lançar não o leva).
+  const rascunho = rascunhoGuardado?.empresa === empresaSel ? rascunhoGuardado : null;
+  const desfazerRascunho = desfazerGuardado?.empresa === empresaSel ? desfazerGuardado : null;
+
   const ehGestor = me?.role === 'master' || me?.role === 'usuario';
   const anos = useMemo(() => {
     const ultimo = Math.max(new Date().getFullYear() + 1, PRIMEIRO_EXERCICIO);
@@ -141,6 +165,8 @@ export default function Caixa() {
     setNovo(vazio(dataPadrao(novoAno, novoMes)));
     setCheque(false);
     setEditandoId(null);
+    setRascunho(null);
+    setDesfazerRascunho(null);
   }
 
   // ------------------------------------------------------------------ carga
@@ -267,6 +293,16 @@ export default function Caixa() {
   }, [empresaSel]);
   useEffect(() => { carregarModelo(); }, [carregarModelo]);
 
+  // Leitura de documentos por IA: a tela só oferece o botão quando as duas travas deixam.
+  const carregarIaDoc = useCallback(() => {
+    if (!empresaSel) return;
+    fetch(`/api/caixa/documento-ia?empresa=${encodeURIComponent(empresaSel)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setIaDoc(d))
+      .catch(() => setIaDoc(null));
+  }, [empresaSel]);
+  useEffect(() => { carregarIaDoc(); }, [carregarIaDoc]);
+
   useEffect(() => { carregarPendencias(); }, [carregarPendencias]);
 
   // ------------------------------------------------------------------ ações
@@ -283,11 +319,17 @@ export default function Caixa() {
       const d = await chamar('/api/caixa/lancamentos', {
         method: 'POST',
         // A sugestão que estava na tela vai junto, para medir se foi aceita.
-        body: JSON.stringify({ empresa: empresaSel, ano, ...novo, cheque, sugestao: sugestaoNova ?? undefined }),
+        body: JSON.stringify({
+          empresa: empresaSel, ano, ...novo, cheque, sugestao: sugestaoNova ?? undefined,
+          documentoId: rascunho?.documento.id ?? undefined,
+        }),
       });
-      setMsg(d.criados > 1 ? 'Cheque lançado: retirada do banco + pagamento.' : 'Lançado.');
+      setMsg(d.criados > 1 ? 'Cheque lançado: retirada do banco + pagamento.'
+        : rascunho ? 'Lançado, com o documento anexado.' : 'Lançado.');
       setNovo(vazio(novo.data)); // mantém a data: quem digita o mês inteiro agradece
       setCheque(false);
+      setRascunho(null);
+      setDesfazerRascunho(null);
       await recarregar();
       await recarregarContas();
     } catch (e) {
@@ -335,20 +377,30 @@ export default function Caixa() {
     const l = desfazer;
     if (!l) return;
     setDesfazer(null); setErro(null); setMsg(null);
+    const recriar = (documentoId?: string) => chamar('/api/caixa/lancamentos', {
+      method: 'POST',
+      body: JSON.stringify({
+        empresa: empresaSel, ano, data: l.data, historico: l.historico,
+        complemento: l.complemento ?? '', contaId: l.contaId,
+        entrada: l.entrada > 0 ? String(l.entrada) : '',
+        saida: l.saida > 0 ? String(l.saida) : '',
+        juros: l.juros > 0 ? String(l.juros) : '',
+        multa: l.multa > 0 ? String(l.multa) : '',
+        pagadorNome: l.pagadorNome ?? '', pagadorDocumento: l.pagadorDocumento ?? '',
+        documentoId,
+      }),
+    });
     try {
-      await chamar('/api/caixa/lancamentos', {
-        method: 'POST',
-        body: JSON.stringify({
-          empresa: empresaSel, ano, data: l.data, historico: l.historico,
-          complemento: l.complemento ?? '', contaId: l.contaId,
-          entrada: l.entrada > 0 ? String(l.entrada) : '',
-          saida: l.saida > 0 ? String(l.saida) : '',
-          juros: l.juros > 0 ? String(l.juros) : '',
-          multa: l.multa > 0 ? String(l.multa) : '',
-          pagadorNome: l.pagadorNome ?? '', pagadorDocumento: l.pagadorDocumento ?? '',
-        }),
-      });
-      setMsg('Exclusão desfeita.');
+      let semAnexo = false;
+      try {
+        await recriar(l.documentoId ?? undefined);
+      } catch (e) {
+        // O documento anexado foi excluído nesse meio-tempo: recria sem o vínculo.
+        if (!l.documentoId) throw e;
+        await recriar();
+        semAnexo = true;
+      }
+      setMsg(semAnexo ? 'Exclusão desfeita — sem o anexo, que não está mais disponível.' : 'Exclusão desfeita.');
       await recarregar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -406,6 +458,50 @@ export default function Caixa() {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
       setPerguntandoIa(false);
+    }
+  }
+
+  /**
+   * A IA leu o documento: a proposta vira RASCUNHO no formulário de novo
+   * lançamento (nada é gravado). O que já estava digitado fica guardado para o
+   * "Desfazer". Campo que a IA não leu mantém o que havia.
+   */
+  function aplicarProposta({ proposta: p, documento }: { proposta: PropostaDocumento; documento: DocumentoLido }) {
+    setLendoDoc(false);
+    const antes = rascunho?.antes ?? novo;
+    const valor = valorDigitado(p.valor);
+    const preenchido: Campos = {
+      ...vazio(p.data ?? novo.data),
+      complemento: p.complemento || novo.complemento,
+      contaId: p.historico ? p.contaId : null, historico: p.historico ?? '', historicoId: p.historico ? p.historicoId : null,
+      entrada: p.direcao === 'entrada' ? valor : '',
+      saida: p.direcao !== 'entrada' ? valor : '',
+    };
+    setNovo(preenchido);
+    setCheque(false);
+    const r: Rascunho = { empresa: empresaSel, documento, confianca: p.confianca, avisos: p.avisos, antes };
+    setRascunho(r);
+    setDesfazerRascunho(r);
+    setErro(null); setMsg(null);
+  }
+
+  /** Desfaz o rascunho: o formulário volta ao que estava antes da leitura. */
+  function descartarRascunho() {
+    const r = rascunho ?? desfazerRascunho;
+    if (r) setNovo(r.antes);
+    setRascunho(null);
+    setDesfazerRascunho(null);
+  }
+
+  /** A contabilidade liga/desliga a leitura de documentos por IA nesta empresa. */
+  async function alternarIaDoc(ligada: boolean) {
+    setErro(null); setMsg(null);
+    try {
+      await chamar('/api/caixa/documento-ia', { method: 'PATCH', body: JSON.stringify({ empresa: empresaSel, ligada }) });
+      setMsg(ligada ? 'Leitura de documentos por IA ligada para esta empresa.' : 'Leitura de documentos por IA desligada para esta empresa.');
+      carregarIaDoc();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -479,6 +575,27 @@ export default function Caixa() {
   // entrada: Cliente/Paciente e CPF/CNPJ — para Carnê-Leão/DMED. As demais não.
   const identificaPagador = !!empresas.find((e) => e.id === empresaSel)?.identificaPagador;
   const nCols = identificaPagador ? 12 : 10; // colunas da tabela (com pagador, +2)
+  const arquivada = !!empresas.find((e) => e.id === empresaSel)?.arquivadaEm;
+  const podeLerDoc = !!iaDoc?.disponivel && !arquivada && !!empresaSel;
+
+  // O rascunho lido de um documento, acima do formulário (tabela e celular).
+  const avisoRascunho = rascunho && (
+    <Aviso tom="info" titulo="Rascunho lido pela IA — confira antes de lançar"
+      acao={<Botao tamanho="sm" variante="fantasma" onClick={descartarRascunho}>Descartar</Botao>}>
+      <p>
+        Do documento{' '}
+        <a href={`/api/documentos/arquivo?id=${encodeURIComponent(rascunho.documento.id)}`}
+          className="font-medium text-primaria-texto underline underline-offset-2">{rascunho.documento.nome}</a>
+        {' '}(confiança da leitura: {Math.round(rascunho.confianca * 100)}%). Confira data, valor, conta e complemento;
+        ao lançar, o documento fica anexado ao lançamento.
+      </p>
+      {rascunho.avisos.length > 0 && (
+        <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          {rascunho.avisos.map((a) => <li key={a}>{a}</li>)}
+        </ul>
+      )}
+    </Aviso>
+  );
 
   if (erro && faltaMigracao(erro)) return <BancoIncompleto erro={erro} />;
 
@@ -497,6 +614,11 @@ export default function Caixa() {
           )}
           <Selecao aria-label="Exercício" largura="w-24" busca={false} valor={String(ano)} onChange={(v) => irPara(Number(v), mes)}
             opcoes={anos.map((a) => ({ valor: String(a), rotulo: String(a) }))} />
+          {podeLerDoc && (
+            <Botao variante="secundaria" icone={<IconeSugestao />} onClick={() => setLendoDoc(true)}>
+              Ler documento
+            </Botao>
+          )}
           {ehGestor && (
             <Botao variante={mostrarDocs ? 'tonal' : 'secundaria'} aria-expanded={mostrarDocs} aria-controls="painel-documentos"
               icone={<IconeDocumento />} onClick={() => setMostrarDocs((v) => !v)}>
@@ -514,6 +636,12 @@ export default function Caixa() {
             Lançamento excluído — {diaMes(desfazer.data)} · {desfazer.historico}.
           </Toast>
         )}
+        {desfazerRascunho && (
+          <Toast tom="info" onFechar={() => setDesfazerRascunho(null)}
+            acao={<Botao tamanho="sm" variante="tonal" icone={<IconeDesfazer size={15} />} onClick={descartarRascunho}>Desfazer</Botao>}>
+            Rascunho preenchido com o documento {desfazerRascunho.documento.nome}. Confira e clique em Lançar.
+          </Toast>
+        )}
       </Toasts>
 
       <Conteudo>
@@ -524,6 +652,7 @@ export default function Caixa() {
             empresaId={empresaSel} ano={ano} termo={termo}
             onErro={setErro} onMsg={setMsg}
             onSalvo={() => { void recarregar(); }}
+            iaDoc={iaDoc} onAlternarIaDoc={alternarIaDoc} arquivada={arquivada}
           />
         )}
 
@@ -639,6 +768,7 @@ export default function Caixa() {
         {/* Novo lançamento — no celular o formulário vem empilhado, fora da tabela. */}
         <Cartao className="p-4 md:hidden">
           <h2 className="mb-3 text-[15px] font-semibold text-tinta">Novo lançamento</h2>
+          {avisoRascunho && <div className="mb-3">{avisoRascunho}</div>}
           <div className="grid grid-cols-2 gap-3">
             <Celulas empilhado campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
               podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
@@ -654,6 +784,8 @@ export default function Caixa() {
             Depósito em banco é <strong>saída</strong> do caixa; retirada é <strong>entrada</strong>.
           </p>
         </Cartao>
+
+        {avisoRascunho && <div className="max-md:hidden">{avisoRascunho}</div>}
 
         {/* Livro do mês */}
         <div className={tb.moldura}>
@@ -695,7 +827,16 @@ export default function Caixa() {
               ) : (
                 <tr key={l.id} className={`transition-colors ${l.conferidoEm ? 'hover:bg-superficie-realce/60' : 'bg-primaria-suave/70 hover:bg-primaria-realce/60'}`}>
                   <td className={`${tb.td} whitespace-nowrap`}>{diaMes(l.data)}</td>
-                  <td className={`${tb.td} text-tinta-suave`}>{l.complemento}</td>
+                  <td className={`${tb.td} text-tinta-suave`}>
+                    {l.complemento}
+                    {l.documentoId && (
+                      <a href={`/api/documentos/arquivo?id=${encodeURIComponent(l.documentoId)}`}
+                        aria-label="Abrir o documento anexo" data-dica="Documento anexo"
+                        className="ml-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md align-middle text-primaria-texto transition-colors hover:bg-superficie-realce">
+                        <IconeDocumento size={14} />
+                      </a>
+                    )}
+                  </td>
                   {identificaPagador && <td className={`${tb.td} text-tinta-suave`}>{l.pagadorNome}</td>}
                   {identificaPagador && (
                     <td className={`${tb.td} whitespace-nowrap ${
@@ -822,6 +963,11 @@ export default function Caixa() {
           onConfirmar={confirmarExclusao}
           onCancelar={() => setAExcluir(null)}
         />
+      )}
+
+      {lendoDoc && (
+        <LerDocumento empresaId={empresaSel} ano={ano} mes={mes}
+          onLido={aplicarProposta} onFechar={() => setLendoDoc(false)} />
       )}
 
       {editandoSaldo && (
@@ -991,9 +1137,10 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, on
  * (nº do livro, nº de ordem, data) e baixa o livro inteiro em PDF ou .xlsx —
  * termo de abertura + 12 meses + termo de encerramento.
  */
-function PainelDocumentos({ empresaId, ano, termo, onErro, onMsg, onSalvo }: {
+function PainelDocumentos({ empresaId, ano, termo, onErro, onMsg, onSalvo, iaDoc, onAlternarIaDoc, arquivada }: {
   empresaId: string; ano: number; termo: Termo | null;
   onErro: (m: string | null) => void; onMsg: (m: string | null) => void; onSalvo: () => void;
+  iaDoc: IaDocumento | null; onAlternarIaDoc: (ligada: boolean) => void; arquivada: boolean;
 }) {
   const [salvando, setSalvando] = useState(false);
 
@@ -1057,6 +1204,23 @@ function PainelDocumentos({ empresaId, ano, termo, onErro, onMsg, onSalvo }: {
           </Aviso>
         </form>
       </Secao>
+
+      {/* Trava 2 da leitura de documentos por IA: só aparece quando a plataforma ligou (trava 1). */}
+      {iaDoc?.plataforma && (
+        <Secao className="mt-5" titulo="Leitura de documentos por IA"
+          descricao="Quem lança envia a foto ou o PDF de uma nota, recibo, boleto ou comprovante e a IA propõe o lançamento; nada é gravado sem conferência. O arquivo é lido pelo Google Gemini e cada leitura conta na cota mensal de IA do escritório.">
+          {iaDoc.saude ? (
+            <p className="text-[13px] text-tinta-suave">
+              Não disponível: esta empresa identifica o pagador (saúde), e o documento pode trazer dados de pacientes.
+            </p>
+          ) : (
+            <Alternador checked={!!iaDoc.ligadaNaEmpresa} disabled={!empresaId || arquivada || (!iaDoc.podeLigar && !iaDoc.ligadaNaEmpresa)}
+              onChange={(e) => onAlternarIaDoc(e.target.checked)}>
+              A IA pode ler os documentos desta empresa
+            </Alternador>
+          )}
+        </Secao>
+      )}
     </div>
   );
 }

@@ -70,6 +70,8 @@ function linhaParaEmpresa(r: any): Empresa {
     tipoPessoa: r.tipo_pessoa === 'fisica' ? 'fisica' : 'juridica',
     cnpj: r.cnpj ? String(r.cnpj) : null,
     identificaPagador: Boolean(r.identifica_pagador),
+    // Sem a 0029 a coluna não vem no `select('*')`: fica desligada.
+    iaDocumento: r.caixa_ia_documento === true,
     trabalhaSabado: Boolean(r.trabalha_sabado),
     jornadaUtilMin: r.jornada_util_min ?? undefined,
     jornadaSabadoMin: r.jornada_sabado_min ?? undefined,
@@ -164,6 +166,18 @@ export async function salvarEmpresas(lista: Empresa[], escopo: EscopoEmpresas): 
   }
   invalidarEmpresas(); // cadastro mudou: força releitura
   return linhas.length;
+}
+
+/**
+ * Liga/desliga a leitura de documentos por IA na empresa (0029). Fora do upsert
+ * de `salvarEmpresas` de propósito: salvar o cadastro não mexe nesta opção, e o
+ * cadastro continua funcionando antes da migração. Quem chama já conferiu que é
+ * a contabilidade da empresa (ver /api/caixa/documento-ia).
+ */
+export async function definirIaDocumento(id: string, ligada: boolean): Promise<void> {
+  const { error } = await getDb().from('empresas').update({ caixa_ia_documento: ligada }).eq('id', id);
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  invalidarEmpresas();
 }
 
 /** Arquiva (`arquivada: true`) ou reativa uma empresa. Dados dela ficam intactos. */

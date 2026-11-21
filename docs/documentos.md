@@ -158,3 +158,14 @@ em [`notificacoes.md`](notificacoes.md).
 
 - Nada em `documentos`/`pendencias` mudou. O sino só lê `documentos.enviado_em`,
   `pendencias.atendida_em` e `atendida_por`.
+
+## Sprint 12 · Frente A — documento → lançamento por IA
+
+Um documento do portal (foto ou PDF, categorias nota, recibo ou outros) pode ser lido por IA
+para propor um lançamento do Livro Caixa, e o lançamento fica com ele anexado
+(`lancamentos.documento_id`, migração **0029**). Desligado por padrão (variável da plataforma
++ opção por empresa). Enviar pelo Livro Caixa usa este mesmo fluxo (`POST` → Storage →
+`PATCH confirmar`) e o documento aparece aqui, com a observação "Enviado pelo Livro Caixa".
+Nada muda nas regras deste portal; só entrou `baixarArquivo` em `lib/documentosServidor.ts`
+(reconfere tamanho e assinatura antes da leitura). Regras, LGPD e "Para o integrador" em
+[`livro-caixa.md`](livro-caixa.md), seção "Documento → lançamento sugerido por IA".
