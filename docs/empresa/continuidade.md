@@ -190,7 +190,11 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
   documentos, conta bancária fora do caixa) e pedido de digitar as 9 admissões no `/dp`
   (dá para fazer em lote). Texto pronto no último relatório; não enviar.
 
-### Próximas ideias (depois da Sprint 11)
+### Limpeza de conta de teste (aprendido na Sprint 13)
+Cadastrar funcionário pelo `/api/funcionarios` também cria linha em `dp_empregados`;
+apagar essa tabela junto. Conferir também os buckets `ponto` e `documentos`.
+
+### Próximas ideias (depois da Sprint 13)
 Carnê-Leão e documento → lançamento (dependem da Edilse); rescisão com convenção
 coletiva, pensão alimentícia e adicional noturno sobre HE noturna (OJ 97); e-mail ao cliente de folha devolvida/pendência (depende do Resend); medir a
 duração das funções na Vercel após uso real.

@@ -145,7 +145,7 @@ Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/d
 | Frente | Branch | Status |
 |---|---|---|
 | A. Sino do cliente: folha devolvida, pedido da contabilidade, Demonstrativo pronto | `claude/avisos-cliente` | ✅ publicada, sem migração. Avisos montados do que já existe (não gravados); "lido" do cliente separado. Escudo: pode publicar. E-mail ao cliente só com `RESEND_API_KEY` + `AVISOS_CLIENTE_EMAIL=ligado` + `APP_URL` — **desligado**, decisão futura |
-| B. Foto girada antes da IA, limite do cliente só com leituras dele, gráfico do Demonstrativo no celular | `claude/acabamentos-ia` | ✅ publicada, sem migração. `lib/fotoParaIa.ts` (sharp) põe a foto em pé e tira o EXIF também na folha de ponto (que subia crua); subcota do cliente só com leituras dele, corrida fechada; gráfico do Demonstrativo a 12 px |
+| B. Foto girada antes da IA, limite do cliente só com leituras dele, gráfico do Demonstrativo no celular | `claude/acabamentos-ia` | ✅ publicada, sem migração (teste logado em produção passou: 3 avisos, links, "lido", isolamento, foto com EXIF 6 lida certa; contagens iguais). `lib/fotoParaIa.ts` (sharp) põe a foto em pé e tira o EXIF também na folha de ponto (que subia crua); subcota do cliente só com leituras dele, corrida fechada; gráfico do Demonstrativo a 12 px |
 
 ## Próximas frentes (backlog priorizado)
 
