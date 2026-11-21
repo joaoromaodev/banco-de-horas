@@ -19,8 +19,10 @@
 --   ainda confere a assinatura dos bytes ao confirmar o envio.
 -- - Dado pessoal: a foto tem nome e horários do funcionário. Ela é apagada do
 --   Storage 90 dias depois de o envio terminar (aplicado, devolvido ou excluído);
---   envio recusado ou abandonado, em 1 dia (`foto_apagada_em` marca). Faxina no
---   cron diário (lib/envioPontoServidor.ts → expurgarFotos).
+--   envio recusado ou abandonado, em 1 dia; qualquer envio, 180 dias depois de
+--   enviado, mesmo parado na fila (`foto_apagada_em` marca). Faxina no cron diário
+--   (lib/envioPontoServidor.ts → expurgarFotos), que também limpa as cópias de
+--   frequência do "desfazer" depois de 12 h.
 --
 -- ORDEM: depois da 0012 (tabelas do ponto) e da 0027 (numeração). Não depende de 0013–0027.
 -- ADITIVA e idempotente: pode ser rodada de novo.
@@ -60,7 +62,10 @@ create table if not exists ponto_envios (
   aplicado_em          timestamptz,
   -- os dias que havia na frequência antes de aplicar: o "desfazer" volta para eles
   frequencia_anterior  jsonb,
-  enviado_por          text not null,
+  -- os dias que foram aplicados: o "desfazer" só vale se a frequência ainda for esta
+  -- (não apaga uma edição ou aplicação posterior). As duas somem depois de 12 h.
+  frequencia_aplicada  jsonb,
+  enviado_por         text not null,
   enviado_em           timestamptz not null default now(),
   excluido_em          timestamptz,
   excluido_por         text,

@@ -493,7 +493,7 @@ Testes em `tests/conferenciaModulos.test.ts` (bloco `jornadaDaFolha`).
 | 2. Subir | navegador → Storage | Igual aos documentos: `POST /api/envio-ponto` valida o que o navegador declara, grava a linha em `enviando` e devolve URL de upload assinada para `<escritorio>/<envio>.<ext>` (bucket privado **`ponto`**); `PATCH confirmar` baixa a foto e confere tamanho e **assinatura dos bytes**. Não é imagem → `rejeitada` (foto apagada). |
 | 3. Ler | IA, em fila | Logo depois da confirmação (`after()` do Next) a foto é lida pelo Gemini com a **mesma leitura da Timesheet** (`extrairFolha`), consumindo a cota do escritório. Sucesso → `lida`, com o rascunho (dias, campos incertos e o nome que a IA leu no cabeçalho). Falha → `falhou`, **não conta na cota** (fica em `ponto_leituras_ocr` como `falhou`, para o ritmo). |
 | 4. Conferir | contadora, na Timesheet (`/ponto`) | Seção **"Folhas enviadas pelos clientes"** (empresa escolhida, todos os meses pendentes; as conferidas do mês num alternador). **Abrir** carrega a foto ao lado do rascunho no editor de sempre — a **revisão CLT roda ao vivo** sobre o rascunho, com os campos incertos marcados. **Aplicar à frequência** (confirmação dizendo quantos dias entram, quantos já salvos são substituídos e quantos ainda pedem atenção) → toast com **Desfazer**. **Devolver** pede o motivo (o cliente vê) → toast com Desfazer. **Ler / Tentar ler de novo** força a leitura de uma foto que esperou ou falhou. |
-| 5. Acompanhar | cliente | Cada envio com selo: **Recebida** (inclui fila e leitura que falhou — o cliente não precisa saber), **Em conferência** (lida), **Conferida** (aplicada), **Devolvida** + motivo e botão "Enviar de novo". Pode excluir (confirmação + desfazer) o que ainda não foi conferido. A lista se atualiza sozinha enquanto há folha na fila. |
+| 5. Acompanhar | cliente | Cada envio com selo: **Recebida** (inclui fila e leitura que falhou — o cliente não precisa saber), **Em conferência** (lida), **Conferida** (aplicada), **Devolvida** + motivo e botão "Enviar de novo". Pode excluir (confirmação + desfazer) o que ainda não foi lido ou voltou para ele (recebida, devolvida, recusada) — a folha já lida está na conferência da contadora. A lista se atualiza sozinha enquanto há folha na fila. |
 
 Situações (`ponto_envios.situacao`): `enviando → recebida → lendo → lida | falhou → aplicada | devolvida`, e
 `rejeitada`. `aguardando` diz por que uma `recebida` ainda não foi lida: `cota`, `ritmo`, `limite_empresa`, `sem_ia`.
@@ -504,11 +504,11 @@ Situações (`ponto_envios.situacao`): `enviando → recebida → lendo → lida
 |---|---|
 | Fila sem worker | A Vercel só roda código dentro de requisição. A leitura começa no `after()` da confirmação e é **retomada** sempre que alguém da empresa ou da contabilidade abre a lista (`GET` → `processarFila`, até 2 por vez, também em `after()`). Foto "lendo" há mais de 5 min (função morta) volta para a fila. Reivindicação atômica (`update … where situacao in (…)`): duas requisições nunca leem a mesma foto. |
 | Cota | Mesma cota mensal do escritório (`lib/cotaOcr.ts`), mesmo fluxo de reserva/reconta de `/api/extrair`, mesmo ritmo (30 tentativas/10 min). Cota esgotada ou ritmo → a foto **espera** (`recebida` + `aguardando`), não falha. |
-| Cota burlável pelo cliente | O cliente não dispara leitura diretamente — só enviando foto. Três freios: **40 envios por empresa por hora** (inclui recusados e abandonados); **teto de leituras automáticas por empresa e mês** = 3 × funcionários do cadastro (mín. 10, máx. 300), contado em `ponto_leituras_ocr` pelo prefixo `cliente:` no `usuario`; e **2 tentativas automáticas** por foto. Passou do teto → "Aguardando você": a contadora decide ler (gasta leitura normal). Um cliente não esgota a cota das outras empresas do escritório. |
+| Cota burlável pelo cliente | O cliente não dispara leitura diretamente — só enviando foto. Três freios: **40 envios por empresa por hora** (inclui recusados e abandonados); **teto de leituras automáticas por empresa e mês** = 3 × funcionários do cadastro (mín. 10, máx. 300) e **nunca acima de 25% da cota do escritório** (teste: 12; essencial: 37), recontado depois da reserva (corrida), contado em `ponto_leituras_ocr` pelo prefixo `cliente:` no `usuario`; **2 tentativas automáticas** por foto; e um **ritmo próprio** das leituras automáticas (15 em 10 min por escritório, abaixo do geral de 30), para sobrar leitura para a contadora no fechamento. Escritório em somente leitura (cobrança) não lê automaticamente. Passou do teto → "Aguardando você": a contadora decide ler (gasta leitura normal). Um cliente não esgota a cota das outras empresas do escritório. |
 | Funcionário | Só da lista da empresa (ponto + DP não desligado, comparação sem caixa/espaços). A frequência liga pelo **nome**: nome livre criaria um "funcionário" novo. O `empregado_id` do DP é guardado quando há. A contadora pode trocar o nome no editor antes de aplicar (a aplicação usa o nome do editor e grava no envio). Se o nome lido no cabeçalho for outro, a fila avisa. |
 | Mês | O cliente só envia mês que já começou e até 13 meses atrás. O envio fica preso ao seu mês: "Aplicar" desabilita se a contadora trocar o mês na tela. |
 | Aplicar | Reivindica o envio (`aplicada`) guardando os dias que havia (`frequencia_anterior`) e só então grava (`salvarFrequencia` — substitui o mês daquele funcionário, como o "Salvar"). Se gravar falhar, o envio volta. Não aplica duas vezes. Erros da validação (ordem cronológica) seguram o botão, como seguram o "Salvar". |
-| Desfazer | Volta a frequência aos dias de antes e o envio para a conferência. Vale por **12 h** (depois: abra a folha salva e corrija). Desfazer depois de editar a folha salva sobrescreveria a edição — por isso o desfazer é oferecido só no toast. |
+| Desfazer | Volta a frequência aos dias de antes e o envio para a conferência. Vale por **12 h** (depois: abra a folha salva e corrija) e **só se a frequência ainda for exatamente a aplicada** (`frequencia_aplicada`): se a folha foi editada ou outra foto foi aplicada por cima, recusa com 409 em vez de apagar o que veio depois. Se a gravação falhar no meio, o servidor tenta voltar aos dias de antes. |
 | Devolver | Motivo obrigatório (3–500 caracteres), o cliente vê. Desfazer volta à situação anterior. Devolvida não se aplica: o cliente reenvia (envio novo). |
 | HEIC | Aceito (iPhone). O Gemini lê; o Chrome não mostra HEIC na tela — aviso no editor. Na prática o Safari do iPhone já converte para JPEG no envio, e o navegador reduz para JPEG quando consegue abrir. |
 | Notificação | `lib/envioPontoEventos.ts` → `notificarEnvioPonto({ tipo, envioId, escritorioId, empresaId, ano, mes })`, chamado em `recebida`, `lida`, `falhou`, `aplicada`, `devolvida`. Hoje só registra no log (só ids). **A frente do sino liga aqui** o aviso à contadora ("folha nova da empresa X") e ao cliente ("folha devolvida"); quem chama não muda. |
@@ -528,8 +528,11 @@ Situações (`ponto_envios.situacao`): `enviando → recebida → lendo → lida
 - Logs sem conteúdo da folha (só ids e mensagem curta do erro). A foto e o nome vão ao Gemini — o mesmo da
   Timesheet (ver a pendência do nível pago da `GEMINI_API_KEY`).
 - **Retenção:** a foto é apagada do Storage **90 dias** depois de o envio terminar (aplicado, devolvido ou
-  excluído) e em **1 dia** se foi recusada ou abandonada (`expurgarFotos`, no cron diário; o JSON do cron ganhou
-  `fotosPonto`). A linha fica (histórico, rascunho), com `foto_apagada_em`. O prazo de guarda da frequência
+  excluído), em **1 dia** se foi recusada ou abandonada (a recusa não marca a foto como apagada: o token de upload
+  ainda vale ~2 h e a faxina apaga o que tiver sido subido de novo) e, em qualquer caso, **180 dias** depois do envio,
+  mesmo parada na fila (`expurgarFotos`, no cron diário; o JSON do cron ganhou `fotosPonto`). As cópias da
+  frequência do desfazer (`frequencia_anterior`/`frequencia_aplicada`) são limpas depois de 12 h. Upload com
+  `cacheControl: 0`. A linha fica (histórico, rascunho), com `foto_apagada_em`. O prazo de guarda da frequência
   em si continua sendo decisão do jurídico.
 
 ### Arquivos
@@ -582,6 +585,14 @@ Situações (`ponto_envios.situacao`): `enviando → recebida → lendo → lida
   módulo é por usuário da contabilidade, não por escritório). Se incomodar: esconder o item quando a empresa
   não tem funcionário no cadastro do ponto.
 - Ligar `notificarEnvioPonto` ao sino (frente de notificações).
+- Revisão do **escudo** (21/11/2026): nenhum furo de isolamento (PATCH/DELETE/foto por id de outro escritório
+  ou empresa → 404; cliente não aplica, não devolve, não força leitura). Corrigidos: desfazer sobrescrevendo
+  edição posterior, ritmo das leituras automáticas saturando o do escritório, corrida no teto por empresa e no
+  limite por hora, foto pendente sem prazo de guarda, órfão de reenvio após recusa, teto acima da cota de
+  planos pequenos, nome do funcionário com grafia diferente ao aplicar, cache da foto, cliente excluindo folha
+  em conferência, aplicação pela metade, leitura em escritório somente leitura. **Ficou em aberto:** registro
+  de quem abriu a foto (auditoria, inclusive do master); confirmar o **nível pago** da `GEMINI_API_KEY` e
+  citar na política de privacidade os prazos (90/180 dias) e o Google como suboperador (jurídico).
 - Painel do contador (`/painel`) pode mostrar "N folhas enviadas para conferir" por empresa (contar
   `ponto_envios` com `situacao in (recebida, lida, falhou)`).
 - Foto com mais de uma página (frente e verso): hoje cada foto é um envio e um rascunho; a contadora aplica a

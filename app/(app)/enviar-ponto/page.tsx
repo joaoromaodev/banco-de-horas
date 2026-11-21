@@ -13,7 +13,7 @@ import { MESES } from '@/lib/calendario';
 import { competenciaPadrao, competenciasRecentes } from '@/lib/documentos';
 import { hojeBelem } from '@/lib/contratos';
 import { lerMe } from '@/lib/meCliente';
-import { ACCEPT_FOTO, LIMITE_FOTO_TEXTO, situacaoParaCliente, type SituacaoEnvio, validarFoto } from '@/lib/envioPonto';
+import { ACCEPT_FOTO, CLIENTE_EXCLUI, LIMITE_FOTO_TEXTO, situacaoParaCliente, type SituacaoEnvio, validarFoto } from '@/lib/envioPonto';
 import { DialogoConfirmacao } from '../Dialogo';
 import { IconeCamera, IconeDesfazer, IconeExcluir, IconeMais } from '../icones';
 import { Aviso, Botao, BotaoIcone, botaoCls, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, Secao, Selo } from '@/components/ui';
@@ -147,7 +147,7 @@ export default function EnviarPontoPage() {
       body: JSON.stringify({ ano, mes, funcionario, nome: v.nome, tamanho: foto.size, tipo: foto.type || v.tipo.mime }),
     }).then(lerJson);
     const corpo = new FormData();
-    corpo.append('cacheControl', '3600');
+    corpo.append('cacheControl', '0');
     corpo.append('', new File([foto], v.nome, { type: ini.mime }));
     const up = await fetch(ini.url, { method: 'PUT', body: corpo, headers: { 'x-upsert': 'false' } });
     if (!up.ok) throw new Error('A foto não subiu. Confira a conexão e tente de novo.');
@@ -344,7 +344,7 @@ export default function EnviarPontoPage() {
                     <ul className="divide-y divide-borda rounded-xl border border-borda">
                       {lista.map((e) => {
                         const s = situacaoParaCliente(e.situacao);
-                        const podeExcluir = e.situacao !== 'aplicada' && e.situacao !== 'lendo';
+                        const podeExcluir = CLIENTE_EXCLUI.includes(e.situacao);
                         return (
                           <li key={e.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-3 py-3 sm:px-4">
                             <div className="min-w-0">

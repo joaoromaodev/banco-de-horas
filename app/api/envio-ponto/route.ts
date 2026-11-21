@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     }
     const r = await iniciarEnvio({
       escritorioId, empresaId, funcionario: escolhido.nome, empregadoId: escolhido.empregadoId,
-      ano, mes, tamanho: Number(body.tamanho), tipo: foto.tipo, autor: g.sessao.email,
+      ano, mes, tamanho: Number(body.tamanho), tipo: foto.tipo, autor: g.sessao.email, maxHora: MAX_ENVIOS_HORA,
     });
     return Response.json(r);
   } catch (e) { return falha(e); }
@@ -173,8 +173,11 @@ export async function PATCH(req: NextRequest) {
         if (!podeAplicar(e.situacao)) throw new ErroEnvio('Esta folha não pode ser aplicada agora.', 409);
         const dias = diasDoCorpo(body.dias);
         if (!dias) throw new ErroEnvio('Dias da folha inválidos.');
-        const funcionario = String(body.funcionario ?? e.funcionario).trim().slice(0, 120);
-        if (!funcionario) throw new ErroEnvio('Informe o funcionário.');
+        const digitado = String(body.funcionario ?? e.funcionario).replace(/\s+/g, ' ').trim().slice(0, 120);
+        if (!digitado) throw new ErroEnvio('Informe o funcionário.');
+        // Mesmo nome do cadastro, com a grafia do cadastro: "maria  silva" não vira outro funcionário.
+        const cadastro = await funcionariosParaEnvio(e.escritorioId, e.empresaId);
+        const funcionario = cadastro.find((f) => chaveNome(f.nome) === chaveNome(digitado))?.nome ?? digitado;
         if (!anoMesValidos(e.ano, e.mes)) throw new ErroEnvio('Mês inválido.');
         const r = await aplicarEnvio(e, funcionario, dias, s.email);
         return Response.json({ ok: true, ...r });

@@ -166,3 +166,34 @@ describe('textos', () => {
     expect(motivoValido('x'.repeat(900))?.length).toBe(500);
   });
 });
+
+// Correções da revisão do escudo (21/11/2026).
+describe('revisão do escudo', () => {
+  it('teto automático nunca passa de 25% da cota do escritório', async () => {
+    const { limiteLeiturasAutomaticas: lim } = await import('@/lib/envioPonto');
+    expect(lim(100, 50)).toBe(12); // plano teste
+    expect(lim(100, 150)).toBe(37); // essencial
+    expect(lim(2, 10000)).toBe(10); // fundador: vale a regra por funcionário
+    expect(lim(2, 0)).toBe(10); // cota desconhecida: só a regra por funcionário
+  });
+
+  it('cliente não exclui folha já lida (está na conferência da contadora)', async () => {
+    const { podeExcluirEnvio: pode } = await import('@/lib/envioPonto');
+    const base = { empresaId: 'emp-a1', escritorioId: '00000000-0000-4000-8000-00000000000a' };
+    const cli = { email: 'x', role: 'cliente' as const, escritorioId: base.escritorioId, empresa: 'emp-a1' };
+    expect(pode(cli, { ...base, situacao: 'lida' })).toBe(false);
+    expect(pode(cli, { ...base, situacao: 'recebida' })).toBe(true);
+    expect(pode(cli, { ...base, situacao: 'falhou' })).toBe(true);
+    expect(pode({ email: 'c', role: 'usuario', escritorioId: base.escritorioId }, { ...base, situacao: 'lida' })).toBe(true);
+  });
+
+  it('mesmaFrequencia: ignora dias vazios e ordem; acusa qualquer horário mudado', async () => {
+    const { mesmaFrequencia } = await import('@/lib/envioPonto');
+    const d = (dia: number, e: string | null, m: null | 'FALTA' = null) =>
+      ({ dia, entradaManha: e, saidaAlmoco: null, retornoAlmoco: null, saidaTarde: null, marcador: m });
+    expect(mesmaFrequencia([d(2, '08:00'), d(1, '07:00'), d(3, null)], [d(1, '07:00'), d(2, '08:00')])).toBe(true);
+    expect(mesmaFrequencia([d(1, '07:00')], [d(1, '07:01')])).toBe(false);
+    expect(mesmaFrequencia([d(1, null, 'FALTA')], [])).toBe(false);
+    expect(mesmaFrequencia([], [])).toBe(true);
+  });
+});

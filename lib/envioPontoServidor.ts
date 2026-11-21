@@ -16,13 +16,14 @@ import { getGeminiApiKey, getGeminiModelo } from './config';
 import { avaliarCota, competenciaBelem, excedeuRitmo, RESERVA_VALIDA_MIN } from './cotaOcr';
 import { lerEscritorio } from './escritorios';
 import {
-  cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasOcr, contarTentativasRecentes, falharLeituraOcr,
+  cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasOcr, contarTentativasRecentes, diasParaGravar, falharLeituraOcr,
   lerFrequenciasDoMes, reservarLeituraOcr, salvarFrequencia,
 } from './pontoDb';
+import { situacaoDoEscritorio } from './cobrancaServidor';
 import {
   caminhoFoto, chaveNome, DESFAZER_APLICACAO_H, fotoValida, LEITURA_PRESA_MIN, limiteLeiturasAutomaticas,
-  MAX_TENTATIVAS_AUTO, type MotivoEspera, normalizarRascunho, type Rascunho, RETENCAO_FOTO_DIAS, RETENCAO_ORFA_DIAS,
-  situacaoAoReabrir, type SituacaoEnvio, type TipoFoto,
+  MAX_TENTATIVAS_AUTO, mesmaFrequencia, type MotivoEspera, normalizarRascunho, type Rascunho, RETENCAO_FOTO_DIAS,
+  RETENCAO_MAXIMA_DIAS, RETENCAO_ORFA_DIAS, RITMO_AUTO, situacaoAoReabrir, type SituacaoEnvio, type TipoFoto,
 } from './envioPonto';
 import { extensao, uuidValido } from './documentos';
 import type { DiaFreq } from './tipos';
@@ -76,6 +77,7 @@ export interface Envio {
   aplicadoPor: string | null;
   aplicadoEm: string | null;
   frequenciaAnterior: DiaFreq[] | null;
+  frequenciaAplicada: DiaFreq[] | null;
   enviadoPor: string;
   enviadoEm: string;
   excluidoEm: string | null;
@@ -83,7 +85,7 @@ export interface Envio {
   fotoApagadaEm: string | null;
 }
 
-const COLS = 'id, escritorio_id, empresa_id, funcionario, empregado_id, ano, mes, caminho, tipo, tamanho, situacao, aguardando, rascunho, tentativas, lendo_desde, lido_em, motivo, devolvido_por, devolvido_em, aplicado_por, aplicado_em, frequencia_anterior, enviado_por, enviado_em, excluido_em, excluido_por_gestor, foto_apagada_em';
+const COLS = 'id, escritorio_id, empresa_id, funcionario, empregado_id, ano, mes, caminho, tipo, tamanho, situacao, aguardando, rascunho, tentativas, lendo_desde, lido_em, motivo, devolvido_por, devolvido_em, aplicado_por, aplicado_em, frequencia_anterior, frequencia_aplicada, enviado_por, enviado_em, excluido_em, excluido_por_gestor, foto_apagada_em';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- linhas cruas do PostgREST */
 const deLinha = (l: any): Envio => ({
@@ -96,6 +98,7 @@ const deLinha = (l: any): Envio => ({
   motivo: l.motivo ?? null, devolvidoPor: l.devolvido_por ?? null, devolvidoEm: l.devolvido_em ?? null,
   aplicadoPor: l.aplicado_por ?? null, aplicadoEm: l.aplicado_em ?? null,
   frequenciaAnterior: Array.isArray(l.frequencia_anterior) ? normalizarRascunho({ dias: l.frequencia_anterior }).dias : null,
+  frequenciaAplicada: Array.isArray(l.frequencia_aplicada) ? normalizarRascunho({ dias: l.frequencia_aplicada }).dias : null,
   enviadoPor: String(l.enviado_por ?? ''), enviadoEm: String(l.enviado_em ?? ''),
   excluidoEm: l.excluido_em ?? null, excluidoPorGestor: Boolean(l.excluido_por_gestor),
   fotoApagadaEm: l.foto_apagada_em ?? null,
@@ -196,6 +199,8 @@ export interface NovoEnvio {
   tamanho: number;
   tipo: TipoFoto;
   autor: string;
+  /** Envios por hora da empresa: reconta DEPOIS de gravar (fecha a corrida entre pedidos simultâneos). */
+  maxHora: number;
 }
 
 /**
@@ -213,6 +218,10 @@ export async function iniciarEnvio(n: NovoEnvio): Promise<{ id: string; url: str
     situacao: 'enviando', enviado_por: n.autor,
   });
   if (error) traduzir(error);
+  if ((await enviosNaUltimaHora(n.empresaId)) > n.maxHora) {
+    await db.from('ponto_envios').update({ situacao: 'rejeitada' }).eq('id', id);
+    throw new ErroEnvio('Muitas fotos na última hora. Aguarde um pouco e tente de novo.', 429);
+  }
   const { data, error: eUp } = await db.storage.from(BUCKET_PONTO).createSignedUploadUrl(caminho);
   if (eUp || !data) {
     await db.from('ponto_envios').update({ situacao: 'rejeitada' }).eq('id', id);
@@ -236,7 +245,9 @@ export async function confirmarEnvio(e: Envio): Promise<Envio> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   if (!fotoValida(bytes, extensao(e.caminho))) {
     await db.storage.from(BUCKET_PONTO).remove([e.caminho]).catch(() => {});
-    await db.from('ponto_envios').update({ situacao: 'rejeitada', foto_apagada_em: new Date().toISOString() })
+    // `foto_apagada_em` fica vazio de propósito: o token de upload ainda vale (~2 h) e
+    // alguém poderia subir de novo neste caminho; a faxina de 1 dia apaga o que houver.
+    await db.from('ponto_envios').update({ situacao: 'rejeitada' })
       .eq('id', e.id).eq('situacao', 'enviando');
     throw new ErroEnvio('O arquivo não é uma foto válida. Tire outra foto e envie de novo.', 422);
   }
@@ -271,6 +282,15 @@ async function leiturasAutomaticasDaEmpresa(escritorioId: string, empresaId: str
     .eq('escritorio_id', escritorioId).eq('competencia', competencia).eq('empresa_id', empresaId)
     .like('usuario', 'cliente:%')
     .or(`situacao.eq.concluida,and(situacao.eq.reservada,criado_em.gte.${desde})`);
+  if (error) traduzir(error);
+  return count ?? 0;
+}
+
+/** Leituras automáticas do escritório (qualquer situação) na janela do ritmo próprio. */
+async function tentativasAutomaticasRecentes(escritorioId: string): Promise<number> {
+  const desde = new Date(Date.now() - RITMO_AUTO.janelaMin * 60_000).toISOString();
+  const { count, error } = await getDb().from('ponto_leituras_ocr').select('id', { count: 'exact', head: true })
+    .eq('escritorio_id', escritorioId).like('usuario', 'cliente:%').gte('criado_em', desde);
   if (error) traduzir(error);
   return count ?? 0;
 }
@@ -324,8 +344,13 @@ export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: s
     const antes = avaliarCota({ ...quem, usadas: await contarLeiturasOcr(e.escritorioId, competencia) });
     if (!antes.permitido) { await esperar(e.id, 'cota'); return 'esperando'; }
     if (excedeuRitmo(await contarTentativasRecentes(e.escritorioId))) { await esperar(e.id, 'ritmo'); return 'esperando'; }
+    let teto = Infinity;
     if (origem === 'auto') {
-      const teto = limiteLeiturasAutomaticas(await contarFuncionarios(e.escritorioId, e.empresaId));
+      // Escritório em somente leitura (cobrança): a contadora não grava, a IA não gasta.
+      if ((await situacaoDoEscritorio(e.escritorioId))?.somenteLeitura) { await esperar(e.id, 'cota'); return 'esperando'; }
+      // Ritmo próprio, abaixo do geral: sobra leitura para a contadora na Timesheet.
+      if ((await tentativasAutomaticasRecentes(e.escritorioId)) >= RITMO_AUTO.maximo) { await esperar(e.id, 'ritmo'); return 'esperando'; }
+      teto = limiteLeiturasAutomaticas(await contarFuncionarios(e.escritorioId, e.empresaId), antes.limite);
       if ((await leiturasAutomaticasDaEmpresa(e.escritorioId, e.empresaId, competencia)) >= teto) {
         await esperar(e.id, 'limite_empresa');
         return 'esperando';
@@ -339,6 +364,13 @@ export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: s
     if ((await contarLeiturasOcr(e.escritorioId, competencia)) > antes.limite) {
       await cancelarLeituraOcr(reserva).catch(() => {});
       await esperar(e.id, 'cota');
+      return 'esperando';
+    }
+    // Reconta o teto da empresa com a reserva já gravada (fecha a corrida de várias
+    // confirmações simultâneas, como a cota acima).
+    if (origem === 'auto' && (await leiturasAutomaticasDaEmpresa(e.escritorioId, e.empresaId, competencia)) > teto) {
+      await cancelarLeituraOcr(reserva).catch(() => {});
+      await esperar(e.id, 'limite_empresa');
       return 'esperando';
     }
   } catch (err) {
@@ -411,9 +443,10 @@ export async function aplicarEnvio(e: Envio, funcionario: string, dias: DiaFreq[
   const atual = (await lerFrequenciasDoMes(e.escritorioId, e.empresaId, e.ano, e.mes))
     .find((f) => f.funcionario === funcionario);
   const anteriores = atual?.dias ?? [];
+  const aplicados = diasParaGravar(dias);
   const { data, error } = await db.from('ponto_envios').update({
     situacao: 'aplicada', aplicado_por: autor, aplicado_em: new Date().toISOString(), funcionario,
-    frequencia_anterior: anteriores, aguardando: null,
+    frequencia_anterior: anteriores, frequencia_aplicada: aplicados, aguardando: null,
   }).eq('id', e.id).is('excluido_em', null).in('situacao', ['recebida', 'lida', 'falhou']).select('id').maybeSingle();
   if (error) traduzir(error);
   if (!data) throw new ErroEnvio('Esta folha já foi aplicada, devolvida ou está sendo lida. Atualize a lista.', 409);
@@ -422,8 +455,12 @@ export async function aplicarEnvio(e: Envio, funcionario: string, dias: DiaFreq[
     notificarEnvioPonto({ tipo: 'aplicada', envioId: e.id, escritorioId: e.escritorioId, empresaId: e.empresaId, ano: e.ano, mes: e.mes });
     return { dias: n, anteriores: anteriores.length };
   } catch (err) {
+    // Gravação pela metade (upsert feito, remoção falhou): tenta voltar aos dias de antes.
+    await salvarFrequencia(e.escritorioId, { empresa: e.empresaId, funcionario, ano: e.ano, mes: e.mes, dias: anteriores }, autor)
+      .catch((x) => console.error('[envio-ponto] restaurar após falha ao aplicar:', x instanceof Error ? x.message.slice(0, 120) : x));
     await db.from('ponto_envios').update({
-      situacao: situacaoAoReabrir(e), aplicado_por: null, aplicado_em: null, frequencia_anterior: null, funcionario: e.funcionario,
+      situacao: situacaoAoReabrir(e), aplicado_por: null, aplicado_em: null, frequencia_anterior: null,
+      frequencia_aplicada: null, funcionario: e.funcionario,
     }).eq('id', e.id).eq('situacao', 'aplicada');
     throw err;
   }
@@ -436,8 +473,14 @@ export async function desfazerAplicacao(e: Envio): Promise<void> {
   if (!e.aplicadoEm || Date.parse(e.aplicadoEm) < limite) {
     throw new ErroEnvio('Já passou o prazo para desfazer. Abra a folha salva e corrija os dias.', 409);
   }
+  // Não apaga o que veio depois: se a folha foi editada ou outra foto foi aplicada
+  // por cima, o desfazer recusa (a contadora corrige na folha salva).
+  const atual = (await lerFrequenciasDoMes(e.escritorioId, e.empresaId, e.ano, e.mes)).find((f) => f.funcionario === e.funcionario);
+  if (!e.frequenciaAplicada || !mesmaFrequencia(atual?.dias ?? [], e.frequenciaAplicada)) {
+    throw new ErroEnvio('A folha deste funcionário mudou depois de aplicada; desfazer apagaria essas mudanças. Corrija na folha salva.', 409);
+  }
   const { data, error } = await getDb().from('ponto_envios').update({
-    situacao: situacaoAoReabrir(e), aplicado_por: null, aplicado_em: null, frequencia_anterior: null,
+    situacao: situacaoAoReabrir(e), aplicado_por: null, aplicado_em: null, frequencia_anterior: null, frequencia_aplicada: null,
   }).eq('id', e.id).eq('situacao', 'aplicada').select('id').maybeSingle();
   if (error) traduzir(error);
   if (!data) throw new ErroEnvio('Esta folha não está mais aplicada.', 409);
@@ -482,20 +525,28 @@ export async function restaurarEnvio(e: Envio): Promise<void> {
 
 /**
  * Faxina das fotos (LGPD): apaga do Storage a foto de envio terminado (aplicado,
- * devolvido ou excluído) há mais de 90 dias e a de envio recusado ou abandonado
- * há mais de 1 dia. A linha fica (histórico e rascunho), com `foto_apagada_em`.
+ * devolvido ou excluído) há mais de 90 dias, a de envio recusado ou abandonado
+ * há mais de 1 dia e qualquer uma enviada há mais de 180 dias. A linha fica (histórico e rascunho), com `foto_apagada_em`.
  * Chamada pelo cron diário.
  */
 export async function expurgarFotos(agora = new Date(), lote = 200): Promise<{ apagadas: number }> {
   const db = getDb();
   const velho = new Date(agora.getTime() - RETENCAO_FOTO_DIAS * 86_400_000).toISOString();
   const orfao = new Date(agora.getTime() - RETENCAO_ORFA_DIAS * 86_400_000).toISOString();
+  const maximo = new Date(agora.getTime() - RETENCAO_MAXIMA_DIAS * 86_400_000).toISOString();
+  const fimDesfazer = new Date(agora.getTime() - DESFAZER_APLICACAO_H * 3_600_000).toISOString();
+  // Cópias da frequência guardadas só para o "desfazer": somem quando ele expira.
+  const { error: eCopia } = await db.from('ponto_envios').update({ frequencia_anterior: null, frequencia_aplicada: null })
+    .eq('situacao', 'aplicada').lt('aplicado_em', fimDesfazer).not('frequencia_anterior', 'is', null);
+  if (eCopia) traduzir(eCopia);
   const { data, error } = await db.from('ponto_envios').select('id, caminho').is('foto_apagada_em', null)
     .or([
       `and(situacao.in.(enviando,rejeitada),enviado_em.lt.${orfao})`,
       `and(situacao.eq.aplicada,aplicado_em.lt.${velho})`,
       `and(situacao.eq.devolvida,devolvido_em.lt.${velho})`,
       `excluido_em.lt.${velho}`,
+      // teto absoluto: nem a foto parada na fila (recebida, lida, falhou) fica para sempre
+      `enviado_em.lt.${maximo}`,
     ].join(','))
     .limit(lote);
   if (error) traduzir(error);

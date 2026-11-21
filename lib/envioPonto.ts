@@ -135,13 +135,27 @@ export const MAX_ENVIOS_HORA = 40;
  * Leituras AUTOMÁTICAS (disparadas por envio do cliente) por empresa e mês. A cota
  * é do escritório: sem este teto, um cliente mandando foto em sequência gastaria
  * a cota de todas as outras empresas. Folga para frente e verso e reenvios: 3 por
- * funcionário, no mínimo 10 e no máximo 300. Acima disso a foto fica guardada e a
+ * funcionário, no mínimo 10 e no máximo 300 — e nunca mais que 25% da cota mensal
+ * do escritório (no plano teste, 50 → 12). Acima disso a foto fica guardada e a
  * contadora decide ler (gasta uma leitura normal da cota).
  */
-export function limiteLeiturasAutomaticas(funcionarios: number): number {
+export function limiteLeiturasAutomaticas(funcionarios: number, cotaDoEscritorio?: number): number {
   const n = Math.max(0, Math.floor(Number(funcionarios) || 0));
-  return Math.min(300, Math.max(10, n * 3));
+  const porFuncionarios = Math.min(300, Math.max(10, n * 3));
+  const cota = Number(cotaDoEscritorio);
+  if (!Number.isFinite(cota) || cota <= 0) return porFuncionarios;
+  return Math.max(1, Math.min(porFuncionarios, Math.floor(cota * FRACAO_COTA_AUTO)));
 }
+
+/** Fração da cota do escritório que as leituras automáticas de UMA empresa podem gastar. */
+export const FRACAO_COTA_AUTO = 0.25;
+
+/**
+ * Ritmo próprio das leituras automáticas, por escritório, abaixo do ritmo geral
+ * (30 em 10 min, lib/cotaOcr.ts): uma empresa mandando 40 fotos no fechamento não
+ * deixa a contadora sem leitura na Timesheet. Acima disso as fotos esperam na fila.
+ */
+export const RITMO_AUTO = { janelaMin: 10, maximo: 15 };
 
 /** Tentativas automáticas de leitura de uma foto antes de esperar a contadora. */
 export const MAX_TENTATIVAS_AUTO = 2;
@@ -153,6 +167,8 @@ export const DESFAZER_APLICACAO_H = 12;
 export const RETENCAO_FOTO_DIAS = 90;
 /** Envio recusado ou abandonado (nunca confirmado): a foto some em 1 dia. */
 export const RETENCAO_ORFA_DIAS = 1;
+/** Teto absoluto da foto, mesmo parada na fila (recebida, lida, falhou). */
+export const RETENCAO_MAXIMA_DIAS = 180;
 
 // ------------------------------------------------------------------ rascunho
 
@@ -269,14 +285,29 @@ export const podeAplicar = (s: SituacaoEnvio) => s === 'lida' || s === 'falhou' 
 /** Pode ser devolvida ao cliente. */
 export const podeDevolver = (s: SituacaoEnvio) => s === 'lida' || s === 'falhou' || s === 'recebida';
 
+/** O que o cliente ainda pode excluir: o que não foi lido (ou voltou para ele). */
+export const CLIENTE_EXCLUI: SituacaoEnvio[] = ['recebida', 'falhou', 'devolvida', 'rejeitada'];
+
 /**
- * Excluir (lógico, com desfazer): o cliente, o que ainda não foi aplicado; a
- * contabilidade também. Envio aplicado já virou frequência e não some daqui.
+ * Excluir (lógico, com desfazer): a contabilidade, o que não foi aplicado; o
+ * cliente, só o que ainda não foi lido ou voltou para ele — a folha já lida está
+ * na conferência da contadora e não some da fila dela. Aplicado já é frequência.
  */
 export function podeExcluirEnvio(q: Quem, e: EnvioRef): boolean {
   if (!podeVerEnvio(q, e) || e.situacao === 'aplicada' || e.situacao === 'lendo') return false;
   if (gestor(q.role)) return true;
-  return q.role === 'cliente';
+  return q.role === 'cliente' && CLIENTE_EXCLUI.includes(e.situacao);
+}
+
+/**
+ * Frequência igual à que foi aplicada? (mesmos dias com dado, mesmos valores) —
+ * condição para o "desfazer" não apagar uma edição ou aplicação posterior.
+ */
+export function mesmaFrequencia(a: DiaFreq[], b: DiaFreq[]): boolean {
+  const chave = (dias: DiaFreq[]) => JSON.stringify(normalizarRascunho({ dias }).dias
+    .filter((d) => d.entradaManha || d.saidaAlmoco || d.retornoAlmoco || d.saidaTarde || d.marcador)
+    .map((d) => [d.dia, d.entradaManha, d.saidaAlmoco, d.retornoAlmoco, d.saidaTarde, d.marcador ?? null]));
+  return chave(a) === chave(b);
 }
 
 /** Desfazer a exclusão: a mesma regra; exclusão da contabilidade o cliente não desfaz. */
