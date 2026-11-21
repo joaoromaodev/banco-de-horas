@@ -1,6 +1,7 @@
 'use client';
 
-// O sino de notificações do app (só contabilidade). O estado mora no layout
+// O sino de notificações do app: contabilidade (o que o cliente fez) e cliente (avisos da
+// própria empresa: folha devolvida, pedido de documento, Demonstrativo pronto). O estado mora no layout
 // (`useSino`) para o botão da barra do celular e o da barra lateral mostrarem a mesma
 // contagem; o painel abre uma vez só. Regras em lib/notificacoes.ts, rota em
 // app/api/notificacoes. Ver docs/notificacoes.md.
@@ -9,8 +10,6 @@ import { quandoRelativo, rotuloSino, type Notificacao } from '@/lib/notificacoes
 import { Botao, cx } from '@/components/ui';
 import { IconeSino } from './icones';
 
-const CHAVE_VISTO = 'sino.visto';
-const CHAVE_LIDAS = 'sino.lidas';
 const REVERIFICAR_MS = 5 * 60_000;
 
 interface Estado { itens: Notificacao[]; persistido: boolean; indisponiveis: string[]; carregou: boolean }
@@ -19,7 +18,11 @@ const ler = (k: string): string | null => { try { return localStorage.getItem(k)
 const gravar = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* sem armazenamento: segue sem lembrar */ } };
 
 /** Estado do sino: busca ao montar, ao voltar para a aba e de tempos em tempos. */
-export function useSino(ativo: boolean) {
+export function useSino(ativo: boolean, escopo: 'contabilidade' | 'cliente' = 'contabilidade') {
+  // Sem a 0027 o navegador lembra o "lido"; cliente e contabilidade no mesmo navegador não se misturam.
+  const sufixo = escopo === 'cliente' ? '.cliente' : '';
+  const CHAVE_VISTO = `sino.visto${sufixo}`;
+  const CHAVE_LIDAS = `sino.lidas${sufixo}`;
   const [estado, setEstado] = useState<Estado>({ itens: [], persistido: true, indisponiveis: [], carregou: false });
   const [locais, setLocais] = useState<Set<string>>(new Set());
   const ultima = useRef(0);
@@ -36,7 +39,7 @@ export function useSino(ativo: boolean) {
       if (!x.persistido && !visto) gravar(CHAVE_VISTO, new Date().toISOString()); // primeira vez sem a 0027: começa limpo
       setEstado({ itens: x.itens, persistido: x.persistido, indisponiveis: x.indisponiveis ?? [], carregou: true });
     } catch { /* sem rede: mantém o que tinha */ }
-  }, [ativo]);
+  }, [ativo, CHAVE_VISTO]);
 
   useEffect(() => {
     if (!ativo) return;
@@ -46,7 +49,7 @@ export function useSino(ativo: boolean) {
     const foco = () => { if (document.visibilityState === 'visible') carregar(); };
     document.addEventListener('visibilitychange', foco);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', foco); };
-  }, [ativo, carregar]);
+  }, [ativo, carregar, CHAVE_LIDAS]);
 
   const lida = (n: Notificacao) => n.lida || (!estado.persistido && locais.has(n.chave));
   const naoLidas = estado.itens.filter((n) => !lida(n)).length;
@@ -97,6 +100,7 @@ export function SinoBotao({ sino, aberto, onAlternar, className }: {
 
 const ROTULO_TIPO: Record<Notificacao['tipo'], string> = {
   documento: 'Documento', pendencia: 'Pedido', caixa: 'Livro Caixa', conferencia: 'Conferência', evento: 'Aviso',
+  folha_devolvida: 'Folha de ponto', pedido: 'Documentos', demonstrativo: 'Livro Caixa',
 };
 
 /** Painel de notificações; `recolhido` ajusta a posição ao lado da barra lateral (desktop). */

@@ -28,7 +28,9 @@ const SOMENTE_MASTER = ['/configuracoes', '/api/config'];
  *  `/api/empresas` entra porque devolve só a empresa da própria sessão (ver lib/acesso). */
 const CLIENTE_PODE = ['/inicio', '/api/inicio-cliente', '/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias',
   // Folha de ponto enviada pelo cliente (0028): a rota da API recorta por empresa e papel.
-  '/enviar-ponto', '/api/envio-ponto'];
+  '/enviar-ponto', '/api/envio-ponto',
+  // Sino com os avisos da própria empresa (Sprint 13): a rota recorta pela sessão (exigirClienteDaEmpresa).
+  '/api/notificacoes'];
 
 /** Rotas do módulo Folha de Ponto (timesheet em `/ponto` + folhas em branco).
  *  `/` NÃO é mais do ponto: é só um redirecionamento por papel (ver lib/inicio). */
