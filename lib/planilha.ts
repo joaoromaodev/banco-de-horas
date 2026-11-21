@@ -4,6 +4,7 @@
 import ExcelJS from 'exceljs';
 import { Frequencia } from './tipos';
 import { horaParaFracaoDia } from './tempo';
+import { colunasResumo, hhmm, tituloPeriodo, type ResumoFolhaMes } from './resumoFolha';
 import {
   MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, minutosACumprirDia,
   ehDiaDeTrabalho, Jornada, JORNADA_PADRAO,
@@ -185,5 +186,75 @@ export function gerarPlanilha(
     margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 },
   };
 
+  return wb;
+}
+
+// ---------------------------------------------------------------- Resumo para a folha
+/**
+ * .xlsx genérico do "Resumo do ponto para a folha": aba "Resumo" (uma linha por
+ * funcionário) e aba "Detalhe por dia". Só horas (texto h:mm) e dias — nunca R$.
+ */
+export function gerarPlanilhaResumo(r: ResumoFolhaMes, nomeEmpresa = '', conferido: string | null = null): ExcelJS.Workbook {
+  const wb = new ExcelJS.Workbook();
+  const periodo = tituloPeriodo(r);
+  const cols = colunasResumo(r.percentuais);
+
+  const ws = wb.addWorksheet('Resumo', { views: [{ state: 'frozen', xSplit: 1, ySplit: 4, showGridLines: false }] });
+  ws.mergeCells(1, 1, 1, cols.length);
+  paint(ws, 'A1', `${(nomeEmpresa || '').toUpperCase()} — RESUMO PARA A FOLHA`, { font: { size: 13, bold: true, color: { argb: WHITE } }, fill: NAVY, align: 'left' });
+  ws.mergeCells(2, 1, 2, cols.length);
+  paint(ws, 'A2', `${periodo} · extras ${r.percentuais.extraUtil}% / ${r.percentuais.extraDomFeriado}% · adicional noturno ${r.percentuais.adicionalNoturno}% · somente horas e dias (sem valores)`,
+    { font: { size: 9, color: { argb: WHITE } }, fill: NAVY_SOFT, align: 'left' });
+  ws.mergeCells(3, 1, 3, cols.length);
+  paint(ws, 'A3', conferido ? `Conferido: ${conferido}` : 'Ainda não conferido pela contadora.',
+    { font: { size: 9, italic: true, color: { argb: conferido ? GREEN : MUTED } }, align: 'left' });
+  cols.forEach((c, i) => {
+    paint(ws, ws.getCell(4, i + 1).address, c.titulo, { font: { size: 9, bold: true, color: { argb: WHITE } }, fill: NAVY, wrap: true });
+    ws.getColumn(i + 1).width = i === 0 ? 30 : 15;
+  });
+  ws.getRow(4).height = 54;
+  r.funcionarios.forEach((f, ri) => {
+    cols.forEach((c, i) => {
+      const cel = paint(ws, ws.getCell(5 + ri, i + 1).address, c.valor(f),
+        { align: i === 0 ? 'left' : 'right', fill: ri % 2 ? ZEBRA : undefined, font: { size: 9, bold: i === 0, color: { argb: INK } } });
+      if (i === cols.length - 1 && f.impedimentos.length) cel.font = { name: 'Arial', size: 9, bold: true, color: { argb: RED } };
+    });
+  });
+
+  // Conferências por funcionário (texto), logo abaixo.
+  let linha = 5 + r.funcionarios.length + 1;
+  const notas = r.funcionarios.flatMap((f) => [
+    ...f.impedimentos.map((a) => `${f.funcionario}: ${a.dia ? `${String(a.dia).padStart(2, '0')}/${String(r.mes).padStart(2, '0')} ` : ''}${a.rotulo} — ${a.motivo}`),
+    ...f.conferir.map((c) => `${f.funcionario}: ${c.texto}`),
+  ]);
+  if (notas.length) {
+    ws.mergeCells(linha, 1, linha, cols.length);
+    paint(ws, ws.getCell(linha, 1).address, 'PARA CONFERIR', { font: { size: 9, bold: true, color: { argb: NAVY } }, fill: LABEL_BG, align: 'left' });
+    for (const n of notas) {
+      linha++;
+      ws.mergeCells(linha, 1, linha, cols.length);
+      paint(ws, ws.getCell(linha, 1).address, n, { font: { size: 9, color: { argb: INK } }, align: 'left' });
+    }
+  }
+  ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+  const wd = wb.addWorksheet('Detalhe por dia', { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }] });
+  const cab = ['Funcionário', 'Dia', 'Semana', 'Situação', 'Trabalhado', 'Normais', `Extras ${r.percentuais.extraUtil}%`, `Extras ${r.percentuais.extraDomFeriado}%`, 'Atraso', 'Noturno real', 'Noturno computado'];
+  cab.forEach((t, i) => {
+    paint(wd, wd.getCell(1, i + 1).address, t, { font: { size: 9, bold: true, color: { argb: WHITE } }, fill: NAVY, wrap: true });
+    wd.getColumn(i + 1).width = i === 0 ? 30 : i === 3 ? 26 : 13;
+  });
+  let l = 2;
+  for (const f of r.funcionarios) {
+    for (const d of f.detalhe) {
+      if (!d.situacao && !d.trabalhadoMin) continue;
+      const vals: (string | number)[] = [
+        f.funcionario, d.dia, DIAS_SEMANA[d.diaSemana], d.situacao, d.trabalhadoMin === null ? '' : hhmm(d.trabalhadoMin) || '0:00',
+        hhmm(d.normaisMin), hhmm(d.extrasUtilMin), hhmm(d.extrasDomFeriadoMin), hhmm(d.atrasoMin), hhmm(d.noturnoRealMin), hhmm(d.noturnoComputadoMin),
+      ];
+      vals.forEach((v, i) => paint(wd, wd.getCell(l, i + 1).address, v, { align: i === 0 || i === 3 ? 'left' : i === 1 ? 'center' : 'right', font: { size: 9, color: { argb: d.naoCalculado ? RED : INK } } }));
+      l++;
+    }
+  }
   return wb;
 }

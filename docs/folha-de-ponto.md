@@ -331,3 +331,131 @@ LEONARDO 8h22 em 14 dias.
 - A leitura incerta da IA não é gravada: some ao salvar. Gravar exigiria coluna nova.
 - O painel do contador (`/painel`) pode mostrar "pedem atenção" por empresa chamando
   `revisarMes` com as mesmas leituras da rota. Não toquei no painel.
+
+## Resumo para a folha (Sprint 8 · Frente B)
+
+> Por funcionário e mês, as **horas e os dias** que a contadora digitava na mão no
+> programa de folha: horas normais, extras a 50% e a 100%, adicional noturno, faltas
+> com perda do DSR, atestados, atrasos e dias com marcador. **Só horas e dias —
+> nunca valores em reais.** Exporta **xlsx genérico** (formato de programa específico
+> fica para depois) e CSV. Branch: `claude/resumo-folha-b496c0`. Migração **0022**
+> (só o carimbo "conferido"; **não aplicada**).
+
+Código: `lib/resumoFolha.ts` (puro, `tests/resumoFolha.test.ts`), exportação
+`gerarPlanilhaResumo` em `lib/planilha.ts`, carimbo em `lib/resumoFolhaDb.ts`, rota
+`/api/resumo-folha`, tela `app/(app)/ponto/ResumoFolha.tsx` (seção na Timesheet, logo
+abaixo da "Revisão do mês"). Regras definidas com o subagente `contador` em 21/11/2026.
+
+### Regras (mínimo legal como padrão)
+
+| Tema | Regra | Base |
+|---|---|---|
+| Apuração | **Por dia**, com a jornada contratual do dia (padrão 8h, sábado de folga). Sem compensação de um dia com outro, salvo banco. | CLT art. 59 |
+| Tolerância | Diferença de até **10 min no dia** (para mais ou para menos) é desprezada; passou de 10, **conta tudo**. A tolerância de 5 min *por marcação* não é aplicável (não há horário de entrada no cadastro). | art. 58 §1º; Súm. 366 |
+| Extras 50% | Excedente em dia útil e **hora trabalhada em sábado de folga** (alerta "conferir": algumas convenções fixam 100%). | CF art. 7º XVI |
+| Extras 100% | **Toda** hora trabalhada em domingo e feriado (cadastrado ou marcador FERIADO), sem presumir folga compensatória. | Lei 605/49 art. 9º; Súm. 146 |
+| Percentuais | Editáveis na tela (50 / 100 / 20 por padrão): só mudam os **rótulos** das colunas — o resumo é em horas. | — |
+| Noturno | Minutos reais entre 22h e 5h, convertidos em **hora reduzida de 52min30s** (× 8/7). O adicional (20%) incide sobre as horas computadas. A jornada é comparada **em hora computada** (22h–6h = 9h08, gera 1h08 de extra), e as extras em dia noturno saem separadas (Súm. 264). | CLT art. 73 |
+| Prorrogação | Quem começou **antes da meia-noite** e ainda trabalhava às 5h segue com adicional e hora reduzida até sair (22h–6h: 8h reais noturnas = 9h08). Entrada de madrugada (já depois de 00h) só tem a faixa. Divergência (23h–7h): adotada a prorrogação, com "conferir". | art. 73 §5º; Súm. 60 II |
+| Virada da meia-noite | Saída menor que a entrada, com a anterior ≥ 18h e a seguinte ≤ 12h, é tratada como o dia seguinte (o dia vale pela data de início) e avisa "conferir". Qualquer outra inversão continua "fora de ordem". | — |
+| Falta | Marcador FALTA em **dia de trabalho** = falta injustificada; perde o **DSR da semana** (segunda a domingo). Duas faltas na mesma semana = **um** DSR. Falta em sábado de folga, domingo ou feriado não conta. | Lei 605/49 art. 6º |
+| DSR entre meses | O DSR perdido pertence ao **mês do domingo**: falta em 29/09 (terça) aparece em outubro (olha os 7 últimos dias do mês anterior); falta em 26/10 mostra "(+1)" e avisa que o DSR vai para a folha de novembro. A contabilidade externa pode preferir o mês da falta — confirmar. | contador |
+| Atestado | Dia contado, **sem débito e sem perda de DSR**. Mais de 15 dias → alerta "INSS". Férias, folga e feriado sem trabalho: contados, neutros. | Lei 8.213 art. 60 |
+| Atraso | **Aproximado**: jornada do dia − trabalhado, acima de 10 min. Sem horário de entrada no cadastro, não separa atraso de saída antecipada. Não faz perder o DSR (só falta do dia inteiro). Alerta "conferir" quando existir. | art. 58 §1º |
+| Banco de horas | Com acordo: extras de **dia útil** vão para "→ Banco"; atrasos e dias BANCO DE HORAS abatem o saldo (variação do mês no xlsx). **Domingo e feriado continuam a pagar a 100%** (padrão seguro: a compensação exige folga integral). Sem acordo, marcador BANCO DE HORAS pede "conferir". | art. 59 §§2º, 5º, 6º |
+| Impedem fechar | Achados da revisão: **marcação faltando/desencontrada**, **horário ilegível**, **fora de ordem**, **marcador × horário** e **dia útil em branco** entre o primeiro e o último dia lançados. O dia com problema **fica fora da conta**, o funcionário ganha selo "N a corrigir" e o "Marcar como conferido" fica bloqueado. | — |
+
+Fora do resumo (pendências): escala 12x36, tempo parcial, convenção coletiva (sábado a
+100%, DSR por atraso), horistas (assume-se mensalista), atestado parcial de um dia,
+interjornada < 11h como extra (Súm. 110) e intervalo suprimido pago a 50% (art. 71 §4º)
+— a revisão do ponto já alerta, mas o resumo não paga. "Dessas X h extras, Y noturnas"
+por minuto também ficou de fora: o resumo diz só `extrasEmDiaNoturnoMin`.
+
+### Na tela e na exportação
+
+- **Tabela**: funcionário (selos "N a corrigir" / "N a conferir"), dias, normais, extras
+  50%, → banco, extras 100%, noturno (passe o mouse: minutos reais), atrasos, faltas,
+  DSR perdido, atestado, outros dias, caixa **banco** (enquanto o cadastro não traz o
+  acordo) e "Abrir folha". Percentuais e o marcador de banco recalculam na hora.
+- **"Para corrigir e conferir"**: por funcionário, cada pendência com dia, selo e motivo
+  (as impeditivas em vermelho).
+- **"Conferido pela contadora"**: carimbo (quem e quando) guardado na 0022 com um hash
+  dos totais. Se uma folha mudar depois, aparece **"conferência desatualizada"** e é
+  preciso conferir de novo; "Desfazer conferência" remove. Sem a 0022 o resumo
+  funciona e o botão explica que falta a atualização.
+- **xlsx** (aba "Resumo": uma linha por funcionário, colunas claras, linha de
+  conferência e bloco "Para conferir"; aba "Detalhe por dia": uma linha por funcionário
+  × dia com situação e horas) e **CSV** (`;`, BOM, h:mm). Horas são **texto h:mm** (não
+  somam como fração do dia); dias são números.
+
+### Conferência com os dados reais (21/11/2026, só leitura)
+
+Vaz & Vouzela, outubro/2026, 115 dias lançados de 6 funcionários, jornada padrão 8h,
+sábado de folga, **sem feriados cadastrados** (12/10 vem pelo marcador FERIADO):
+
+| Funcionário | Dias | Trabalhado | Extras 50% | Atrasos | Faltas | DSR | Atest. | Feriado | Pendência |
+|---|---|---|---|---|---|---|---|---|---|
+| CAIO (admitido em 26/10) | 5 | 40:14 | 1:56 | 1:47 | — | — | — | — | — |
+| EDILENE | 21 | 146:31 | 3:26 | 24:45 | — | — | — | 1 | — |
+| ELIELTON | 21 | 141:03 | 1:15 | 27:45 | — | — | — | 1 | — |
+| HELBERT | 19 | 130:18 | 2:12 | 23:43 | 1 (26/10) | 0 (+1 em nov.) | 1 | 1 | — |
+| LEONARDO | 21 | 174:50 | 8:22 | 1:17 | — | — | — | 1 | — |
+| ORIEL | 19 | 162:25 | 14:10 | 3:43 | 1 (07/10) | 1 | — | 1 | dia 15 (`12>54`, fora da conta) |
+
+Sem extras a 100%, sem noturno, sem banco. Conferidos à mão contra a marcação bruta:
+
+- **ORIEL** — extras 14:10: são 14 dias acima de 8h10 (15+15+67+97+126+25+11+40+79+133+
+  60+50+61+71 min = 850 min). Dia 09: 08:01–12:30 + 13:00–18:37 = 4:29 + 5:37 = 10:06 →
+  2:06; dia 22: 06:02–14:30 + 15:50–17:35 = 8:28 + 1:45 = 10:13 → 2:13; dia 16: 8:11 →
+  11 min (passou de 10, conta tudo). Falta em 07/10 (quarta) → DSR do domingo 11/10 = 1.
+  O dia 15 não entra (horário ilegível), como na revisão.
+- **LEONARDO** — extras 8:22 em 14 dias e atrasos 1:17: dia 16: 3:57 + 3:06 = 7:03 →
+  57 min; dia 22: 3:55 + 3:45 = 7:40 → 20 min; 57 + 20 = 77 min. Bate com o "além da
+  jornada: 14h10 / 8h22" que a revisão da Sprint 7 já mostrava, calculado por outro caminho.
+
+**Atenção ao ler os atrasos:** EDILENE, ELIELTON e HELBERT fecham a maioria dos dias
+com 5h–7h marcadas e acumulam 24h–28h de "atraso" no mês. Ou a jornada real deles é
+menor que 8h (o cadastro não traz a jornada contratual — hoje vale o padrão da
+empresa), ou há horas faltando na folha. É exatamente o que o cadastro do empregado
+(`jornadaDoEmpregado`) vai resolver; **até lá, não use o "Atrasos" desses
+funcionários sem conferir a jornada**.
+
+### Para o integrador
+
+- **Migração 0022** (aditiva, opcional): `ponto_resumo_conferido`. Sem ela o resumo
+  funciona e só o botão "Marcar como conferido" avisa. A 0021 segue livre para a outra
+  frente. Aplicar com `npx supabase db push` depois de conferir `migration list --remote`.
+- **Rota nova** `/api/resumo-folha` (GET resumo/xlsx/csv, POST carimbo) já em
+  `ROTAS_PONTO` do `proxy.ts`. `lib/pontoDb.ts` **não foi alterado** (a rota reusa
+  `lerFrequenciasParaRevisao`).
+- **Ligar o cadastro do empregado quando o DP chegar:** o único ponto é
+  `regrasDoEmpregado()` em `lib/resumoFolha.ts` (hoje: jornada do cadastro do ponto ou
+  da empresa, **sem banco**, com o marcador "banco" da tela). Trocar o corpo por
+  `jornada: jornadaDoEmpregado(...)` e `temBanco: temBancoDeHoras(...)`; o resto
+  (`resumirMes`, tela, exportação) não muda. Na tela, esconder a caixa "banco" quando
+  o acordo vier do cadastro (hoje ela só alimenta a consulta `?banco=`).
+  A revisão do ponto (`app/api/revisao-ponto/route.ts`) e o `gerar-lote` montam a
+  jornada por conta própria — alinhar também, para revisão e resumo não discordarem.
+- **O que testar** (conta de teste, empresa de teste — nunca salvar nas da Edilse):
+  1. Folha com 10h no dia útil → extras 50% = 2h; com 7h30 → atraso 0:30; 08:00–12:00
+     num domingo → 4h a 100%; marcador FALTA numa quarta → falta 1 e DSR 1; duas faltas
+     na mesma semana → DSR 1.
+  2. Dia com 3 marcações → selo "N a corrigir", dia fora da conta, "Marcar como
+     conferido" desabilitado; corrigir e salvar → o resumo se recalcula sozinho.
+  3. Marcar como conferido → carimbo; salvar outra folha → "conferência desatualizada".
+  4. Baixar xlsx (duas abas) e CSV (abre com acento no Excel); mudar o percentual
+     extra para 60 → o título da coluna muda, as horas não.
+  5. Marcar "banco" num funcionário com extras → somem de "Extras 50%" e vão para
+     "→ Banco".
+  6. Só leitura na Edilse: Vaz & Vouzela → outubro/2026 deve repetir a tabela acima.
+  7. Conta de outro escritório: `GET /api/resumo-folha?empresa=<id da Vaz>&ano=2026&mes=10`
+     → 403; como **cliente** → bloqueado pelo `proxy.ts`.
+- **Não verificado no navegador** (sem ambiente local com banco): a tela passou por
+  typecheck, lint e build; o cálculo foi conferido contra o banco real (só leitura).
+
+### Perguntas para a contabilidade externa
+
+O DSR perdido entra na folha do mês da falta ou do mês do domingo (adotado: do
+domingo)? A convenção da categoria prevê sábado a 100% ou perda de DSR por atraso? Há
+banco de horas por acordo? Há horistas? Há trabalho noturno hoje (se não, a
+prorrogação pode esperar)?

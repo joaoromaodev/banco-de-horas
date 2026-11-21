@@ -33,7 +33,7 @@ const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/em
 const ROTAS_PONTO = [
   ROTA_PONTO, '/folhas', '/ponto-cadastros',
   '/api/salvar', '/api/extrair', '/api/gerar', '/api/gerar-lote',
-  '/api/folha', '/api/folha-lote', '/api/funcionarios', '/api/feriados', '/api/revisao-ponto',
+  '/api/folha', '/api/folha-lote', '/api/funcionarios', '/api/feriados', '/api/revisao-ponto', '/api/resumo-folha',
   // Contrato de experiência: departamento pessoal, da mesma contadora do ponto.
   '/contratos', '/api/contratos',
   // Departamento Pessoal (cadastro do empregado, férias, 13º) — mesma contadora.
