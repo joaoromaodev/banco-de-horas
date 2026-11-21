@@ -41,4 +41,4 @@ está em [`docs/design-system.html`](docs/design-system.html).
 
 **Plano da empresa:** estratégia, roadmap e regras da equipe de sessões em
 [`docs/empresa/`](docs/empresa/). Antes de começar uma frente, veja
-[`roadmap.md`](docs/empresa/roadmap.md) e [`equipe.md`](docs/empresa/equipe.md).
+[`roadmap.md`](docs/empresa/roadmap.md) e [`equipe.md`](docs/empresa/equipe.md). Retomando em outra conta ou máquina: [`continuidade.md`](docs/empresa/continuidade.md).
