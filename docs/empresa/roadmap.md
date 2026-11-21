@@ -12,7 +12,7 @@
 |---|---|---|---|
 | A. Multi-escritório (inquilinos) + cadastro self-service com teste grátis | `multi-escritorio` | a definir | ⏳ |
 | B. Site público: landing, planos, termos de uso, privacidade (LGPD) | `site-publico` | `claude/site-publico-c4e042` | ✅ pronto p/ revisão — `/conheca`, `/planos`, `/termos`, `/privacidade` em `app/(site)/`; `/` sem sessão vai a `/conheca`. Pendências: depoimento da Edilce (TODO), textos legais (advogado), `/criar-conta` (Frente A) |
-| C. Qualidade: testes (Vitest) das regras puras + CI no GitHub Actions | `testes-ci` | a definir | ⏳ |
+| C. Qualidade: testes (Vitest) das regras puras + CI no GitHub Actions | `testes-ci` | `claude/testes-ci-eaaca5` | ✅ pronta p/ integração — ver [`docs/testes.md`](../testes.md) |
 
 Integração (dono): merge, migração em produção (com backup) e push após lint/build/testes. Mensagens à Edilce: o dono redige, o João envia.
 
