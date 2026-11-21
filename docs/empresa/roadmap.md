@@ -52,18 +52,27 @@ Prioridade: funcionalidades, inteligência e otimização.
 
 Produção: migrações 0000–0016; próximo número livre **0017**.
 
-## Sprint 5 — Caixa inteligente e fechamento mensal (planejada)
+## Sprint 5 — Caixa inteligente e fechamento mensal (✅ concluída e publicada em 21/11/2026)
 
-Priorizada pelo consultor contador (21/11/2026), em ordem:
+| Frente | Branch | Status |
+|---|---|---|
+| A. Caixa inteligente: sugestão de conta/analítica que aprende com o que a contadora confere (histórico → frequência nos conferidos → IA opcional); revisão antes da conferência (duplicidade, valor fora do padrão, natureza trocada, pagador/CPF, juros recorrentes, mês sem lançamento, saldo negativo, mudou após confirmar); contabilista/CRC padrão vem do escritório (não mais o nome da Edilse) | `claude/caixa-inteligente-2c9894` | ✅ publicada; 0017 aplicada. Acurácia nos 46 lançamentos reais do NÉLIO: oferece em 70%, acerta 94% quando oferece (sem IA). IA desligada (`CAIXA_IA_SUGESTAO`), nunca em empresa que identifica pagador |
+| B. Fechamento mensal: pedidos mensais por empresa abertos no dia 1º pelo cron e fechados quando o documento chega; checklist "X de Y empresas fechadas" no painel (`/api/painel/fechamento`); agenda proposta pelo regime/sinais (um clique, com desfazer); contratos de experiência na agenda e no e-mail | `claude/fechamento-mensal-795cfa` | ✅ publicada; 0018 aplicada |
+
+Produção: migrações 0000–0018; próximo número livre **0019**. Backup antes:
+`backup-antes-0017-0018-2026-11-21.json`. Teste de ponta a ponta com conta de teste
+(sugestão 0,82 de confiança com 4 conferidos, duplicidade apontada, pedido mensal,
+proposta da agenda, checklist, 403 em 12 rotas das empresas da Edilse); conta apagada,
+contagens iguais às do backup.
+
+## Sprint 6 — proposta
 
 | Frente | Modelo | O que é |
 |---|---|---|
-| A. Caixa inteligente | Opus alto | (1) sugestão de conta/analítica ao lançar — histórico padrão → frequência no que a contadora já conferiu naquela empresa → IA só se nada resolver; aprende com a correção; nunca cria conta nem marca conferido. (2) Revisão antes da conferência: duplicidade, valor fora do padrão, receita lançada como saída, pagador/CPF faltando, juros recorrentes, mês sem lançamento, saldo negativo; fila por risco; só alerta, regras explicáveis |
-| B. Fechamento mensal | Sonnet médio | pendências recorrentes abertas no dia 1º e fechadas quando o arquivo chega; checklist do mês no painel (lançou, conferiu, confirmou, documentos); propor modelo de obrigações pelo regime/funcionários; vencimento de contrato de experiência na agenda |
-
-Depois (dependem da Edilse): Carnê-Leão e recibos para PF (campo de beneficiário além
-do pagador); documento enviado → lançamento sugerido por IA (opção por empresa).
-Fora por ora: extrato OFX/conciliação (não há conta de banco no modelo do livro caixa).
+| A. Configurações do escritório | Sonnet médio | tela para o escritório editar responsável técnico (contabilista/CRC — hoje só no banco), preferências (dia de prazo padrão dos pedidos, aviso por e-mail) e equipe num lugar só |
+| B. Desempenho e robustez | Sonnet médio | paginação no livro (PDF/xlsx) e no saldo transportado acima de 1.000 lançamentos; índices e N+1 nas rotas mais usadas; medir o tempo das telas principais |
+| C. Carnê-Leão e recibos (PF) | Opus alto | quando a Edilse responder as perguntas (beneficiário ≠ pagador, layout do Carnê-Leão Web) |
+| D. Documento → lançamento sugerido por IA | Opus alto | opção por empresa, desligada no início; depende do aceite da Edilse e do Gemini pago |
 
 ## Antes de ir ao mercado (adiado por decisão do João)
 
