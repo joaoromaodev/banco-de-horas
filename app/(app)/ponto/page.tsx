@@ -10,10 +10,11 @@ import LupaImagem from '../LupaImagem';
 import { AbasPonto } from '../AbasPonto';
 import { comArquivadaDaUrl, empresaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { anoMesDaUrl, urlDoPonto } from '@/lib/pontoUrl';
-import { IconeBaixar } from '../icones';
+import { IconeBaixar, IconeDesfazer } from '../icones';
 import { DialogoConfirmacao } from '../Dialogo';
 import { AchadosDoMes, PainelRevisaoMes, RevisaoDoMes, SeloAchados } from './RevisaoPonto';
 import { ResumoFolha } from './ResumoFolha';
+import { acaoEnvio, DialogoDevolver, FolhasEnviadas, type EnvioGestor } from './FolhasEnviadas';
 import { Alternador, Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
@@ -84,6 +85,13 @@ export default function Home() {
   const chaveRevisao = useRef('');
   /** Conta as gravações de folha: o Resumo para a folha se recalcula quando muda. */
   const [salvos, setSalvos] = useState(0);
+  // Folha enviada pelo cliente aberta no editor (FolhasEnviadas.tsx): aplicar em vez de salvar.
+  const [envioAberto, setEnvioAberto] = useState<EnvioGestor | null>(null);
+  const [pedidoEnvio, setPedidoEnvio] = useState<EnvioGestor | null>(null);
+  const [confirmarAplicar, setConfirmarAplicar] = useState(false);
+  const [devolvendo, setDevolvendo] = useState<EnvioGestor | null>(null);
+  const [versaoEnvios, setVersaoEnvios] = useState(0);
+  const [desfazer, setDesfazer] = useState<{ texto: string; acao: () => Promise<void> } | null>(null);
 
   const carregarRevisao = useCallback(async () => {
     if (!empresa) { setRevisaoMes(null); return; }
@@ -196,6 +204,7 @@ export default function Home() {
     if (!salva) return;
     if (!confirmado && sujo && dias && nome !== funcionario) { setPedidoAbrir(nome); return; }
     setPedidoAbrir(null);
+    setEnvioAberto(null);
     setFuncionario(nome);
     setDias(mesclar(ano, mes, salva.dias));
     setIncertos(new Set());
@@ -215,6 +224,7 @@ export default function Home() {
   }, [alertas]);
 
   function escolherArquivo(f: File | null) {
+    if (f) setEnvioAberto(null);
     setArquivo(f);
     setImgUrl(f ? URL.createObjectURL(f) : null);
   }
@@ -238,6 +248,7 @@ export default function Home() {
       if (data.cota) setCota(data.cota);
       if (!res.ok) throw new Error(data.erro ?? 'Falha na leitura.');
       if (data.cota?.nivel === 'aviso' && data.cota.mensagem) setAviso(data.cota.mensagem);
+      setEnvioAberto(null);
       if (data.frequencia?.funcionario && !funcionario) setFuncionario(data.frequencia.funcionario);
       setDias(mesclar(ano, mes, data.frequencia.dias ?? []));
       setSujo(true);
@@ -251,6 +262,7 @@ export default function Home() {
 
   function preencherManual() {
     setErro(null);
+    setEnvioAberto(null);
     setDias(gridVazio(ano, mes));
     setIncertos(new Set());
     setSujo(false);
@@ -338,6 +350,87 @@ export default function Home() {
     }
   }
 
+  /** Abre a folha enviada pelo cliente: a foto ao lado do rascunho lido pela IA (pede confirmação se há edição não salva). */
+  function abrirEnvio(e: EnvioGestor, confirmado = false) {
+    if (!confirmado && sujo && dias) { setPedidoEnvio(e); return; }
+    setPedidoEnvio(null);
+    setAno(e.ano);
+    setMes(e.mes);
+    setFuncionario(e.funcionario);
+    setDias(mesclar(e.ano, e.mes, e.rascunho?.dias ?? []));
+    setIncertos(new Set((e.rascunho?.incertos ?? []).map((c) => `${c.dia}:${c.campo}`)));
+    setArquivo(null);
+    // A rota redireciona para uma URL assinada de 60 s; `v` evita reaproveitar uma vencida.
+    setImgUrl(e.temFoto ? `/api/envio-ponto/foto?id=${encodeURIComponent(e.id)}&v=${Date.now()}` : null);
+    setEnvioAberto(e);
+    setSujo(false);
+    setSoDiasAtencao(false);
+    requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
+  }
+
+  /** Grava o rascunho conferido na frequência do funcionário (com desfazer). */
+  async function aplicarEnvio() {
+    setConfirmarAplicar(false);
+    const e = envioAberto;
+    if (!e || !dias) return;
+    setErro(null);
+    setAviso(null);
+    setCarregando(true);
+    try {
+      const r = await acaoEnvio(e.id, 'aplicar', { funcionario, dias });
+      const nome = funcionario;
+      setEnvioAberto(null);
+      setSujo(false);
+      carregarRevisao();
+      setSalvos((x) => x + 1);
+      setVersaoEnvios((x) => x + 1);
+      setDesfazer({
+        texto: `Folha de ${nome} aplicada à frequência: ${r.dias} dia(s) em ${MESES[e.mes]}/${e.ano}.`,
+        acao: async () => {
+          await acaoEnvio(e.id, 'desfazer-aplicacao');
+          setAviso('Aplicação desfeita: a frequência voltou ao que era e a folha voltou para a fila.');
+        },
+      });
+    } catch (x) {
+      setErro(x instanceof Error ? x.message : String(x));
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  async function devolverEnvio(e: EnvioGestor, motivo: string) {
+    setDevolvendo(null);
+    setErro(null);
+    try {
+      await acaoEnvio(e.id, 'devolver', { motivo });
+      if (envioAberto?.id === e.id) { setEnvioAberto(null); setDias(null); setImgUrl(null); setSujo(false); }
+      setVersaoEnvios((x) => x + 1);
+      setDesfazer({
+        texto: `Folha de ${e.funcionario} devolvida ao cliente.`,
+        acao: async () => {
+          await acaoEnvio(e.id, 'desfazer-devolucao');
+          setAviso('Devolução desfeita: a folha voltou para a fila.');
+        },
+      });
+    } catch (x) {
+      setErro(x instanceof Error ? x.message : String(x));
+    }
+  }
+
+  async function executarDesfazer() {
+    const d = desfazer;
+    setDesfazer(null);
+    if (!d) return;
+    try {
+      await d.acao();
+      carregarRevisao();
+      setSalvos((x) => x + 1);
+      setVersaoEnvios((x) => x + 1);
+    } catch (x) {
+      setErro(x instanceof Error ? x.message : String(x));
+    }
+  }
+
   async function gerarLote() {
     setErro(null);
     setAviso(null);
@@ -369,6 +462,9 @@ export default function Home() {
   const nErros = alertas.filter((a) => a.nivel === 'erro').length;
   const diasComErro = new Set(alertas.filter((a) => a.nivel === 'erro').map((a) => a.dia));
   const diasAtencao = revisaoFolha?.diasAtencao ?? 0;
+  const envioMesTrocado = Boolean(envioAberto && (envioAberto.ano !== ano || envioAberto.mes !== mes));
+  const diasJaSalvos = revisaoMes?.folhas.find((f) => f.funcionario === funcionario)?.dias.length ?? 0;
+  const diasNoRascunho = (dias ?? []).filter((d) => d.entradaManha || d.saidaAlmoco || d.retornoAlmoco || d.saidaTarde || d.marcador).length;
 
   return (
     <div className="text-sm">
@@ -378,6 +474,12 @@ export default function Home() {
       <Toasts>
         {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
         {aviso && <Toast onFechar={() => setAviso(null)}>{aviso}</Toast>}
+        {desfazer && (
+          <Toast tom="info" onFechar={() => setDesfazer(null)}
+            acao={<Botao tamanho="sm" variante="tonal" icone={<IconeDesfazer />} onClick={executarDesfazer}>Desfazer</Botao>}>
+            {desfazer.texto}
+          </Toast>
+        )}
       </Toasts>
 
       <Conteudo>
@@ -391,7 +493,7 @@ export default function Home() {
         <Secao titulo="Folha do mês" descricao="Escolha a empresa, o funcionário e o mês; depois envie a foto da folha manuscrita ou preencha à mão.">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Selecao rotulo="Empresa" classeCampo="md:col-span-2" valor={empresa} placeholder="— cadastre uma empresa —"
-              onChange={(v) => { setEmpresa(v); setFuncionario(''); }}
+              onChange={(v) => { setEmpresa(v); setFuncionario(''); setEnvioAberto(null); }}
               opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
             <EntradaSugestoes rotulo="Funcionário" classeCampo="md:col-span-2" value={funcionario} onChange={setFuncionario}
               sugestoes={funcList.map((f) => f.nome)}
@@ -432,6 +534,12 @@ export default function Home() {
         </Cartao>
 
         {empresa && !bancoPendente && (
+          <FolhasEnviadas key={empresa} empresa={empresa} ano={ano} mes={mes} envioAberto={envioAberto?.id ?? null} versao={versaoEnvios}
+            onAbrir={(e) => abrirEnvio(e)} onDevolver={setDevolvendo}
+            onMensagem={(texto, tom) => (tom === 'perigo' ? setErro(texto) : setAviso(texto))} />
+        )}
+
+        {empresa && !bancoPendente && (
           <PainelRevisaoMes revisao={revisaoMes} carregando={carregandoRevisao} ano={ano} mes={mes}
             funcionarioAberto={dias ? funcionario : ''} onAbrir={(nome) => abrirFolha(nome)} />
         )}
@@ -444,7 +552,12 @@ export default function Home() {
         {dias && (
           <section ref={editorRef} className="grid scroll-mt-4 grid-cols-1 gap-5 lg:grid-cols-2" aria-label="Revisão da folha">
             <div className="lg:sticky lg:top-4 lg:self-start">
-              <h2 className="mb-2 text-[15px] font-semibold text-tinta">Folha original</h2>
+              <h2 className="mb-2 text-[15px] font-semibold text-tinta">
+                {envioAberto ? `Foto enviada pelo cliente — ${envioAberto.funcionario}` : 'Folha original'}
+              </h2>
+              {envioAberto?.tipo === 'image/heic' && (
+                <p className="mb-2 text-[13px] text-tinta-suave">Foto em HEIC (iPhone): alguns navegadores não mostram este formato; o Safari mostra.</p>
+              )}
               {imgUrl
                 ? <LupaImagem src={imgUrl} />
                 : <EstadoVazio titulo="Sem imagem" descricao="Preenchimento manual — não há folha para conferir." />}
@@ -527,20 +640,62 @@ export default function Home() {
                 </table>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span data-dica={nErros > 0 ? 'Corrija os erros antes de baixar' : undefined}>
-                  <Botao variante="primaria" onClick={baixar} disabled={carregando || nErros > 0} icone={<IconeBaixar />}>
-                    Baixar planilha (.xlsx)
-                  </Botao>
-                </span>
-                <span data-dica={nErros > 0 ? 'Corrija os erros antes de salvar' : undefined}>
-                  <Botao onClick={salvarSheets} disabled={carregando || nErros > 0}>Salvar no banco (Sheets)</Botao>
-                </span>
-              </div>
+              {envioAberto ? (
+                <div className="mt-4 space-y-2">
+                  <p className="text-[13px] text-tinta-suave">
+                    Rascunho lido pela IA a partir da foto do cliente. Confira e ajuste os dias; nada vai para a frequência até você aplicar.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span data-dica={nErros > 0 ? 'Corrija os erros antes de aplicar'
+                      : envioMesTrocado ? `Esta folha é de ${MESES[envioAberto.mes]}/${envioAberto.ano}: volte o mês para aplicar` : undefined}>
+                      <Botao variante="primaria" onClick={() => setConfirmarAplicar(true)}
+                        disabled={carregando || nErros > 0 || envioMesTrocado || !funcionario.trim()}>
+                        Aplicar à frequência
+                      </Botao>
+                    </span>
+                    <Botao variante="fantasma" onClick={() => setDevolvendo(envioAberto)} disabled={carregando}>Devolver ao cliente</Botao>
+                    <span data-dica={nErros > 0 ? 'Corrija os erros antes de baixar' : undefined}>
+                      <Botao onClick={baixar} disabled={carregando || nErros > 0} icone={<IconeBaixar />}>Baixar planilha (.xlsx)</Botao>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span data-dica={nErros > 0 ? 'Corrija os erros antes de baixar' : undefined}>
+                    <Botao variante="primaria" onClick={baixar} disabled={carregando || nErros > 0} icone={<IconeBaixar />}>
+                      Baixar planilha (.xlsx)
+                    </Botao>
+                  </span>
+                  <span data-dica={nErros > 0 ? 'Corrija os erros antes de salvar' : undefined}>
+                    <Botao onClick={salvarSheets} disabled={carregando || nErros > 0}>Salvar no banco (Sheets)</Botao>
+                  </span>
+                </div>
+              )}
             </div>
           </section>
         )}
       </Conteudo>
+
+      {pedidoEnvio && (
+        <DialogoConfirmacao titulo="Trocar a folha em edição?"
+          mensagem={`A folha de ${funcionario || 'quem está aberto'} tem alterações que ainda não foram salvas. Abrir a folha enviada de ${pedidoEnvio.funcionario} descarta essas alterações.`}
+          textoConfirmar="Abrir mesmo assim" perigo
+          onConfirmar={() => abrirEnvio(pedidoEnvio, true)} onCancelar={() => setPedidoEnvio(null)} />
+      )}
+
+      {confirmarAplicar && envioAberto && (
+        <DialogoConfirmacao titulo="Aplicar à frequência?"
+          mensagem={`${diasNoRascunho} dia(s) vão para a frequência de ${funcionario} em ${MESES[mes]}/${ano}`
+            + (diasJaSalvos ? `, substituindo os ${diasJaSalvos} dia(s) já salvos deste mês.` : '.')
+            + (diasAtencao ? ` A revisão ainda aponta ${diasAtencao} dia(s) pedindo atenção.` : '')
+            + ' Dá para desfazer logo em seguida.'}
+          textoConfirmar="Aplicar"
+          onConfirmar={aplicarEnvio} onCancelar={() => setConfirmarAplicar(false)} />
+      )}
+
+      {devolvendo && (
+        <DialogoDevolver envio={devolvendo} onConfirmar={(m) => devolverEnvio(devolvendo, m)} onCancelar={() => setDevolvendo(null)} />
+      )}
 
       {pedidoAbrir && (
         <DialogoConfirmacao titulo="Trocar a folha em edição?"

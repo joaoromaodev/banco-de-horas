@@ -11,7 +11,8 @@ Módulos, com bancos diferentes:
 - **Folha de ponto** (`/ponto`, `/folhas`) — foto da folha manuscrita → OCR com Gemini →
   revisão → `.xlsx`. Persiste no **Postgres** por escritório (migração `0012`; o
   Google Sheets só serve à importação), com cota de leituras por plano. Exclusivo
-  da contabilidade. Leia [`docs/folha-de-ponto.md`](docs/folha-de-ponto.md).
+  da contabilidade — o cliente só **envia a foto** em `/enviar-ponto` (migração `0028`)
+  e a contadora confere na Timesheet. Leia [`docs/folha-de-ponto.md`](docs/folha-de-ponto.md).
 - **Livro Caixa** (`/caixa`) — a empresa-cliente lança o movimento, a contadora
   concilia. Persiste no **Postgres (Supabase)**. Em construção.
 - **Contrato de Experiência** (`/contratos`) — gera contrato, declaração de VT e
