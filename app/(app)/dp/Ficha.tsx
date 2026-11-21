@@ -21,8 +21,9 @@ import {
 import { avisoAfastamento13, avosDecimo, entraNoDecimo, faltasPorMesDoAno, MESES_CURTOS, prazosDecimo } from '@/lib/decimoTerceiro';
 import { FormEmpregado } from './FormEmpregado';
 import { ProgramarFerias, type PedidoTela } from './ProgramarFerias';
+import { SimularRescisao } from './SimularRescisao';
 
-interface EmpresaFicha { id: string; nome: string; jornadaUtilMin: number | null; jornadaSabadoMin: number | null; trabalhaSabado: boolean }
+interface EmpresaFicha { id: string; nome: string; cnpj?: string | null; jornadaUtilMin: number | null; jornadaSabadoMin: number | null; trabalhaSabado: boolean }
 interface DadosFicha {
   empregado: Empregado; ferias: FeriasProgramada[]; faltas: string[]; mesesComPonto: string[];
   funcionario: { nome: string; jornadaUtilMin?: number; jornadaSabadoMin?: number } | null;
@@ -52,6 +53,7 @@ export function Ficha({ id, hoje, onVoltar, onMudou }: { id: string; hoje: strin
   const [msg, setMsg] = useState<string | null>(null);
   const [editando, setEditando] = useState(false);
   const [programando, setProgramando] = useState(false);
+  const [simulando, setSimulando] = useState(false);
   const [excluindo, setExcluindo] = useState<FeriasProgramada | null>(null);
   const [desfazer, setDesfazer] = useState<{ id: string; texto: string; acao: 'excluir' | 'restaurar' } | null>(null);
   const [verCpf, setVerCpf] = useState(false);
@@ -156,6 +158,10 @@ export function Ficha({ id, hoje, onVoltar, onMudou }: { id: string; hoje: strin
         <div className="flex flex-wrap items-center gap-2">
           <Selo tom={TOM_SITUACAO[e.situacao]}>{SITUACOES_EMPREGADO.find((s) => s.valor === e.situacao)?.rotulo}</Selo>
           <Botao onClick={() => setEditando(true)}>Editar dados</Botao>
+          <Botao onClick={() => setSimulando(true)} disabled={!e.admissao}
+            data-dica={e.admissao ? 'Simulação: não grava nada e não muda a situação' : 'Cadastre a admissão para simular'}>
+            Simular rescisão
+          </Botao>
           <Botao variante="primaria" disabled={!podeProgramar} onClick={() => setProgramando(true)}
             data-dica={podeProgramar ? undefined : e.situacao !== 'ativo' ? 'Só para empregado ativo' : 'Sem saldo de férias para programar'}>
             Programar férias
@@ -307,6 +313,10 @@ export function Ficha({ id, hoje, onVoltar, onMudou }: { id: string; hoje: strin
       </Secao>
 
       {editando && <FormEmpregado empregado={e} empresaNome={d.empresa.nome} onSalvar={salvar} onCancelar={() => setEditando(false)} />}
+      {simulando && (
+        <SimularRescisao empregado={e} empresa={{ nome: d.empresa.nome, cnpj: d.empresa.cnpj ?? null }} ferias={d.ferias} faltas={d.faltas}
+          feriados={d.feriados} hoje={hoje} onBaixou={(m) => setMsg(m)} onFechar={() => setSimulando(false)} />
+      )}
       {programando && (
         <ProgramarFerias empregado={e} periodos={periodos} todas={d.ferias} feriados={feriados} hoje={hoje}
           onProgramar={programar} onCancelar={() => setProgramando(false)} />

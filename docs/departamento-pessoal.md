@@ -21,6 +21,7 @@ Branch: `claude/departamento-pessoal-1a4640`. Migração: **`0021_departamento_p
 | Aviso e recibo de férias (PDF) | `lib/feriasPdf.ts` (usa o `Escritor` de `lib/contratosPdf.ts`) — `tests/feriasPdf.test.ts` |
 | Rotas | `app/api/dp/route.ts` (lista, cria, edita), `empregado/` (ficha), `ferias/` (programar, excluir, desfazer), `documento/` (PDF), `comum.ts` |
 | Tela | `app/(app)/dp/page.tsx` (lista), `Ficha.tsx`, `FormEmpregado.tsx`, `ProgramarFerias.tsx` |
+| **Simulação de rescisão** (Sprint 9) | `lib/rescisao.ts`, `lib/rescisaoPdf.ts` — `tests/rescisao.test.ts`; tela `SimularRescisao.tsx` (ver seção própria) |
 | Acesso | `proxy.ts` (`/dp`, `/api/dp` em `ROTAS_PONTO`) — `tests/dpAcesso.test.ts`; isolamento das rotas em `tests/dpRotas.test.ts` |
 
 ## Decisões
@@ -114,6 +115,108 @@ Critérios revisados com o subagente **`contador`** em 21/11/2026.
   mês a mês e os prazos. Ação primária: **Programar férias** (diálogo com validação ao
   vivo: erros seguram o botão, avisos informam; depois de programar, toast com
   **Desfazer**). "Editar dados" abre o mesmo formulário do cadastro.
+
+## Simulação de rescisão (Sprint 9 · Frente B)
+
+> **Só simulação, sem valor de documento oficial** (recomendação do consultor contador):
+> o valor real depende de médias, convenção coletiva, estabilidades, aviso proporcional e
+> do saldo do FGTS, que o sistema não conhece — um erro vira dívida trabalhista do cliente.
+> Tela e PDF dizem "Simulação — não substitui o TRCT; confira convenção e médias".
+> **Valores brutos, sem INSS, IRRF nem pensão.** Nada é gravado (sem migração), a situação
+> do empregado não muda e o PDF é gerado no navegador.
+
+Branch: `claude/simulacao-rescisao`. Regras revisadas com o subagente **`contador`** em
+21/11/2026 (o exemplo abaixo foi conferido por ele, número a número).
+
+| Peça | Arquivo |
+|---|---|
+| Regras (puro) | `lib/rescisao.ts` — `simularRescisao(entrada)`; fontes legais no cabeçalho e em cada linha (`fonte`) |
+| PDF da simulação (marca d'água "SIMULAÇÃO", aviso no topo e no rodapé de cada página) | `lib/rescisaoPdf.ts` (usa o `Escritor` de `lib/contratosPdf.ts`) |
+| Testes (54) | `tests/rescisao.test.ts` |
+| Tela | `app/(app)/dp/SimularRescisao.tsx`, aberto pelo botão **Simular rescisão** da ficha (`Ficha.tsx`) |
+| Dados | os da ficha (`/api/dp/empregado`, que passou a devolver também o CNPJ da empresa) |
+
+### Entradas
+
+Do cadastro: admissão, salário base (editável **só na simulação**), horas semanais,
+banco de horas, início do aquisitivo editado, situação; do ponto: faltas (`FALTA`); da
+programação: férias. Informadas pela contadora: tipo, data do desligamento (último dia
+trabalhado; no aviso trabalhado, o último dia do aviso), modo do aviso, **adicionais
+fixos** (insalubridade, periculosidade, gratificação — entram também no saldo), **médias
+de variáveis** (HE, comissões, noturno — aviso, 13º, férias e art. 479), saldo do FGTS
+para fins rescisórios (extrato), FGTS do mês anterior ainda não recolhido, 1ª parcela do
+13º já paga, outros descontos, saldo positivo do banco de horas, fim da experiência,
+empregador doméstico e os períodos de férias já quitados fora do sistema.
+
+### Regras
+
+| Verba | Regra | Fonte |
+|---|---|---|
+| Saldo de salário | (salário + adicionais) ÷ 30 × dias do mês até o desligamento; mês completo = 30 (inclusive fevereiro e meses de 31); da admissão se foi no mesmo mês; − faltas do mês. Médias não entram. DSR perdido não é calculado (alerta) | CLT art. 462 |
+| Aviso proporcional | 30 + 3 × anos completos (até 20) = até 90 dias; anos até a **comunicação** | Lei 12.506/2011; NT 184/2012 MTE |
+| Aviso indenizado | (salário + adicionais + médias) ÷ 30 × dias; projeção = desligamento + dias | CLT art. 487 §1º e §5º; Súmula 380; OJ 82 SDI-1 |
+| Aviso trabalhado | 30 dias trabalhados (comunicação = desligamento − 30); os 3n da Lei 12.506 **indenizados** e projetados. Prática dominante — alerta "confira a convenção"; redução do art. 488 | idem |
+| Pedido de demissão | aviso sempre 30 (proporcional só a favor do empregado). Trabalhado / dispensado: nada; não cumprido: desconto de 30 dias do **salário base**; cumprido em parte: só os dias que faltaram | CLT art. 487 §2º |
+| Acordo | aviso indenizado **pela metade** (trabalhado: integral, acréscimo pela metade); projeção pela metade, arredondada para cima (divergente — alerta); multa 20%; saque de 80% e sem seguro-desemprego (alerta) | CLT art. 484-A |
+| Culpa recíproca | metade do aviso, do 13º e das férias proporcionais; vencidas integrais; multa 20% | CLT art. 484; Súmula 14; Lei 8.036 art. 18 §2º |
+| Rescisão indireta | verbas da dispensa sem justa causa (aviso indenizado) | CLT art. 483 |
+| Justa causa | só saldo e férias vencidas + 1/3; a 1ª parcela do 13º paga vira desconto | Lei 4.090 art. 3º; CLT art. 146 par. único; Súmula 171 |
+| Falecimento | saldo, 13º, férias; sem aviso e sem multa; dependentes ou sucessores | Lei 6.858/80 |
+| 13º | (salário + adicionais + médias) ÷ 12 × avos (mês com ≥ 15 dias, faltas descontadas), do ano do desligamento; linha própria para os avos da **projeção** (inclusive do ano seguinte, se atravessar) | Lei 4.090 art. 1º §2º; Decreto 57.155/65 art. 2º; Súmula 157 |
+| Férias vencidas | períodos completos até a data **projetada**; direito do art. 130 − dias **gozados até o desligamento** − abono vendido (programação futura não desconta); **dobro** se o concessivo acabou antes do desligamento (vencendo dentro da projeção: simples + alerta); 1/3 também sobre a dobra; remuneração da rescisão | CLT arts. 130, 137, 146; Súmulas 7 e 328 |
+| Férias proporcionais | 1/12 por mês do aquisitivo em curso ou fração ≥ 15 dias, até a data projetada, × direito do art. 130 ÷ 30; + 1/3 | CLT arts. 146 par. único, 147; Súmula 261 |
+| Experiência | término no prazo: sem aviso nem multa; antecipada pelo empregador: metade da remuneração dos dias que faltavam, sem FGTS sobre ela, **multa 40%**; pelo empregado: até o mesmo valor, só se houver prejuízo — **informativo, fora do total**. Mais de 90 dias ou desligamento depois do termo = erro (use sem justa causa) | CLT arts. 445, 451, 479, 480; Decreto 99.684/90 art. 14; Súmula 125 |
+| Banco de horas | saldo positivo × (salário + adicionais) ÷ divisor (horas semanais × 5; padrão 220) × 1,5 | CLT art. 59 §3º |
+| Descontos | total limitado a um mês de remuneração (salário + adicionais) | CLT art. 477 §5º |
+| FGTS (fora do total) | 8% × (saldo + aviso indenizado + 13º − 1ª parcela já recolhida + banco de horas); férias indenizadas e art. 479 fora. Multa = 40% (sem justa causa, indireta, art. 479) ou 20% (acordo, culpa) × (saldo informado + mês anterior + 8% da rescisão); sem saldo informado, não estima. Doméstico: sem multa (3,2% mensais) | Súmula 305; OJ 195; Lei 8.036 art. 18; LC 150 art. 22 |
+| Prazo | desligamento + 10 dias corridos (inclusive no indenizado), antecipado para dia útil (feriados legais + os do ponto do escritório); vale para o S-2299 e os documentos. Atraso: multa de um **salário base** | CLT art. 477 §6º e §8º; OJ 162 SDI-1 |
+
+Arredondamento: **cada linha em centavos**; totais somam as linhas (no exemplo, R$ 10.822,23;
+arredondando só no fim daria R$ 10.822,22).
+
+Alertas (não bloqueiam): estabilidades (gestante, acidente, CIPA, sindical — também na
+experiência; Súmula 348), empregado afastado (perigo), data-base (Lei 7.238/84 art. 9º;
+Súmulas 182 e 314), justa causa com risco de reversão, rescisão indireta e culpa
+recíproca dependem da Justiça, férias programadas dentro do aviso, período vencido sem
+nenhuma férias no sistema ("marque como quitado"), sem médias informadas, banco de horas
+sem saldo, cláusula assecuratória (art. 481; Súmula 163) e aprendiz (art. 433 §2º).
+
+### Exemplo conferido pelo `contador`
+
+Admissão 10/03/2023, desligamento 20/11/2026 (feriado nacional — para mensalista não muda
+o saldo), dispensa sem justa causa, aviso indenizado, salário R$ 2.000,00, sem médias nem
+faltas, só o período 10/03/2025–09/03/2026 sem gozo: 3 anos → aviso de 39 dias
+R$ 2.600,00, projeção 29/12/2026; saldo 20 dias R$ 1.333,33; 13º 11/12 R$ 1.833,33 +
+1/12 da projeção R$ 166,67; férias vencidas simples R$ 2.000,00 + 1/3 R$ 666,67;
+proporcionais 10/12 R$ 1.666,67 + 1/3 R$ 555,56; **total bruto R$ 10.822,23**; FGTS da
+rescisão 8% × R$ 5.933,33 = R$ 474,67; pagar até 30/11/2026.
+
+### Limites (de propósito)
+
+- Sem INSS, IRRF, pensão, vale-transporte e contribuições: valores **brutos**.
+- Médias e adicionais são **informados**, não calculados do ponto ou da folha.
+- Saldo do FGTS é **informado** (o sistema não conhece o extrato).
+- Não aplica convenção coletiva (aviso maior, adicional de HE acima de 50%, indenizações).
+- Não calcula art. 133 (perda de férias por afastamento/licença), reajuste pela data-base,
+  estabilidade (só avisa) nem saldo negativo de banco de horas.
+- Férias vencidas dependem da programação no sistema: o que foi gozado antes do sistema
+  tem de ser marcado como quitado na própria simulação (não fica gravado).
+
+### Para o integrador
+
+- **Sem migração** e sem rota nova: a simulação roda no navegador com os dados que a
+  ficha já carrega. Única mudança no servidor: `/api/dp/empregado` devolve também
+  `empresa.cnpj` (para o cabeçalho do PDF; a rota já é só da contabilidade).
+- Conferir em produção (**conta e escritório de teste**, nunca nas empresas da Edilse):
+  ficha de um empregado com admissão e salário → **Simular rescisão**; trocar os tipos e
+  ver as linhas mudarem; experiência com mais de 90 dias → erro; **Baixar PDF da
+  simulação** → marca d'água "SIMULAÇÃO", aviso no topo e no rodapé, acentos; fechar e
+  confirmar que a situação continua a mesma e nada foi gravado.
+- Pontos que a contadora deve confirmar (divergentes, segundo o `contador`): projeção do
+  aviso no acordo e na culpa recíproca (metade × integral), data de corte da dobra das
+  férias (desligamento × projeção) e se o aviso trabalhado pode ser exigido integral.
+- Não verificado no navegador (sem banco local além do de produção); regras e PDF cobertos
+  por testes, PDF conferido renderizado.
 
 ## Para a frente B (resumo do ponto para a folha)
 
@@ -249,3 +352,5 @@ junto); quem as preenche são os gatilhos, sempre da mesma empresa.
   (mesma limitação dos contratos).
 - Retenção do dado pessoal (CPF, salário) segue a do resto do sistema — a definir com o
   jurídico.
+- Simulação de rescisão: só simulação; limites e pontos divergentes na seção própria.
+  Próximo passo natural: INSS/IRRF e médias de horas extras tiradas do ponto.
