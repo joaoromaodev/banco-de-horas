@@ -15,7 +15,7 @@
 | C. Qualidade: testes (Vitest) das regras puras + CI no GitHub Actions | `testes-ci` | a definir | ⏳ |
 
 Integração (eu): revisar cada branch, juntar em `main` local, rodar build + testes.
-**Push, deploy e migração em produção só com o OK do João.**
+Integração (dono): merge, migração em produção (com backup) e push após lint/build/testes. Mensagens à Edilce: o dono redige, o João envia.
 
 ## Sprint 2 — Cobrança e Ponto no Postgres
 
