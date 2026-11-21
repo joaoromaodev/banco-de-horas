@@ -2,6 +2,13 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Sem nomes de pessoas no site
+
+- Pedido do João: a landing não usa nome de cliente nem de pessoa da equipe por
+  enquanto. A seção de depoimento provisório (que ainda trazia o nome com a grafia
+  errada — o certo é **Edilse**, com S) foi removida. Depoimento só volta com texto
+  real aprovado, quando o lançamento for decidido.
+
 ## 21/11/2026 — Venda fechada até o produto estar pronto (Sprint 4 / Frente A)
 
 - Decisão do João: **primeiro o produto fica pronto, depois vai ao mercado.** Nada de
@@ -93,6 +100,6 @@ Decididas pela sessão `site-publico`, valem até alguém mudar:
 - **Fim do teste sem assinar:** conta em modo somente leitura, nada é apagado; dados
   exportáveis por 90 dias após cancelamento (proposta; confirmar com advogado).
 - **Cota de OCR** exibida como "básica / ampliada / máxima" até os números existirem.
-- **Depoimento da Edilce** provisório, marcado `TODO: validar com a Edilce`.
+- ~~Depoimento provisório~~ — removido em 21/11/2026 (ver acima).
 - Textos legais são rascunho; campos `[entre colchetes]` (razão social, CNPJ, DPO, foro)
   dependem de dados da empresa.

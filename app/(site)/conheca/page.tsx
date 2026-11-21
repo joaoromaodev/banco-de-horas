@@ -191,26 +191,6 @@ export default function Conheca() {
         </ol>
       </Secao>
 
-      {/* prova social */}
-      <Secao id="depoimento" titulo="Feito dentro de um escritório de verdade">
-        <figure className="max-w-3xl rounded-xl border border-borda bg-superficie p-6 shadow-cartao sm:p-8">
-          {/* TODO: validar com a Edilce — texto provisório, NÃO é citação real. Trocar pela fala aprovada dela antes do lançamento. */}
-          <blockquote className="text-lg leading-relaxed text-tinta sm:text-xl">
-            “[Depoimento provisório] O ClickContas nasceu na minha rotina. Hoje meus clientes lançam o caixa sozinhos e eu só confiro.”
-          </blockquote>
-          <figcaption className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-            <span>
-              <strong className="font-semibold text-tinta">Edilce Góes</strong>
-              <span className="text-tinta-suave"> · Contadora, Belém (PA)</span>
-            </span>
-            <Selo tom="aviso">TODO: validar com a Edilce</Selo>
-          </figcaption>
-        </figure>
-        <p className="mt-4 max-w-xl text-[13px] text-tinta-suave">
-          A Edilce usa o ClickContas com clientes reais desde o início e ajudou a desenhar cada módulo.
-        </p>
-      </Secao>
-
       {/* CTA final */}
       {VENDAS_ABERTAS && (
       <section className="hero">

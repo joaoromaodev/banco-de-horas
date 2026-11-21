@@ -120,5 +120,5 @@ chave para `true`, **depois de cumprir a lista abaixo**.
 
 ### Outras travas do lançamento
 
-Razão social e CNPJ, depoimento real aprovado pela Edilse, revisão jurídica dos dois
+Razão social e CNPJ, revisão jurídica dos dois
 textos, Asaas configurado, Gemini em nível pago.
