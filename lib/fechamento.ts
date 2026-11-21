@@ -30,6 +30,16 @@ export const DIA_PRAZO_MIN = 1;
 export const DIA_PRAZO_MAX = 28;
 export const DIA_PRAZO_PADRAO = 10;
 
+/**
+ * Dia de prazo de um item: o enviado (validado) ou, se não veio (`undefined`,
+ * `null`, ''), o padrão do escritório. Veio e é inválido → `null`.
+ */
+export function resolverDiaPrazo(bruto: unknown, padrao: number): number | null {
+  if (bruto === undefined || bruto === null || bruto === '') return diaPrazoValido(padrao) ? padrao : DIA_PRAZO_PADRAO;
+  const n = Number(bruto);
+  return diaPrazoValido(n) ? n : null;
+}
+
 export function diaPrazoValido(d: unknown): d is number {
   return typeof d === 'number' && Number.isInteger(d) && d >= DIA_PRAZO_MIN && d <= DIA_PRAZO_MAX;
 }

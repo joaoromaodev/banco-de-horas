@@ -10,7 +10,8 @@ import { empresasVisiveis, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso
 import { lerEmpresa } from '@/lib/cadastro';
 import { categoriaValida } from '@/lib/documentos';
 import { CamposRecorrente, criarRecorrentes, editarRecorrente, ErroFechamento, excluirRecorrente, lerRecorrente, listarRecorrentes } from '@/lib/fechamentoServidor';
-import { DIA_PRAZO_MAX, DIA_PRAZO_MIN, diaPrazoValido, ItemModelo, itensNovos } from '@/lib/fechamento';
+import { DIA_PRAZO_MAX, DIA_PRAZO_MIN, ItemModelo, itensNovos, resolverDiaPrazo } from '@/lib/fechamento';
+import { prazoPadraoDoEscritorio } from '@/lib/escritorioServidor';
 import { textoOpcional } from '../documentos/comum';
 
 export const runtime = 'nodejs';
@@ -27,13 +28,14 @@ function falha(e: unknown) {
 const negado = () => Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- corpo JSON livre, validado aqui */
-function campos(b: any): CamposRecorrente {
+/** `padrao`: dia usado quando o corpo não traz `diaPrazo` (prazo padrão do escritório). */
+function campos(b: any, padrao: number): CamposRecorrente {
   const titulo = textoOpcional(b?.titulo, 200);
   if (!titulo) throw new ErroFechamento('Diga o que a empresa deve enviar todo mês.');
   const categoria = String(b?.categoria ?? '');
   if (!categoriaValida(categoria)) throw new ErroFechamento('Escolha a categoria do documento.');
-  const diaPrazo = Number(b?.diaPrazo);
-  if (!diaPrazoValido(diaPrazo)) throw new ErroFechamento(`O dia do prazo vai de ${DIA_PRAZO_MIN} a ${DIA_PRAZO_MAX}.`);
+  const diaPrazo = resolverDiaPrazo(b?.diaPrazo, padrao);
+  if (diaPrazo === null) throw new ErroFechamento(`O dia do prazo vai de ${DIA_PRAZO_MIN} a ${DIA_PRAZO_MAX}.`);
   return { titulo, descricao: textoOpcional(b?.descricao, 2000), categoria, diaPrazo };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -78,10 +80,6 @@ export async function POST(req: NextRequest) {
     const brutos = Array.isArray(body.itens) ? body.itens : [];
     if (!brutos.length) throw new ErroFechamento('Escolha ao menos um documento.');
     if (brutos.length > MAX_ITENS) throw new ErroFechamento(`Até ${MAX_ITENS} documentos por vez.`);
-    const itens: ItemModelo[] = brutos.map((b: unknown) => {
-      const c = campos(b);
-      return { titulo: c.titulo, descricao: c.descricao ?? '', categoria: c.categoria, diaPrazo: c.diaPrazo };
-    });
 
     // Confere TODAS as empresas antes de gravar qualquer uma (tudo ou nada).
     const donas = new Map<string, string>();
@@ -91,6 +89,12 @@ export async function POST(req: NextRequest) {
       if (!e?.escritorioId) throw new ErroFechamento('Empresa sem escritório vinculado.', 409);
       donas.set(id, e.escritorioId);
     }
+    // Sem `diaPrazo` no item vale o prazo padrão do escritório (o da sessão; o master usa o da 1ª empresa).
+    const padrao = await prazoPadraoDoEscritorio(g.sessao.escritorioId ?? donas.get(empresas[0]));
+    const itens: ItemModelo[] = brutos.map((b: unknown) => {
+      const c = campos(b, padrao);
+      return { titulo: c.titulo, descricao: c.descricao ?? '', categoria: c.categoria, diaPrazo: c.diaPrazo };
+    });
     const existentes = await listarRecorrentes(empresas, g.sessao.role === 'master' ? null : (g.sessao.escritorioId ?? '__nenhum__'));
     const linhas = empresas.flatMap((empresaId) =>
       itensNovos(itens, existentes.filter((m) => m.empresaId === empresaId)).map((i) => ({
@@ -118,7 +122,7 @@ export async function PATCH(req: NextRequest) {
     }
     const m = await recorrenteAcessivel(g, String(body.id ?? ''));
     switch (body.acao) {
-      case 'editar': return Response.json({ modelo: await editarRecorrente(m.id, campos(body)) });
+      case 'editar': return Response.json({ modelo: await editarRecorrente(m.id, campos(body, m.diaPrazo)) });
       case 'ativar': return Response.json({ modelo: await editarRecorrente(m.id, { ativa: true }) });
       case 'desativar': return Response.json({ modelo: await editarRecorrente(m.id, { ativa: false }) });
       default: throw new ErroFechamento('Ação inválida.');

@@ -6,6 +6,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { lerSessao, temModulo, COOKIE_SESSAO } from '@/lib/auth';
 import { escritaBarrada } from '@/lib/cobranca';
 import { barreiraSomenteLeitura } from '@/lib/acesso';
+import { citaArquivada, ehEscritaDeDados, empresasCitadas, MENSAGEM_ARQUIVADA } from '@/lib/arquivamento';
+import { lerEmpresasComArquivadas } from '@/lib/cadastro';
 import { HOME_CLIENTE, HOME_CONTADOR, inicioDoPapel, ROTA_PONTO } from '@/lib/inicio';
 
 // Site público + `/criar-conta` (cadastro self-service do escritório, teste grátis).
@@ -108,7 +110,32 @@ export async function proxy(req: NextRequest) {
     }
   }
 
+  // Empresa arquivada é só consulta: escrita que cita uma arquivada (`?empresa=` ou
+  // corpo JSON) vira 409. Rotas que só acham a empresa pelo id do registro caem na
+  // rede de segurança de `podeAcessarEmpresa` (lib/acesso.ts), que também nega.
+  if (ehApi && ehEscritaDeDados(req.method, pathname)) {
+    const ids = await empresasDaRequisicao(req);
+    if (ids.length) {
+      try {
+        if (citaArquivada(ids, await lerEmpresasComArquivadas())) {
+          return NextResponse.json({ erro: MENSAGEM_ARQUIVADA, codigo: 'empresa_arquivada' }, { status: 409 });
+        }
+      } catch { /* banco indisponível: a própria rota falha ao gravar */ }
+    }
+  }
+
   return NextResponse.next();
+}
+
+/** Empresas citadas na consulta e no corpo JSON (pequeno) da requisição. */
+async function empresasDaRequisicao(req: NextRequest): Promise<string[]> {
+  let corpo: unknown = null;
+  const tipo = req.headers.get('content-type') ?? '';
+  const tamanho = Number(req.headers.get('content-length') ?? '0');
+  if (tipo.includes('application/json') && tamanho > 0 && tamanho <= 200_000) {
+    try { corpo = await req.clone().json(); } catch { /* corpo inválido: a rota responde 400 */ }
+  }
+  return empresasCitadas(req.nextUrl.searchParams, corpo);
 }
 
 export const config = {

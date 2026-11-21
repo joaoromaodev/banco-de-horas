@@ -23,6 +23,8 @@ export interface Sessao {
   escritorioId?: string;
   /** Administrador do escritório (só papel `usuario`): gerencia a equipe. */
   adminEscritorio?: boolean;
+  /** Só em memória (nunca no cookie): esta requisição grava dados? Ver `podeAcessarEmpresa`. */
+  escrita?: boolean;
   exp: number; // epoch ms
 }
 

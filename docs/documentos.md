@@ -113,6 +113,23 @@ no menu, só contabilidade).
    Como cliente, `GET /api/documentos?empresa=<outra empresa>` → 403.
 9. Apague o escritório de teste no fim (documentos e objetos no bucket também).
 
+## Pedido mensal sem dia de prazo e documentos de arquivada (Sprint 7)
+
+- `POST /api/pendencias-recorrentes`: `diaPrazo` deixou de ser obrigatório. Se não vier
+  (`undefined`, `null`, `''`), vale o **prazo padrão do escritório**
+  (`escritorios.prazo_pedidos_padrao`, via `prazoPadraoDoEscritorio`; master usa o da
+  primeira empresa; sem o dado, 10). Se vier, continua validado (1–28 inteiro) → 400.
+  `PATCH acao: 'editar'` sem `diaPrazo` mantém o dia atual do pedido.
+  Regra pura: `resolverDiaPrazo` (`lib/fechamento.ts`), testada em `tests/arquivadasConsulta.test.ts`.
+- Documentos de empresa **arquivada** podem ser consultados e baixados (somente leitura);
+  enviar, excluir ou mexer em pendências dela dá 409/403. Ver `docs/multi-escritorio.md`.
+
+### Para o integrador (pedido mensal / documentos)
+- **Sem migração** (a 0019, do prazo padrão, já deve estar aplicada; sem ela o padrão é 10).
+- Testar com escritório de teste: ajustar o prazo padrão em Escritório (ex.: 15);
+  `POST /api/pendencias-recorrentes` com `{empresas:[id], itens:[{titulo, categoria}]}`
+  (sem `diaPrazo`) → o modelo criado tem `diaPrazo 15`; com `diaPrazo: 40` → 400.
+
 ## Pendências e armadilhas
 
 - **`/api/empresas` devolve `e.message` cru** (`app/api/empresas/route.ts`) — fora do escopo desta frente; trocar por mensagem genérica com log na integração.

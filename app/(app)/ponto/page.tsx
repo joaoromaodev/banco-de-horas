@@ -7,6 +7,7 @@ import { validar, Alerta } from '@/lib/validacao';
 import { dataBR } from '@/lib/data';
 import LupaImagem from '../LupaImagem';
 import { AbasPonto } from '../AbasPonto';
+import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar } from '../icones';
 import { Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
@@ -70,10 +71,12 @@ export default function Home() {
 
   // Carrega cadastros (funciona mesmo se a planilha não estiver configurada).
   useEffect(() => {
-    fetch('/api/empresas').then((r) => r.json()).then((d) => {
+    fetch('/api/empresas').then((r) => r.json()).then(async (d) => {
       if (Array.isArray(d.empresas)) {
-        setEmpresas(d.empresas);
-        if (d.empresas.length) setEmpresa((prev) => prev || d.empresas[0].id);
+        // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
+        const { lista, consulta } = await comArquivadaDaUrl<Empresa>(d.empresas);
+        setEmpresas(lista);
+        if (lista.length) setEmpresa((prev) => consulta || prev || lista[0].id);
       }
     }).catch(() => {});
   }, []);
@@ -278,6 +281,7 @@ export default function Home() {
       </Toasts>
 
       <Conteudo>
+        <FaixaArquivada empresa={empresaSel} />
         {bancoPendente && (
           <Aviso tom="aviso" titulo="Aguardando o banco de dados">
             A Folha de Ponto está mudando de casa. Enquanto a atualização não termina, não dá para salvar nem ler

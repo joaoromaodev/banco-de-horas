@@ -2,7 +2,7 @@
 //
 // Arquivar ≠ excluir: a empresa sai de circulação (listas, painel, agenda, cron,
 // login do cliente) mas todos os dados dela ficam no banco. Reativar devolve tudo.
-import { cabeNoPlano, limiteEmpresas, NOME_PLANO, PLANOS, planoMinimoPara, type Plano } from './cobranca';
+import { cabeNoPlano, ehExportacaoPost, limiteEmpresas, NOME_PLANO, PLANOS, planoMinimoPara, type Plano } from './cobranca';
 
 export interface ComArquivo { arquivadaEm?: string | null }
 
@@ -30,4 +30,59 @@ export function podeReativar(plano: Plano | null, ativasAgora: number):
     ok: false, limite,
     erro: `O plano ${NOME_PLANO[plano]} comporta até ${limite} empresas-clientes ativas. Para reativar esta, arquive outra ou suba para o ${sugerido} em Assinatura.`,
   };
+}
+
+// ---------------------------------------------------------------- Consulta de arquivadas
+// A contadora abre a empresa arquivada em modo SOMENTE LEITURA (sem reativar):
+// leitura e exportação passam; qualquer escrita é barrada, de forma central —
+// no proxy (409, quando a requisição traz a empresa) e em `podeAcessarEmpresa`
+// (rede de segurança para rotas que só descobrem a empresa pelo id do registro).
+
+/** Rotas que cuidam do próprio arquivamento: não passam pela barreira. */
+const FORA_DA_BARREIRA = ['/api/empresas', '/api/login', '/api/logout', '/api/criar-conta', '/api/cobranca'];
+
+export const MENSAGEM_ARQUIVADA = 'Esta empresa está arquivada: dá para consultar e exportar, mas não para alterar. Reative-a em Cadastro para voltar a lançar.';
+
+/** Este método/caminho grava dados? (exportação por POST não conta; arquivar/reativar tem regra própria.) */
+export function ehEscritaDeDados(metodo: string, caminho: string): boolean {
+  if (!caminho.startsWith('/api/')) return false;
+  const m = metodo.toUpperCase();
+  if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return false;
+  if (FORA_DA_BARREIRA.some((p) => caminho === p || caminho.startsWith(p + '/'))) return false;
+  return !ehExportacaoPost(caminho);
+}
+
+/** Ids de empresa citados numa requisição: `?empresa=`, `empresa`, `empresaId`, `empresas[]` (e `frequencia.empresa`). */
+export function empresasCitadas(consulta: URLSearchParams, corpo: unknown): string[] {
+  const ids = new Set<string>();
+  const add = (v: unknown) => { const t = typeof v === 'string' ? v.trim() : ''; if (t) ids.add(t); };
+  consulta.getAll('empresa').forEach(add);
+  if (corpo && typeof corpo === 'object') {
+    const c = corpo as Record<string, unknown>;
+    add(c.empresa); add(c.empresaId);
+    if (Array.isArray(c.empresas)) c.empresas.forEach(add);
+    if (c.frequencia && typeof c.frequencia === 'object') add((c.frequencia as Record<string, unknown>).empresa);
+  }
+  return [...ids];
+}
+
+/** Algum dos ids é de empresa arquivada? */
+export function citaArquivada(ids: string[], empresas: Array<ComArquivo & { id: string }>): boolean {
+  const arq = new Set(empresas.filter(estaArquivada).map((e) => e.id));
+  return ids.some((i) => arq.has(i));
+}
+
+/**
+ * Regra de acesso a UMA empresa já carregada. Arquivada: só a contabilidade
+ * (master/usuario do escritório) e só para ler; escrita e o papel `cliente` não.
+ */
+export function acessoAArquivada(papel: 'master' | 'usuario' | 'cliente', escrita: boolean): boolean {
+  return papel !== 'cliente' && !escrita;
+}
+
+/** "Empresa arquivada em 21/11/2026 — somente consulta". */
+export function faixaArquivada(arquivadaEm: string | null | undefined): string {
+  const d = arquivadaEm ? new Date(arquivadaEm) : null;
+  const data = d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : null;
+  return `Empresa arquivada${data ? ` em ${data}` : ''} — somente consulta`;
 }

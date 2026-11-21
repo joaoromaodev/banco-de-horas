@@ -258,6 +258,9 @@ const EXPORTACOES_POST = ['/api/gerar', '/api/contratos/documento'];
 const casa = (caminho: string, lista: string[]) =>
   lista.some((p) => caminho === p || caminho.startsWith(p + '/'));
 
+/** O POST só gera arquivo (exportar), sem gravar? (usado também pela consulta de arquivadas) */
+export const ehExportacaoPost = (caminho: string): boolean => casa(caminho, EXPORTACOES_POST);
+
 /**
  * Esta requisição é uma escrita que o modo somente leitura barra? Falha fechada:
  * todo método de escrita em `/api/*` é barrado, exceto a lista curta acima.
