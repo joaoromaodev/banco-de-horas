@@ -16,7 +16,8 @@ import { lerMe } from '@/lib/meCliente';
 import { ACCEPT_FOTO, CLIENTE_EXCLUI, LIMITE_FOTO_TEXTO, situacaoParaCliente, type SituacaoEnvio, validarFoto } from '@/lib/envioPonto';
 import { DialogoConfirmacao } from '../Dialogo';
 import { IconeCamera, IconeDesfazer, IconeExcluir, IconeMais } from '../icones';
-import { Aviso, Botao, BotaoIcone, botaoCls, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, Secao, Selo } from '@/components/ui';
+import { Aviso, Botao, BotaoIcone, botaoCls, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, FalhaCarregamento, Secao, Selo } from '@/components/ui';
+import { MENSAGEM_GENERICA, MENSAGEM_SEM_REDE } from '@/lib/carga';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 
@@ -76,6 +77,8 @@ export default function EnviarPontoPage() {
   const [itens, setItens] = useState<Item[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Falha da carga principal: na tela, com "Tentar de novo" (antes, "Carregando…" para sempre).
+  const [falha, setFalha] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [desfazer, setDesfazer] = useState<{ id: string; texto: string } | null>(null);
   const [excluindo, setExcluindo] = useState<EnvioCliente | null>(null);
@@ -89,17 +92,22 @@ export default function EnviarPontoPage() {
       setSemBanco(false);
     } catch (e) {
       if ((e as { aguardandoBanco?: boolean }).aguardandoBanco) { setSemBanco(true); setEnvios([]); return; }
-      setErro(e instanceof Error ? e.message : 'Falha ao carregar.');
+      setFalha(e instanceof TypeError ? MENSAGEM_SEM_REDE : e instanceof Error && e.message ? e.message : MENSAGEM_GENERICA);
+      return;
     }
+    setFalha(null);
   }, []);
 
-  useEffect(() => {
+  const iniciar = useCallback(() => {
+    setFalha(null);
     lerMe().then((m) => {
-      if (!m?.autenticado) return;
+      if (!m?.autenticado) { setFalha(MENSAGEM_GENERICA); return; }
       setPapel(m.role);
       if (m.role === 'cliente') carregar();
     });
   }, [carregar]);
+
+  useEffect(() => { iniciar(); }, [iniciar]);
 
   // Enquanto alguma folha está na fila da IA, atualiza a lista de tempos em tempos
   // (no máximo por 5 minutos depois do último envio).
@@ -253,7 +261,12 @@ export default function EnviarPontoPage() {
       </Toasts>
 
       <Conteudo largura="media">
-        {!papel && <Carregando />}
+        {falha && (
+          <FalhaCarregamento titulo="Não foi possível carregar as suas folhas." onTentar={() => (papel ? void carregar() : iniciar())}>
+            {falha}
+          </FalhaCarregamento>
+        )}
+        {!papel && !falha && <Carregando />}
         {semBanco && (
           <Aviso tom="aviso" titulo="Ainda não disponível">
             O envio de folhas está aguardando uma atualização do sistema. Enquanto isso, mande a foto à contabilidade
@@ -334,7 +347,7 @@ export default function EnviarPontoPage() {
 
         {papel === 'cliente' && !semBanco && (
           <Secao titulo="Folhas enviadas" descricao="Acompanhe o que a contabilidade já recebeu e conferiu.">
-            {envios === null ? <Carregando className="p-4" /> : envios.length === 0 ? (
+            {envios === null ? (falha ? null : <Carregando className="p-4" />) : envios.length === 0 ? (
               <EstadoVazio moldura={false} titulo="Nenhuma folha enviada ainda" descricao="As folhas que você enviar aparecem aqui, com a situação de cada uma." />
             ) : (
               <div className="space-y-5">

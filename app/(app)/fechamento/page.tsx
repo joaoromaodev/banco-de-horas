@@ -1,17 +1,19 @@
 'use client';
 
 // Pedidos mensais — os documentos que o escritório pede todo mês, por empresa.
-// No dia 1º o cron diário abre a pendência do mês anterior; quando o cliente envia
+// No dia 1º o cron diário abre a pendência do mês anterior (e, sem o cron, a primeira
+// visita do mês ao /painel ou ao /inicio — lib/pedidosNaVisita); quando o cliente envia
 // um documento da mesma categoria e competência, a pendência fecha sozinha.
 // Ver docs/documentos.md.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CATEGORIAS, Categoria, ROTULO_CATEGORIA } from '@/lib/documentos';
 import { DIA_PRAZO_MAX, DIA_PRAZO_MIN, DIA_PRAZO_PADRAO, MODELO_PADRAO, ModeloRecorrente } from '@/lib/fechamento';
 import {
-  Alternador, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, Marcacao, Secao, Selo,
+  Alternador, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, FalhaCarregamento, Marcacao, Secao, Selo,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { MENSAGEM_SEM_REDE } from '@/lib/carga';
 import { DialogoConfirmacao } from '../Dialogo';
 import { IconeExcluir } from '../icones';
 
@@ -44,14 +46,17 @@ export default function FechamentoPage() {
   const [outro, setOutro] = useState<{ titulo: string; categoria: Categoria; dia: number }>({ titulo: '', categoria: 'outros', dia: DIA_PRAZO_PADRAO });
   const [escolhidas, setEscolhidas] = useState<Set<string>>(new Set());
 
+  // Falha da carga principal: fica na tela com "Tentar de novo" (antes virava "Nenhuma empresa cadastrada").
+  const [falhaCarga, setFalhaCarga] = useState<string | null>(null);
   const carregar = useCallback(async () => {
+    setCarregando(true); setFalhaCarga(null);
     try {
       const [e, m] = await Promise.all([chamar('/api/empresas'), chamar('/api/pendencias-recorrentes')]);
       setEmpresas((e.empresas ?? []).map((x: Empresa) => ({ id: x.id, nome: x.nome })));
       setModelos(m.modelos ?? []);
       setSemTabela(Boolean(m.semTabela));
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Não foi possível carregar.');
+      setFalhaCarga(err instanceof TypeError ? MENSAGEM_SEM_REDE : err instanceof Error && err.message ? err.message : 'Não foi possível carregar.');
     } finally {
       setCarregando(false);
     }
@@ -153,8 +158,11 @@ export default function FechamentoPage() {
 
       <Conteudo largura="media">
         {semTabela && <Aviso tom="aviso" titulo="Aguardando o banco">Os pedidos mensais passam a funcionar assim que a migração 0018 for aplicada.</Aviso>}
+        {falhaCarga && !carregando && (
+          <FalhaCarregamento titulo="Não foi possível carregar os pedidos mensais." onTentar={() => { void carregar(); }}>{falhaCarga}</FalhaCarregamento>
+        )}
         {carregando && <Carregando />}
-        {!carregando && !empresas.length && <EstadoVazio titulo="Nenhuma empresa cadastrada" descricao="Cadastre as empresas-clientes na tela Cadastro para configurar o que pedir a cada uma." />}
+        {!carregando && !falhaCarga && !empresas.length && <EstadoVazio titulo="Nenhuma empresa cadastrada" descricao="Cadastre as empresas-clientes na tela Cadastro para configurar o que pedir a cada uma." />}
 
         {!carregando && empresas.length > 0 && (
           <>

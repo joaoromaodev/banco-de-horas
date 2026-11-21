@@ -11,7 +11,7 @@ import {
 } from '@/lib/agenda';
 import { chaveData, diasNoMes, diaSemana, MESES } from '@/lib/calendario';
 import {
-  Aviso, Botao, BotaoIcone, botaoCls, CabecalhoPagina, Carregando, Conteudo, cx, EstadoVazio, Indicador, Secao, Selo, tb, Tom,
+  Aviso, Botao, BotaoIcone, botaoCls, CabecalhoPagina, Carregando, FalhaCarregamento, Conteudo, cx, EstadoVazio, Indicador, Secao, Selo, tb, Tom,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
@@ -139,7 +139,10 @@ export default function AgendaPage() {
 
       <Conteudo>
         {ag.semTabela && <Aviso tom="aviso" titulo="Agenda aguardando o banco">{AVISO_MIGRACAO}</Aviso>}
-        {ag.carregando && <Carregando />}
+        {ag.falha && (
+          <FalhaCarregamento titulo="Não foi possível carregar a agenda." onTentar={ag.tentarDeNovo}>{ag.falha}</FalhaCarregamento>
+        )}
+        {ag.carregando && !ag.falha && <Carregando />}
 
         {semNada && (
           <EstadoVazio

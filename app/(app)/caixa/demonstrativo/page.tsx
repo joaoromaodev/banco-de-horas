@@ -12,10 +12,11 @@ import { AbasCaixa } from '../AbasCaixa';
 import { dinheiro, MESES_LONGOS } from '../formato';
 import Grafico from './Grafico';
 import { DialogoConfirmacao } from '../../Dialogo';
-import { Aviso, Botao, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, Indicador, Secao, Selo, tb } from '@/components/ui';
+import { Aviso, Botao, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, FalhaCarregamento, Indicador, Secao, Selo, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { lerMe } from '@/lib/meCliente';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { Comparacao, Demonstrativo, liberadoAte, mesInicial, TITULO, textoVariacao } from '@/lib/demonstrativo';
 import { br, rotuloCompetencia } from '@/lib/agenda';
 
@@ -59,6 +60,11 @@ export default function DemonstrativoPagina() {
   const [resp, setResp] = useState<Resposta | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+  // Falhas do carregamento principal: ficam na tela com "Tentar de novo".
+  const [falhaEmpresas, setFalhaEmpresas] = useState('');
+  const [falhaMeses, setFalhaMeses] = useState('');
+  const [falha, setFalha] = useState('');
+  const [tentativaMeses, setTentativaMeses] = useState(0);
   const [msg, setMsg] = useState('');
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -78,46 +84,48 @@ export default function DemonstrativoPagina() {
     if (m >= 1 && m <= 12) setMes(m);
   }, []);
 
+  const carregarEmpresas = useCallback(() => {
+    setFalhaEmpresas('');
+    lerJson<{ empresas?: Empresa[] }>('/api/empresas').then((d) => {
+      const lista: Empresa[] = d.empresas ?? [];
+      setEmpresas(lista);
+      setEmpresaSel((x) => x || lista[0]?.id || '');
+    }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
+  }, []);
+
   useEffect(() => {
     lerMe().then((d) => {
       if (!d?.autenticado) return;
       setMe(d);
       if (d.role === 'cliente') { if (d.empresa) setEmpresaSel(d.empresa); }
       else { const e = localStorage.getItem('caixa.empresa'); if (e) setEmpresaSel((x) => x || e); }
-    }).catch(() => {});
-    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      const lista: Empresa[] = d?.empresas ?? [];
-      setEmpresas(lista);
-      setEmpresaSel((x) => x || lista[0]?.id || '');
-    }).catch(() => {});
-  }, []);
+    }).catch(() => {}); // lerMe nunca rejeita
+    carregarEmpresas();
+  }, [carregarEmpresas]);
 
   // Descobre até onde o ano está confirmado em sequência e escolhe o mês: o último
   // liberado; sem nenhum, o último com movimento (regra em `mesInicial`).
   useEffect(() => {
     if (!empresaSel) return;
     let ativo = true;
-    setAte(null); setResp(null);
-    fetch(`/api/caixa/resumo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`).then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (!ativo || !d) return;
+    setAte(null); setResp(null); setFalhaMeses('');
+    lerJson(`/api/caixa/resumo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`).then((d) => {
+      if (!ativo) return;
       const meses = d.meses as { mes: number; confirmado: boolean; entradas: number | null; saidas: number | null }[];
       setAte(liberadoAte(meses.filter((m) => m.confirmado).map((m) => m.mes)));
       setMes((atual) => (atual >= 1 && atual <= 12 ? atual : mesInicial(ano, meses)));
-    }).catch(() => { if (ativo) setAte(0); });
+    }).catch((e) => { if (ativo) setFalhaMeses(mensagemDeCarga(e)); });
     return () => { ativo = false; };
-  }, [empresaSel, ano]);
+  }, [empresaSel, ano, tentativaMeses]);
 
   const carregar = useCallback(async () => {
     if (!empresaSel || mes < 1) return;
-    setCarregando(true); setErro('');
+    setCarregando(true); setFalha('');
     try {
-      const r = await fetch(`/api/caixa/demonstrativo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}&mes=${mes}`, { cache: 'no-store' });
-      const x = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(x.erro || 'Não foi possível carregar o demonstrativo.');
-      setResp(x as Resposta);
+      setResp(await lerJson<Resposta>(`/api/caixa/demonstrativo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}&mes=${mes}`, { cache: 'no-store' }));
     } catch (e) {
       setResp(null);
-      setErro(e instanceof Error ? e.message : 'Não foi possível carregar o demonstrativo.');
+      setFalha(mensagemDeCarga(e));
     } finally { setCarregando(false); }
   }, [empresaSel, ano, mes]);
 
@@ -177,6 +185,19 @@ export default function DemonstrativoPagina() {
       </Toasts>
 
       <Conteudo largura="media">
+        {falhaEmpresas && (
+          <FalhaCarregamento titulo="Não foi possível carregar as empresas." onTentar={carregarEmpresas}>{falhaEmpresas}</FalhaCarregamento>
+        )}
+        {falhaMeses && (
+          <FalhaCarregamento titulo="Não foi possível conferir os meses confirmados." onTentar={() => setTentativaMeses((n) => n + 1)}>
+            {falhaMeses}
+          </FalhaCarregamento>
+        )}
+        {falha && (
+          <FalhaCarregamento titulo="Não foi possível carregar o demonstrativo." onTentar={() => { void carregar(); }} tentando={carregando}>
+            {falha}
+          </FalhaCarregamento>
+        )}
         {carregando && !resp && <Carregando>Montando o demonstrativo…</Carregando>}
 
         {ate === 0 && !ehGestor && (

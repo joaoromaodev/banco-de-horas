@@ -20,12 +20,13 @@ import { AbasCaixa } from './AbasCaixa';
 import LimiteFaturamento from './LimiteFaturamento';
 import LerDocumento, { type DocumentoLido } from './LerDocumento';
 import {
-  Alternador, Aviso, Botao, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
+  Alternador, Aviso, Botao, FalhaCarregamento, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
   EstadoVazio, Indicador, Marcacao, Secao, Selo, seloCls, tb, type Tom,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { lerMe } from '@/lib/meCliente';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { sugerirConta, type ConsultaSugestao, type ExemploConferido, type Sugestao } from '@/lib/sugestaoConta';
 import type { NivelAlerta, ResultadoRevisao, RevisaoLancamento } from '@/lib/revisaoCaixa';
 import type { PropostaDocumento } from '@/lib/documentoLancamento';
@@ -129,6 +130,9 @@ export default function Caixa() {
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Falha do carregamento principal (empresas, exercício, mês): fica na tela com "Tentar de novo".
+  const [falhaEmpresas, setFalhaEmpresas] = useState<string | null>(null);
+  const [falhaCarga, setFalhaCarga] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const [aExcluir, setAExcluir] = useState<Lancamento | null>(null);
@@ -188,6 +192,17 @@ export default function Caixa() {
   // A oferta de desfazer é do mês/empresa onde a exclusão aconteceu; ao navegar, some.
   useEffect(() => { setDesfazer(null); }, [empresaSel, mes, ano]);
 
+  const carregarEmpresas = useCallback(() => {
+    setFalhaEmpresas(null);
+    lerJson<{ empresas?: Empresa[] }>('/api/empresas').then(async (d) => {
+      // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
+      const { lista, consulta } = await comArquivadaDaUrl<Empresa>(d.empresas ?? []);
+      setEmpresas(lista);
+      // Fallback: para o cliente, /api/empresas já devolve só a empresa dele.
+      setEmpresaSel((atual) => consulta || atual || lista[0]?.id || '');
+    }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
+  }, []);
+
   useEffect(() => {
     lerMe().then((d) => {
       if (!d?.autenticado) return;
@@ -201,21 +216,13 @@ export default function Caixa() {
         const e = localStorage.getItem('caixa.empresa');
         if (e) setEmpresaSel((atual) => atual || e);
       }
-    }).catch(() => {});
-    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then(async (d) => {
-      // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
-      const { lista, consulta } = await comArquivadaDaUrl<Empresa>(d?.empresas ?? []);
-      setEmpresas(lista);
-      // Fallback: para o cliente, /api/empresas já devolve só a empresa dele.
-      setEmpresaSel((atual) => consulta || atual || lista[0]?.id || '');
-    }).catch(() => {});
-  }, []);
+    }).catch(() => {}); // lerMe nunca rejeita (devolve null); sem ele, a lista de empresas decide
+    carregarEmpresas();
+  }, [carregarEmpresas]);
 
   const carregarExercicio = useCallback(async () => {
     if (!empresaSel) return;
-    const r = await fetch(`/api/caixa/exercicio?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`);
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.erro);
+    const d = await lerJson(`/api/caixa/exercicio?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`);
     setResumo(d.resumo ?? []);
     setConfirmados(d.confirmados ?? []);
     setSaldoInicial(d.exercicio?.saldoInicial ?? 0);
@@ -224,10 +231,7 @@ export default function Caixa() {
 
   const carregarMes = useCallback(async () => {
     if (!empresaSel) return;
-    const r = await fetch(`/api/caixa/lancamentos?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}&mes=${mes}`);
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.erro);
-    setDados(d);
+    setDados(await lerJson<RespostaMes>(`/api/caixa/lancamentos?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}&mes=${mes}`));
   }, [empresaSel, ano, mes]);
 
   // Revisão do exercício (só a contabilidade). Falhar aqui não derruba a tela.
@@ -251,11 +255,14 @@ export default function Caixa() {
   const emAndamento = useRef(0);
   const comEstado = useCallback(async (...cargas: Promise<unknown>[]) => {
     emAndamento.current++;
-    setCarregando(true); setErro(null);
+    setCarregando(true); setErro(null); setFalhaCarga(null);
     try {
       await Promise.all(cargas);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      // Migração pendente tem tela própria (BancoIncompleto); o resto fica na tela com "Tentar de novo".
+      if (faltaMigracao(m)) setErro(m);
+      else setFalhaCarga(mensagemDeCarga(e));
     } finally {
       emAndamento.current--;
       if (emAndamento.current === 0) setCarregando(false);
@@ -645,6 +652,14 @@ export default function Caixa() {
       </Toasts>
 
       <Conteudo>
+        {falhaEmpresas && (
+          <FalhaCarregamento titulo="Não foi possível carregar as empresas." onTentar={carregarEmpresas}>{falhaEmpresas}</FalhaCarregamento>
+        )}
+        {falhaCarga && (
+          <FalhaCarregamento titulo="Não foi possível carregar o movimento." onTentar={() => { void recarregar(); }} tentando={carregando}>
+            {falhaCarga}
+          </FalhaCarregamento>
+        )}
         <FaixaArquivada empresa={empresas.find((e) => e.id === empresaSel)} />
         {empresaSel && <LimiteFaturamento empresaId={empresaSel} />}
         {ehGestor && mostrarDocs && (

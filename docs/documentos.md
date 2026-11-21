@@ -169,3 +169,34 @@ para propor um lançamento do Livro Caixa, e o lançamento fica com ele anexado
 Nada muda nas regras deste portal; só entrou `baixarArquivo` em `lib/documentosServidor.ts`
 (reconfere tamanho e assinatura antes da leitura). Regras, LGPD e "Para o integrador" em
 [`livro-caixa.md`](livro-caixa.md), seção "Documento → lançamento sugerido por IA".
+
+## Sprint 14 · Frente A — pedidos mensais sem depender do cron
+
+**Problema:** sem `CRON_SECRET` na Vercel, `/api/cron/agenda` responde 503 e os pedidos mensais
+não abriam — calado. Agora a **primeira visita do mês** abre os pedidos do escritório:
+
+| O quê | Como |
+|---|---|
+| Quem dispara | A contadora (`usuario` com escritório) no `GET /api/painel` e o cliente no `GET /api/inicio-cliente`. Sempre o escritório **da sessão**; o master não dispara. O cliente abre os pedidos do escritório inteiro (o mesmo que o cron faria) — nada disso volta na resposta dele. |
+| Onde | `lib/pedidosNaVisita.ts` → `abrirPendenciasRecorrentes(hoje, ativas, { escritorioId })` (novo terceiro parâmetro opcional: só os modelos daquele escritório). Mesmo recorte do cron: empresa não arquivada, escritório não suspenso. |
+| Barato | `escritorios.pedidos_competencia_aberta` (migração **0030**) guarda a última competência aberta; o processo também a guarda em memória. Visitas seguintes do mês: zero consultas (mesmo processo) ou uma (processo novo). O cron também grava a marca (só no dia real; `?dia=` é simulação), e a marca só avança. |
+| Idempotente | A trava é o índice único **que já existia** `pendencias_modelo_competencia_uniq (modelo_id, competencia)` da 0018 — o modelo é de uma empresa só, então vale por (modelo, empresa, competência). Visitas simultâneas em processos diferentes (ou visita + cron): o segundo insert recebe 23505 e conta como "já existia". No mesmo processo, visitas simultâneas compartilham a mesma promessa. **A 0030 não cria índice.** |
+| Falha | Nunca derruba a tela (`abrirPedidosNaVisita` não lança). Com qualquer falha de insert a marca **não** é gravada: a próxima visita tenta de novo. |
+| Limite conhecido | Empresa reativada (desarquivada) ou modelo religado no meio do mês, depois da marca: a visita não reabre; o cron, quando ligado, abre no dia seguinte. |
+
+Testes: `tests/pedidosNaVisita.test.ts` (abertura, memória, marca, concorrência no mesmo processo e
+entre processos com o índice único simulado, sem a 0030, falha) e `tests/pedidosNaVisitaRotas.test.ts`
+(quem dispara, ordem antes da leitura, master não dispara).
+
+### Para o integrador (Sprint 14 · Frente A — pedidos na visita)
+
+- **Migração 0030** (`supabase/migrations/0030_pedidos_na_visita.sql`): uma coluna nullable em
+  `escritorios`, sem índice. Aditiva; o código funciona sem ela (só memória do processo; no pior caso
+  refaz a conferência, que é idempotente). Ordem publicar/aplicar indiferente. **Não foi aplicada em
+  banco nenhum.**
+- Arquivos compartilhados tocados: `lib/fechamentoServidor.ts` (parâmetro opcional),
+  `app/api/painel/route.ts`, `app/api/inicio-cliente/route.ts`, `app/api/cron/agenda/route.ts`.
+- Testar em produção (conta de teste): com a 0030 aplicada, zerar a marca do escritório de teste
+  (`update escritorios set pedidos_competencia_aberta = null where id = '<teste>'`), ter um pedido
+  mensal criado antes do dia 1º e abrir o `/painel` → a pendência da competência anterior aparece em
+  Documentos; abrir de novo → nenhuma duplicada; a marca vira `AAAA-MM`.

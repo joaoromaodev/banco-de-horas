@@ -127,6 +127,7 @@ tudo já nasce nos dois temas. Não escreva `dark:`.
 | `Selo` | Pílula de situação; `tom`: `neutro` · `primaria` · `sucesso` · `aviso` · `perigo`. |
 | `Aviso` | Aviso em linha; `tom`: `info` · `sucesso` · `aviso` · `perigo` · `neutro`; `titulo`, `acao`. |
 | `EstadoVazio` | Nunca deixe uma área em branco. `moldura={false}` dentro de tabela. |
+| `FalhaCarregamento` | O **carregamento principal** da tela falhou: `Aviso` de perigo com mensagem humana e "Tentar de novo" (`onTentar`, `tentando`). Use com `lerJson`/`mensagemDeCarga` de `lib/carga.ts` — resposta não-ok ou sem rede vira mensagem em português, nunca texto técnico. **Proibido** `.catch(() => {})` no carregamento principal (tela vazia parece "não tem nada"). Fonte opcional que falha sozinha (bloco do `/inicio`, cota, sugestões) segue com `Aviso tom="neutro"` ou em silêncio, com comentário dizendo por quê. Erro inesperado de renderização cai em `app/(app)/error.tsx` (e `app/global-error.tsx` no layout raiz). |
 | `Indicador` | Número de destaque (saldo, entradas, saídas); `destaque` em um só. |
 | `Esqueleto`, `Carregando` | Carregamento: bloco pulsante e linha "Carregando…". |
 | `Paginacao` | Anterior · página X de Y · próxima (ainda sem uso; pronto para listas longas). |

@@ -5,7 +5,8 @@
 // lib/escritorioConfig.ts; ver docs/multi-escritorio.md ("Configurações do escritório").
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Alternador, Aviso, Botao, botaoCls, CabecalhoPagina, Carregando, Conteudo, Entrada, Marcacao, Secao } from '@/components/ui';
+import { Alternador, Aviso, Botao, botaoCls, CabecalhoPagina, Carregando, Conteudo, Entrada, FalhaCarregamento, Marcacao, Secao } from '@/components/ui';
+import { MENSAGEM_SEM_REDE } from '@/lib/carga';
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
 import { cnpjValido, crcValido, formatarCnpj } from '@/lib/escritorioConfig';
@@ -56,16 +57,19 @@ export default function EscritorioPage() {
     setDest(new Set(d.aviso.destinatarios));
   }
 
-  useEffect(() => {
+  const carregar = () => {
+    setCarregando(true); setErro(null);
     Promise.all([
       chamar('/api/escritorio'),
       chamar('/api/agenda/avisos').catch(() => null),
     ]).then(([e, a]) => {
       preencher(e.escritorio); setPodeEditar(e.podeEditar); setEmpresas(e.empresas);
       if (a) preencherAviso(a);
-    }).catch((err) => setErro(err instanceof Error ? err.message : 'Não foi possível carregar.'))
+    }).catch((err) => setErro(err instanceof TypeError ? MENSAGEM_SEM_REDE : err instanceof Error && err.message ? err.message : 'Não foi possível carregar.'))
       .finally(() => setCarregando(false));
-  }, []);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
+  useEffect(() => { carregar(); }, []);
 
   const erros = useMemo(() => {
     const e: Record<string, string> = {};
@@ -135,7 +139,13 @@ export default function EscritorioPage() {
   }
 
   if (carregando) return <div className="p-6"><Carregando /></div>;
-  if (!esc) return <Conteudo largura="estreita"><Aviso tom="perigo">{erro ?? 'Não foi possível carregar o escritório.'}</Aviso></Conteudo>;
+  if (!esc) {
+    return (
+      <Conteudo largura="estreita">
+        <FalhaCarregamento titulo="Não foi possível carregar o escritório." onTentar={carregar}>{erro ?? undefined}</FalhaCarregamento>
+      </Conteudo>
+    );
+  }
 
   const ligado = aviso?.aviso.frequencia !== 'desligado';
   const podeAviso = podeEditar && aviso?.podeEditar;

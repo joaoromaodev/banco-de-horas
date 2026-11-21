@@ -13,9 +13,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { dinheiro, MESES_LONGOS } from '../formato';
 import { EntradasSaidas, EvolucaoSaldo, PontoMes } from './Graficos';
 import { AbasCaixa } from '../AbasCaixa';
-import { Aviso, CabecalhoPagina, Carregando, Conteudo, Esqueleto, Indicador, Secao, Selo, tb } from '@/components/ui';
+import { Aviso, CabecalhoPagina, Carregando, Conteudo, Esqueleto, FalhaCarregamento, Indicador, Secao, Selo, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { lerMe } from '@/lib/meCliente';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; }
@@ -62,6 +63,17 @@ export default function ResumoCaixa() {
   useEffect(() => { if (empresaSel && me?.role !== 'cliente') localStorage.setItem('caixa.empresa', empresaSel); }, [empresaSel, me]);
   useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
 
+  const [falhaEmpresas, setFalhaEmpresas] = useState('');
+  const carregarEmpresas = useCallback(() => {
+    setFalhaEmpresas('');
+    lerJson<{ empresas?: Empresa[] }>('/api/empresas').then((d) => {
+      const lista: Empresa[] = d.empresas ?? [];
+      setEmpresas(lista);
+      // Fallback: para o cliente, /api/empresas já devolve só a empresa dele.
+      setEmpresaSel((atual) => atual || lista[0]?.id || '');
+    }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
+  }, []);
+
   useEffect(() => {
     lerMe().then((d) => {
       if (!d?.autenticado) return;
@@ -75,25 +87,17 @@ export default function ResumoCaixa() {
         const e = localStorage.getItem('caixa.empresa');
         if (e) setEmpresaSel((atual) => atual || e);
       }
-    }).catch(() => {});
-    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      const lista: Empresa[] = d?.empresas ?? [];
-      setEmpresas(lista);
-      // Fallback: para o cliente, /api/empresas já devolve só a empresa dele.
-      setEmpresaSel((atual) => atual || lista[0]?.id || '');
-    }).catch(() => {});
-  }, []);
+    }).catch(() => {}); // lerMe nunca rejeita
+    carregarEmpresas();
+  }, [carregarEmpresas]);
 
   const carregar = useCallback(async () => {
     if (!empresaSel) return;
     setCarregando(true); setErro(null);
     try {
-      const r = await fetch(`/api/caixa/resumo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`);
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.erro);
-      setResumo(d);
+      setResumo(await lerJson(`/api/caixa/resumo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`));
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      setErro(mensagemDeCarga(e));
     } finally {
       setCarregando(false);
     }
@@ -119,7 +123,12 @@ export default function ResumoCaixa() {
   return (
     <Moldura ehGestor={ehGestor} empresas={empresas} empresaSel={empresaSel} setEmpresaSel={setEmpresaSel}
       ano={ano} setAno={setAno} anos={anos}>
-      {erro && <Aviso tom="perigo">{erro}</Aviso>}
+      {falhaEmpresas && (
+        <FalhaCarregamento titulo="Não foi possível carregar as empresas." onTentar={carregarEmpresas}>{falhaEmpresas}</FalhaCarregamento>
+      )}
+      {erro && (
+        <FalhaCarregamento titulo="Não foi possível carregar o resumo." onTentar={() => { void carregar(); }} tentando={carregando}>{erro}</FalhaCarregamento>
+      )}
 
       {nenhumLiberado && !ehGestor && (
         <Aviso tom="info">

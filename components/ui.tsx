@@ -449,6 +449,24 @@ export function Aviso({ tom = 'info', titulo, acao, className, children }: {
   );
 }
 
+/**
+ * O carregamento principal da tela falhou: mensagem humana e "Tentar de novo".
+ * Nunca engula o erro do carregamento principal (`.catch(() => {})`) — a tela em
+ * branco parece "não tem nada". Fonte opcional que falha sozinha usa `Aviso tom="neutro"`.
+ * `children` é a mensagem (já em português, vinda da API ou de `lerJson`); sem ela,
+ * um texto genérico. Nunca mostre pilha de erro nem código técnico aqui.
+ */
+export function FalhaCarregamento({ titulo = 'Não foi possível carregar esta tela.', onTentar, tentando = false, className, children }: {
+  titulo?: React.ReactNode; onTentar: () => void; tentando?: boolean; className?: string; children?: React.ReactNode;
+}) {
+  return (
+    <Aviso tom="perigo" titulo={titulo} className={className}
+      acao={<Botao tamanho="sm" onClick={onTentar} carregando={tentando}>Tentar de novo</Botao>}>
+      {children ?? 'Confira a sua conexão e tente de novo. Se continuar, avise o suporte.'}
+    </Aviso>
+  );
+}
+
 /** O que mostrar quando não há nada: nunca deixe a área em branco. */
 export function EstadoVazio({ titulo, descricao, acao, icone, moldura = true, className }: {
   titulo: React.ReactNode; descricao?: React.ReactNode; acao?: React.ReactNode; icone?: React.ReactNode;

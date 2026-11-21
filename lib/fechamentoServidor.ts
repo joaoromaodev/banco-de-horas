@@ -109,11 +109,17 @@ export interface ResultadoAbertura { modelos: number; abertas: number; ja_existi
  * `empresasAtivas`: empresa id → escritório (só empresas não arquivadas, de
  * escritório não suspenso — quem chama monta).
  */
-export async function abrirPendenciasRecorrentes(hoje: string, empresasAtivas: Map<string, string>): Promise<ResultadoAbertura> {
+export async function abrirPendenciasRecorrentes(
+  hoje: string, empresasAtivas: Map<string, string>, escopo?: { escritorioId: string },
+): Promise<ResultadoAbertura> {
   const db = getDb();
-  // Todos os modelos ativos da plataforma, por páginas (um `.limit(10000)` voltava 1.000).
-  const data = await lerTudo<LinhaBanco>((de, ate) => db.from('pendencias_recorrentes').select(COLS)
-    .eq('ativa', true).is('excluido_em', null).order('id').range(de, ate), { falhar: traduzir });
+  // Os modelos ativos (da plataforma — o cron — ou de um escritório — a primeira visita
+  // do mês, lib/pedidosNaVisita), por páginas (um `.limit(10000)` voltava 1.000).
+  const data = await lerTudo<LinhaBanco>((de, ate) => {
+    let q = db.from('pendencias_recorrentes').select(COLS).eq('ativa', true).is('excluido_em', null);
+    if (escopo) q = q.eq('escritorio_id', escopo.escritorioId);
+    return q.order('id').range(de, ate);
+  }, { falhar: traduzir });
   const modelos = data.map(modelo).filter((m) => empresasAtivas.get(m.empresaId) === m.escritorioId);
   const r: ResultadoAbertura = { modelos: modelos.length, abertas: 0, ja_existiam: 0, falhas: 0 };
   if (!modelos.length) return r;

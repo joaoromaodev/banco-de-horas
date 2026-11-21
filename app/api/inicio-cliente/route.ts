@@ -2,12 +2,15 @@
 //
 // Só o papel `cliente`, e só da empresa da própria sessão (nunca `?empresa=`).
 // Contabilidade não usa esta rota: tem o painel. Cada fonte falha sozinha e vira
-// `indisponiveis` na resposta; o resto segue. Somente leitura.
+// `indisponiveis` na resposta; o resto segue. Somente leitura — exceto a abertura
+// dos pedidos mensais do escritório na primeira visita do mês (lib/pedidosNaVisita),
+// que não depende do cron e falha sozinha.
 import { NextRequest } from 'next/server';
 import { exigirEmpresa, sessaoDe } from '@/lib/acesso';
 import { lerEmpresa } from '@/lib/cadastro';
 import { hojeBelem } from '@/lib/contratos';
 import { Fonte, mesAnterior, montarInicioCliente } from '@/lib/inicioCliente';
+import { abrirPedidosNaVisita } from '@/lib/pedidosNaVisita';
 import { lerFolhasDevolvidas, lerMovimento, lerPendenciasAbertas, lerUltimoDemonstrativo } from '@/lib/inicioClienteServidor';
 
 export const runtime = 'nodejs';
@@ -29,6 +32,7 @@ export async function GET(req: NextRequest) {
   if (!g.ok) return g.resposta;
 
   const hoje = hojeBelem();
+  await abrirPedidosNaVisita(escritorioId, hoje);
   const atual = { ano: Number(hoje.slice(0, 4)), mes: Number(hoje.slice(5, 7)) };
   const empresa = await lerEmpresa(empresaId).catch(() => null);
   const [movimento, pendencias, folhasDevolvidas, demonstrativo] = await Promise.all([

@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Empresa } from '@/lib/tipos';
 import { lerMe } from '@/lib/meCliente';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { IconeExcluir, IconeMais } from '../icones';
-import { Alternador, Botao, botaoCls, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
+import { Alternador, Botao, botaoCls, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Entrada, EstadoVazio, FalhaCarregamento, Secao, Selo, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
@@ -34,14 +35,15 @@ export default function Cadastro() {
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
+  // Falha da lista de empresas: fica na tela com "Tentar de novo" (a tabela vazia
+  // pareceria "nenhuma empresa cadastrada").
+  const [falhaEmpresas, setFalhaEmpresas] = useState<string | null>(null);
   async function carregarEmpresas() {
-    setErro(null);
+    setFalhaEmpresas(null);
     try {
-      const r = await fetch('/api/empresas');
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.erro);
+      const d = await lerJson<{ empresas?: Empresa[] }>('/api/empresas');
       setEmpresas(d.empresas ?? []);
-    } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { setFalhaEmpresas(mensagemDeCarga(e)); }
   }
 
   async function carregarArquivadas() {
@@ -180,6 +182,9 @@ export default function Cadastro() {
       </Toasts>
 
       <Conteudo largura="media">
+        {falhaEmpresas && (
+          <FalhaCarregamento titulo="Não foi possível carregar as empresas." onTentar={() => { void carregarEmpresas(); }}>{falhaEmpresas}</FalhaCarregamento>
+        )}
         {/* Identidade das empresas (compartilhada pelos dois módulos) */}
         <Secao titulo="Empresas-clientes"
           descricao={<>
