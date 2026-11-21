@@ -862,6 +862,7 @@ liga a opção (403). **Invariante:** `documento_id` tem FK simples para `docume
 **O que vai para o Gemini** (`lib/documentoLancamentoServidor.ts` + `montarPromptDocumento`):
 - o arquivo, **minimizado**: do PDF, só as **2 primeiras páginas**, regravado pelo pdf-lib
   (sai sem os metadados do original — autor, título, programa); a foto (JPG, PNG, WEBP)
+  **em pé** (a orientação do EXIF aplicada nos pixels, `lib/fotoParaIa.ts`, Sprint 13) e
   **sem EXIF/XMP/textos** (localização do celular, aparelho, horário), por
   `imagemSemMetadados`. O que não dá para minimizar é **recusado (415)**, nunca mandado
   inteiro: PDF com senha ou torto, imagem fora do formato e **HEIC** (sem biblioteca de
@@ -885,8 +886,8 @@ mesmo se a leitura não serviu) e marca `falhou` se o Gemini cair (não conta na
 no ritmo). Além disso: o ritmo do escritório (30 tentativas/10 min, compartilhado com a
 folha), **15 leituras por usuário a cada 10 min** (memória, por instância) e, quando quem
 lê é o **cliente**, **30 leituras de documento por empresa por mês**
-(`LIMITE_DOCUMENTOS_EMPRESA_CLIENTE`, contadas no banco) — um cliente não esgota a cota do
-escritório nem trava a folha de ponto. O arquivo é baixado e preparado **antes** de gastar
+(`LIMITE_DOCUMENTOS_EMPRESA_CLIENTE`, contadas no banco, **só as do cliente** — Sprint 13)
+— um cliente não esgota a cota do escritório nem trava a folha de ponto. O arquivo é baixado e preparado **antes** de gastar
 cota. Escritório suspenso ou cota esgotada → 429 com a mensagem "dá para lançar à mão".
 
 **Arquivos.** `supabase/migrations/0029_documento_lancamento.sql`; `lib/documentoLancamento.ts`
@@ -898,7 +899,7 @@ anexo, alternador no painel Documentos). Mudanças mínimas em `lib/caixa.ts`
 (`lancamentosDoMes` devolve `documentoId`; sem a 0029 relê sem a coluna), `lib/cadastro.ts`
 (`definirIaDocumento`, fora do upsert do cadastro), `lib/documentosServidor.ts`
 (`baixarArquivo`, que reconfere tamanho e assinatura), `lib/pontoDb.ts` (`origem` na
-reserva, `contarLeiturasDocumentoEmpresa`), `lib/tipos.ts` e
+reserva, `contarLeiturasDocumentoDoCliente`), `lib/tipos.ts` e
 `app/api/caixa/lancamentos/route.ts` (`documentoId`). Nos testes o Gemini é **simulado**
 (`vi.mock('@google/genai')`): nenhum documento sai da máquina.
 
@@ -966,16 +967,75 @@ reserva, `contarLeiturasDocumentoEmpresa`), `lib/tipos.ts` e
 - XML de NF-e não passa pela IA (fica fora da lista); um leitor determinístico do XML
   (sem IA, sem dado saindo) seria o próximo passo natural para notas eletrônicas.
 - HEIC fora da IA (metadados). Se o iPhone mandar HEIC pelo seletor de arquivo, a tela
-  avisa; converter no navegador seria a saída.
+  avisa; converter no navegador seria a saída (o `sharp` pré-compilado não abre HEIC).
 - O ritmo por usuário é em memória (por instância); o que segura de verdade são a cota
   do escritório e a subcota da empresa, no banco.
-- A subcota do cliente (30/mês) conta **todas** as leituras de documento daquela empresa,
-  inclusive as que a contabilidade fez; e é conferida antes da reserva, não de novo depois
-  (uma rajada paralela passa 1 ou 2 do teto — a cota do escritório segura o resto).
-- Tirar o EXIF leva junto a orientação: foto tirada "deitada" chega girada à IA (piora a
-  leitura, não é risco). Se a precisão cair, recodificar a imagem já orientada.
+- ~~A subcota do cliente (30/mês) conta **todas** as leituras de documento daquela empresa,
+  inclusive as que a contabilidade fez; e é conferida antes da reserva, não de novo depois~~
+  → **resolvida na Sprint 13** (abaixo): conta só as do cliente e reconta depois da reserva.
+- ~~Tirar o EXIF leva junto a orientação: foto tirada "deitada" chega girada à IA~~ →
+  **resolvida na Sprint 13** (abaixo): a rotação é aplicada nos pixels antes.
 - Reconferido pelo `escudo` depois das correções: **aprovado com ressalvas**, nada no código
   impede ligar; o que bloqueia é o jurídico (política e suboperadores) e o Gemini pago.
+
+### ✅ Acabamentos de IA e tela — 21/11/2026 (Sprint 13, Frente B)
+
+Fecha as duas ressalvas do `escudo` na leitura de documentos e o gráfico do Demonstrativo
+no celular. **Sem migração** (nenhuma coluna nova — a 0031 reservada não foi usada).
+
+**1. Foto girada.** O celular grava a foto deitada e marca no EXIF "gire 90°"; tirar o EXIF
+(minimização) levava a marca junto e a foto chegava girada ao Gemini. Agora
+`lib/fotoParaIa.ts` lê a orientação (`orientacaoExif`, puro, em
+`lib/documentoLancamento.ts`: JPEG, PNG e WEBP) e, se não for 1, aplica a rotação **nos
+pixels** com o `sharp` (os 8 casos, com espelho) e recodifica (JPEG/WEBP qualidade 90; a
+saída do sharp não leva EXIF, XMP nem ICC) — só então `imagemSemMetadados` passa por cima.
+Orientação 1 não recodifica (nada de perda). Se o sharp faltar ou falhar, a foto segue
+como antes (pode chegar deitada) e loga `[foto-ia]` — a leitura nunca trava. Usado por
+`prepararParaIa` (caixa) e por `extrairFolha` (`lib/ocr.ts` — Timesheet e envio do
+cliente; ver [`folha-de-ponto.md`](folha-de-ponto.md)). HEIC continua de fora (o sharp
+pré-compilado não abre). Teste com imagens geradas no próprio teste, orientações 1, 3, 6
+e 8 (+ PNG e WEBP): `tests/fotoParaIa.test.ts`.
+
+**2. Subcota do cliente só com as leituras do cliente.** Quem leu já ficava em
+`ponto_leituras_ocr.usuario` (o e-mail); agora a leitura do **cliente** grava
+`cliente-documento:<e-mail>` (`leitorDaLeitura`, prefixo `PREFIXO_LEITURA_CLIENTE`) e
+`contarLeiturasDocumentoDoCliente` (era `contarLeiturasDocumentoEmpresa`) filtra por ele.
+As leituras da contabilidade na empresa gastam só a cota do escritório. O prefixo **não**
+começa por `cliente:` de propósito: esse é o das leituras automáticas da folha
+(`lib/envioPontoServidor.ts`, teto por empresa e ritmo próprio), que não devem contar as
+do caixa. **Corrida fechada** como na cota do escritório: confere antes, reserva e reconta
+depois da reserva — passou de 30, desfaz a própria reserva e responde 429. Numa rajada
+exatamente no limite os dois pedidos podem desistir (conservador; o cliente tenta de novo).
+Leituras de cliente feitas **antes** desta versão ficaram com o e-mail puro e não contam
+na subcota do mês em que ela entrar (a função está desligada em produção; impacto nulo).
+
+**3. Gráfico do Demonstrativo no celular.** `app/(app)/caixa/demonstrativo/Grafico.tsx`
+tinha `viewBox` fixo de 640 px (fonte 11 encolhia a ~6 px no celular). Agora reaproveita
+`useLargura` (exportado de `resumo/Graficos.tsx`) e `geometria()` de `resumo/geometria.ts`,
+que ganhou `meses` (a série tem até 12 meses, sem começar em janeiro) e `minFaixa` (40 px,
+porque o rótulo pode levar o ano, "jan/26"). Eixo e meses em 12 px de verdade; faltando
+espaço, os meses alternam **a partir do fim** (`mostraPosicao`) — o mês do demonstrativo
+sempre tem rótulo — e, em tela muito estreita (~300 px com 12 meses), um a cada três. O
+ano vai em janeiro e no primeiro rótulo visível. Teste em `tests/graficosResumo.test.ts`.
+
+#### Para o integrador
+
+- **Sem migração.** Nada a aplicar; a 0031 continua livre.
+- **Dependência:** `sharp` (^0.34.5) passou a dependência **direta** em `package.json` —
+  já vinha instalado como opcional do Next (mesma versão), então o lockfile mudou só a
+  marca `optional`. Na Vercel (Linux x64) o binário pré-compilado entra com o `npm ci`; o
+  Next já trata o `sharp` como pacote externo do servidor. `npm ci` depois do merge.
+- **Conflitos prováveis:** `lib/pontoDb.ts` (renome da função de contagem),
+  `app/api/caixa/documento-ia/route.ts`, `lib/ocr.ts` e `resumo/geometria.ts` (o tipo do
+  passo virou `1 | 2 | 3`).
+- **O que testar com conta de teste** (nunca documento real): (a) foto de recibo tirada
+  com o celular **em pé** → a proposta vem certa e, no log, nada de `[foto-ia]`; (b) como
+  cliente, 30 leituras no mês → a 31ª dá 429; como contador na mesma empresa, a leitura
+  passa e não mexe na conta do cliente (`select usuario from ponto_leituras_ocr where
+  origem = 'documento' order by criado_em desc limit 5;` → as do cliente com
+  `cliente-documento:`); (c) `/caixa/demonstrativo` a 375 px nos dois temas — eixo e
+  meses legíveis, meses alternados, o mês do demonstrativo em negrito.
+- **Não verificado no navegador** (sem banco local). typecheck, lint, testes e build verdes.
 
 ## Estado do banco
 

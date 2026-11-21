@@ -35,7 +35,7 @@ uma já vista.
 | `/ponto` fila de folhas do cliente — estado vazio | ✅ | ✅ | ✅ | ✅ | limpo | com envio real (foto + IA): ver "Não exercitado" |
 | `/caixa` lançamentos, excluir com confirmação + desfazer | ✅ | ✅ | ❌→✅ | ✅ | limpo | tabela do livro arrastava a página (800 px) |
 | `/caixa/resumo` | ✅ | ✅ | ✅ | ✅ | limpo | ~~rótulos do gráfico pequenos~~ → desenho em pixels reais, 12 px (Acabamento 4) |
-| `/caixa/demonstrativo` | ✅ | ✅ | ✅ | ✅ | limpo | ~~abre em "Janeiro · em aberto"~~ → último mês confirmado ou com movimento (Acabamento 2) |
+| `/caixa/demonstrativo` | ✅ | ✅ | ✅ | ✅ | limpo | ~~abre em "Janeiro · em aberto"~~ → último mês confirmado ou com movimento (Acabamento 2); ~~gráfico encolhe no celular~~ → largura real, 12 px (Sprint 13) |
 | `/caixa/cadastros`, `/cadastros`, `/ponto-cadastros`, `/equipe`, `/folhas` | ✅ | ✅ | ✅ | ✅ | limpo | |
 | `/contratos` | ✅ | ✅ | ✅ | ✅ | limpo | ~~barra de ações flutuante apertada em 1024 px~~ → duas linhas, downloads em grade 2×2 (Acabamento 3) |
 | Sino de notificações | ✅ | ✅ | ✅ | ✅ | limpo | vazio humano ("Nada novo nos últimos 14 dias") |
@@ -116,9 +116,12 @@ rápido em 375 px e 1024 px no próximo QA.
    [`app/(app)/caixa/resumo/geometria.ts`](../app/(app)/caixa/resumo/geometria.ts),
    [`tests/graficosResumo.test.ts`](../tests/graficosResumo.test.ts)
 
-Fica anotado: o gráfico do **Demonstrativo** (`caixa/demonstrativo/Grafico.tsx`) usa o
+~~Fica anotado: o gráfico do **Demonstrativo** (`caixa/demonstrativo/Grafico.tsx`) usa o
 mesmo `viewBox` fixo (640 px, fonte 11) — no desktop sai quase em tamanho real, mas no
-celular encolhe. Candidato a reaproveitar `geometria.ts` numa próxima rodada.
+celular encolhe.~~ → **resolvido na Sprint 13 (Frente B):** reaproveita `useLargura` e
+`geometria.ts` (com `meses` e `minFaixa`): desenho na largura real, eixo e meses em 12 px,
+meses alternados a partir do fim (o mês do demonstrativo sempre aparece). Ver
+[`livro-caixa.md`](livro-caixa.md), "Acabamentos de IA e tela".
 
 ## Pendências (priorizadas)
 

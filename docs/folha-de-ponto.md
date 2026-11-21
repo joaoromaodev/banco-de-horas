@@ -548,6 +548,14 @@ Situações (`ponto_envios.situacao`): `enviando → recebida → lendo → lida
 - O cliente recebe só situação, motivo e datas: sem rascunho, sem e-mails da equipe, sem caminho.
 - Logs sem conteúdo da folha (só ids e mensagem curta do erro). A foto e o nome vão ao Gemini — o mesmo da
   Timesheet (ver a pendência do nível pago da `GEMINI_API_KEY`).
+- **Foto em pé e sem metadados (Sprint 13, Frente B).** A tela do cliente só redesenha (e com isso endireita)
+  a foto acima de 2,5 MB ou fora de JPEG; foto menor subia crua, com o EXIF (localização, aparelho) e a marca de
+  orientação — e chegava ao Gemini como o sensor gravou, deitada se o modelo não aplicasse a marca. Agora
+  `extrairFolha` (`lib/ocr.ts`, o mesmo caminho da Timesheet e do envio do cliente) passa a foto por
+  `fotoParaIa` (`lib/fotoParaIa.ts`): rotação do EXIF aplicada nos pixels (`sharp`) e EXIF/XMP/textos fora.
+  A foto **guardada no Storage não muda** (a contadora vê a original; o navegador já a mostra em pé). HEIC ou
+  arquivo que não dá para limpar vai como sempre foi (a leitura não trava). Teste: `tests/fotoParaIa.test.ts`.
+  Detalhes em [`livro-caixa.md`](livro-caixa.md), "Acabamentos de IA e tela".
 - **Retenção:** a foto é apagada do Storage **90 dias** depois de o envio terminar (aplicado, devolvido ou
   excluído), em **1 dia** se foi recusada ou abandonada (a recusa não marca a foto como apagada: o token de upload
   ainda vale ~2 h e a faxina apaga o que tiver sido subido de novo) e, em qualquer caso, **180 dias** depois do envio,

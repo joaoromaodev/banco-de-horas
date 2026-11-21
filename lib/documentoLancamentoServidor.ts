@@ -1,14 +1,16 @@
 // Documento → lançamento por IA — preparar o arquivo e chamar o Gemini (só servidor).
 //
 // O que vai para o Google: os bytes do documento já MINIMIZADOS (PDF regravado só
-// com as primeiras páginas e sem os metadados do original; foto sem EXIF/XMP —
-// localização, aparelho, horário) e o texto de `montarPromptDocumento` (exercício,
+// com as primeiras páginas e sem os metadados do original; foto já em pé — a
+// orientação do EXIF aplicada nos pixels — e sem EXIF/XMP: localização, aparelho,
+// horário) e o texto de `montarPromptDocumento` (exercício,
 // direção informada e a lista de contas da empresa). NÃO vão: nome/CNPJ da
 // empresa, e-mail de quem lança, nome do arquivo, observação do envio nem
 // lançamentos anteriores. Ver docs/livro-caixa.md, "Documento → lançamento por IA".
 import { GoogleGenAI, Type } from '@google/genai';
 import { PDFDocument } from 'pdf-lib';
-import { imagemSemMetadados, PAGINAS_PDF_PARA_IA } from './documentoLancamento';
+import { PAGINAS_PDF_PARA_IA } from './documentoLancamento';
+import { fotoParaIa } from './fotoParaIa';
 
 export const SCHEMA_DOCUMENTO = {
   type: Type.OBJECT,
@@ -48,10 +50,10 @@ export async function reduzirPdf(bytes: Uint8Array, paginas = PAGINAS_PDF_PARA_I
   }
 }
 
-/** O que de fato vai para a IA: PDF reduzido ou foto sem metadados. */
+/** O que de fato vai para a IA: PDF reduzido ou foto em pé e sem metadados. */
 export async function prepararParaIa(bytes: Uint8Array, mime: string): Promise<Uint8Array> {
   if (mime === 'application/pdf') return reduzirPdf(bytes);
-  const limpa = imagemSemMetadados(bytes, mime);
+  const limpa = await fotoParaIa(bytes, mime);
   if (!limpa) throw new ErroArquivoIa('Não foi possível preparar esta imagem para a leitura. Envie como JPG ou PDF.');
   return limpa;
 }

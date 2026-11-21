@@ -101,7 +101,7 @@ let usadas = 0;
 let usadasEmpresa = 0;
 const cota = {
   contarLeiturasOcr: vi.fn(async () => usadas),
-  contarLeiturasDocumentoEmpresa: vi.fn(async () => usadasEmpresa),
+  contarLeiturasDocumentoDoCliente: vi.fn(async () => usadasEmpresa),
   contarTentativasRecentes: vi.fn(async () => 0),
   reservarLeituraOcr: vi.fn(async () => { usadas++; return 'reserva-1'; }),
   confirmarLeituraOcr: vi.fn(async () => {}),
@@ -297,6 +297,34 @@ describe('leitura', () => {
     expect((await r.json()).erro).toMatch(/Esta empresa já usou/);
     expect(gemini).not.toHaveBeenCalled();
     como('contadorA');
+    expect((await ler()).status).toBe(200);
+  });
+
+  it('a subcota conta só as leituras do cliente: a reserva marca quem leu', async () => {
+    como('clienteA1');
+    expect((await ler()).status).toBe(200);
+    expect(cota.reservarLeituraOcr).toHaveBeenLastCalledWith(expect.objectContaining({ usuario: 'cliente-documento:cli@a1.com' }));
+    expect(cota.contarLeiturasDocumentoDoCliente).toHaveBeenCalledWith('emp-a1', expect.any(String));
+    // A contabilidade lê sem marca e sem consultar a subcota do cliente.
+    cota.contarLeiturasDocumentoDoCliente.mockClear();
+    como('contadorA');
+    expect((await ler()).status).toBe(200);
+    const usuario = (cota.reservarLeituraOcr.mock.lastCall as unknown as [{ usuario: string }])[0].usuario;
+    expect(usuario).not.toMatch(/^cliente/);
+    expect(cota.contarLeiturasDocumentoDoCliente).not.toHaveBeenCalled();
+  });
+
+  it('corrida: dois pedidos do cliente na 30ª leitura — quem passou do limite desfaz a reserva', async () => {
+    como('clienteA1');
+    // Antes da reserva havia 29; depois dela, 31 (outro pedido reservou junto).
+    cota.contarLeiturasDocumentoDoCliente.mockResolvedValueOnce(29).mockResolvedValueOnce(31);
+    const r = await ler();
+    expect(r.status).toBe(429);
+    expect((await r.json()).erro).toMatch(/Esta empresa já usou/);
+    expect(cota.cancelarLeituraOcr).toHaveBeenCalledWith('reserva-1');
+    expect(gemini).not.toHaveBeenCalled();
+    // Exatamente no limite (a própria reserva é a 30ª) passa.
+    cota.contarLeiturasDocumentoDoCliente.mockResolvedValueOnce(29).mockResolvedValueOnce(30);
     expect((await ler()).status).toBe(200);
   });
 

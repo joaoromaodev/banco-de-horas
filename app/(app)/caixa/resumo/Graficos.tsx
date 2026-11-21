@@ -32,8 +32,9 @@ export interface PontoMes {
 /**
  * Mede a largura do contêiner: o SVG é desenhado em pixels reais (ver
  * `geometria.ts`), para o texto do eixo sair no tamanho certo em qualquer tela.
+ * Também usado pelo gráfico do demonstrativo.
  */
-function useLargura() {
+export function useLargura() {
   const ref = useRef<HTMLElement>(null);
   const [largura, setLargura] = useState(LARGURA_PADRAO);
   useEffect(() => {

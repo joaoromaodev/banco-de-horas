@@ -25,7 +25,7 @@ import { definirIaDocumento, lerEmpresa } from '@/lib/cadastro';
 import { getGeminiModelo } from '@/lib/config';
 import { avaliarCota, competenciaBelem, excedeuRitmo } from '@/lib/cotaOcr';
 import {
-  categoriaLidaPelaIa, chaveGeminiDocumento, interpretarLeitura, LIMITE_DOCUMENTOS_EMPRESA_CLIENTE, MENSAGEM_INDISPONIVEL,
+  categoriaLidaPelaIa, chaveGeminiDocumento, interpretarLeitura, leitorDaLeitura, LIMITE_DOCUMENTOS_EMPRESA_CLIENTE, MENSAGEM_INDISPONIVEL,
   montarPromptDocumento, opcoesDocumento, situacaoIaDocumento, tipoLidoPelaIa,
 } from '@/lib/documentoLancamento';
 import { ErroArquivoIa, lerDocumentoNoGemini, prepararParaIa } from '@/lib/documentoLancamentoServidor';
@@ -34,7 +34,7 @@ import { baixarArquivo, ErroDoc, lerDocumento, type Documento } from '@/lib/docu
 import { lerEscritorio } from '@/lib/escritorios';
 import { Limitador } from '@/lib/limite';
 import {
-  cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasDocumentoEmpresa, contarLeiturasOcr, contarTentativasRecentes,
+  cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasDocumentoDoCliente, contarLeiturasOcr, contarTentativasRecentes,
   ErroBancoPendente, falharLeituraOcr, reservarLeituraOcr,
 } from '@/lib/pontoDb';
 import type { Direcao } from '@/lib/sugestaoConta';
@@ -165,8 +165,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Cota do escritório dono da empresa (a mesma da folha de ponto) e, quando quem
-  // lê é o cliente, a subcota da empresa — um cliente não esgota o escritório.
+  // lê é o cliente, a subcota da empresa — um cliente não esgota o escritório. A
+  // subcota conta só as leituras DO CLIENTE (marcadas em `usuario`); as que a
+  // contabilidade faz na empresa gastam só a cota do escritório.
   const competencia = competenciaBelem();
+  const ehCliente = g.sessao.role === 'cliente';
+  const esgotouEmpresa = () => Response.json({ erro: `Esta empresa já usou as ${LIMITE_DOCUMENTOS_EMPRESA_CLIENTE} leituras de documento por IA deste mês. Dá para lançar à mão; renova no dia 1º.` }, { status: 429 });
   let reserva: string;
   try {
     const escritorio = await lerEscritorio(escritorioId);
@@ -179,17 +183,22 @@ export async function POST(req: NextRequest) {
     if (!antes.permitido) {
       return Response.json({ erro: `O escritório já usou as ${fmt(limite)} leituras por IA deste mês (folhas e documentos). Dá para lançar à mão; a cota renova no dia 1º.` }, { status: 429 });
     }
-    if (g.sessao.role === 'cliente'
-      && (await contarLeiturasDocumentoEmpresa(empresa, competencia)) >= LIMITE_DOCUMENTOS_EMPRESA_CLIENTE) {
-      return Response.json({ erro: `Esta empresa já usou as ${LIMITE_DOCUMENTOS_EMPRESA_CLIENTE} leituras de documento por IA deste mês. Dá para lançar à mão; renova no dia 1º.` }, { status: 429 });
+    if (ehCliente && (await contarLeiturasDocumentoDoCliente(empresa, competencia)) >= LIMITE_DOCUMENTOS_EMPRESA_CLIENTE) {
+      return esgotouEmpresa();
     }
     if (excedeuRitmo(await contarTentativasRecentes(escritorioId))) {
       return Response.json({ erro: 'Muitas leituras por IA no escritório em pouco tempo. Espere alguns minutos.' }, { status: 429 });
     }
-    reserva = await reservarLeituraOcr({ escritorioId, competencia, empresaId: empresa, usuario: g.sessao.email, origem: 'documento' });
+    // Reserva ANTES da chamada e reconta com ela gravada: de vários pedidos
+    // simultâneos, os que passaram do limite desfazem a própria reserva.
+    reserva = await reservarLeituraOcr({ escritorioId, competencia, empresaId: empresa, usuario: leitorDaLeitura(g.sessao), origem: 'documento' });
     if ((await contarLeiturasOcr(escritorioId, competencia)) > limite) {
       await cancelarLeituraOcr(reserva).catch(() => {});
       return Response.json({ erro: `O escritório já usou as ${fmt(limite)} leituras por IA deste mês.` }, { status: 429 });
+    }
+    if (ehCliente && (await contarLeiturasDocumentoDoCliente(empresa, competencia)) > LIMITE_DOCUMENTOS_EMPRESA_CLIENTE) {
+      await cancelarLeituraOcr(reserva).catch(() => {});
+      return esgotouEmpresa();
     }
   } catch (e) {
     return falha(e);
