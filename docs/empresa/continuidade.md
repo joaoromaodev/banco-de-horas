@@ -113,9 +113,8 @@ git push origin --all
 e, na outra, `git fetch --all`. A conversa de cada sessão não viaja; o commit e os
 docs de cada frente bastam para outra sessão continuar.
 
-Estado em 21/11/2026: Sprint 2 (cobrança e ponto no computador de casa; catálogo
-pronto) e Sprint 3 (contratos publicado; agenda e documentos prontos nas branches,
-esperando as migrações anteriores) — ver as tabelas no `roadmap.md`. Ordem de
+Estado em 21/11/2026: Sprints 1, 2 e 3 publicadas; produção com migrações
+0000–0015. O que falta está em "Pendências do lançamento" no `roadmap.md`. Ordem de
 integração das migrações: **0011 (cobrança) → 0012 (ponto) → 0013 (catálogo)** — o
 CLI do Supabase recusa aplicar uma migração de número menor que a última aplicada,
 então não aplique a 0013 antes das outras duas. Na Sprint 3: 0014 (agenda) e

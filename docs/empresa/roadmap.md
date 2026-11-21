@@ -16,37 +16,50 @@
 
 Integração (dono): merge, migração em produção (com backup) e push após lint/build/testes. Mensagens à Edilse: o dono redige, o João envia.
 
-## Sprint 2 — Cobrança e Ponto no Postgres (iniciada 21/11/2026)
+## Sprint 2 — Cobrança e Ponto no Postgres (✅ concluída e publicada em 21/11/2026)
 
-Migrações numeradas de antemão para não colidir: A `0011`, B `0012`, C `0013`.
+| Frente | Branch | Status |
+|---|---|---|
+| A. Cobrança (Asaas): assinatura, webhook idempotente, somente leitura central, limite de empresas por plano | `claude/cobranca-notebook-c98848` | ✅ publicada; 0011 aplicada. **Falta configurar o Asaas** (ver "Pendências do lançamento") — sem a chave, teste vencido não trava |
+| B. Folha de Ponto no Postgres por escritório + chave Gemini da plataforma + cota de OCR | `claude/ponto-postgres-notebook-3cd4c9` | ✅ publicada; 0012 aplicada; importados da planilha 9 funcionários e 183 dias da Vaz & Vouzela. A planilha virou arquivo morto |
+| C. Catálogo do Livro Caixa por escritório | `claude/catalogo-caixa-859f94` | ✅ publicada; 0013 aplicada (corrigida na integração: o gatilho barrava o próprio backfill) |
+| D. Modo escuro | `claude/modo-escuro-cc7676` | ✅ publicada |
 
-| Frente | Sessão | Modelo | Status |
-|---|---|---|---|
-| A. Cobrança: assinatura (gateway escolhido por consultor), webhook, conta somente leitura ao fim do teste | `cobranca` | Opus alto | ⏳ reassumida no notebook em 21/11 (decisão do João): sessão `cobranca`, branch `claude/cobranca-notebook-*`. A antiga `claude/cobranca-118569` ficou vazia |
-| B. Folha de Ponto do Sheets para o Postgres, por escritório + chave Gemini da plataforma + cota de OCR por plano | `ponto-postgres` | Opus alto | ⏳ reassumida no notebook em 21/11: sessão `ponto`, branch `claude/ponto-postgres-notebook-*`. A antiga `claude/ponto-postgres-8196ff` ficou vazia |
-| C. Catálogo do Livro Caixa por escritório (base global + extensões) | `catalogo-caixa` | Sonnet médio | ✅ branch `claude/catalogo-caixa-859f94` pronta; integra depois da 0011 e 0012 (ordem das migrações) |
-| D. Modo escuro e polimento visual (tokens, contraste, telas novas) | `modo-escuro` | Sonnet médio | ✅ branch `claude/modo-escuro-cc7676` (tokens escuros AA, seletor claro/escuro/auto, telas e gráficos varridos; integrada e publicada em 21/11/2026) |
+## Sprint 3 — Portal do Cliente e Agenda (✅ concluída e publicada em 21/11/2026)
 
-## Sprint 3 — Portal do Cliente e Agenda (iniciada 21/11/2026)
+| Frente | Branch | Status |
+|---|---|---|
+| A. Agenda de obrigações + aviso por e-mail | `claude/agenda-obrigacoes-e01a60` | ✅ publicada; 0014 aplicada. O e-mail só sai com `CRON_SECRET` (+ Resend) na Vercel |
+| B. Documentos e pendências do cliente (bucket privado) | `claude/portal-documentos-d0eb5c` | ✅ publicada; 0015 aplicada; bucket `documentos` privado, 10 MB |
+| C. Contratos: alertas de todas as empresas + PDF | `claude/contratos-alertas-pdf-44eb3e` | ✅ publicada |
+| D. Painel do contador em `/painel` | `claude/painel-contador-665600` | ✅ publicada. A `/` continua sendo a Timesheet |
 
-Migrações reservadas: A `0014`, B `0015`. Próximo número livre: `0016`. Ordem de
-aplicação em produção: 0011 → 0012 → 0013 → 0014 → 0015.
+Produção em 21/11/2026: migrações 0000–0015 aplicadas; próximo número livre **0016**.
+Backup antes da 0011–0015: `Desktopackups-clickcontasackup-antes-0011-0015-2026-11-21.json`
+(fora do repositório). Teste de ponta a ponta com conta de teste (agenda, pendência,
+envio de PDF, painel, cobrança sem Asaas, 403 nas 3 empresas da Edilse): 26/26 ok;
+conta apagada, contagens iguais às do backup.
 
-| Frente | Sessão | Modelo | Status |
-|---|---|---|---|
-| A. Agenda de obrigações por empresa (recorrência, dia útil, marcar feita) + aviso por e-mail (cron) | `agenda` | Opus alto | ✅ pronta em `claude/agenda-obrigacoes-e01a60` (`b4f6f62`, 215 testes). Espera a 0011–0013 para entrar com a 0014. Vercel: `CRON_SECRET` (obrigatória), `RESEND_API_KEY` + `EMAIL_REMETENTE` (opcionais). Ver "Para o integrador" em `docs/agenda.md` |
-| B. Portal do cliente: envio de documentos (Storage privado) e pendências pedidas pelo contador | `documentos` | Opus alto | ✅ pronta em `claude/portal-documentos-d0eb5c` (`dde500c`, 230 testes, revisada pelo Escudo). Espera a 0011–0014 para entrar com a 0015 (cria o bucket privado `documentos`). Ver `docs/documentos.md` |
-| C. Contratos: alertas de todas as empresas no topo + PDF direto | `contratos` | Sonnet médio | ✅ integrada e publicada em 21/11/2026 (`claude/contratos-alertas-pdf-44eb3e`; PDF conferido, coluna do horário corrigida na integração) |
-| D. Painel inicial do contador ("o que precisa de atenção hoje") em `/painel` | `painel` | Sonnet médio | ✅ pronta em `claude/painel-contador-665600` e já dentro de `integracao/sprint3` (288 testes; conferida no navegador com os dados da Edilse, só leitura; "e mais N" corrigido na integração). A `/` continua do ponto; decidir na integração do ponto se o painel vira a página inicial |
+## Pendências do lançamento (o que falta para o 1º escritório pagante)
+
+Só o João consegue (contas e painéis que o Claude não acessa):
+- [ ] Vercel → variáveis de produção: `CRON_SECRET`; `RESEND_API_KEY` + `EMAIL_REMETENTE`
+      (domínio verificado no Resend); `ASAAS_API_KEY`, `ASAAS_AMBIENTE=sandbox`,
+      `ASAAS_WEBHOOK_TOKEN`; conferir `GEMINI_API_KEY` e `MASTER_PASSWORD`. Novo deploy depois.
+- [ ] Asaas: criar conta, webhook apontando para `/api/cobranca/webhook` (passo a passo em `docs/cobranca.md`).
+- [ ] Gemini no nível pago (no gratuito o Google pode usar as fotos das folhas).
+- [ ] Razão social e CNPJ da ClickContas (termos, NFS-e do Asaas).
+
+O time faz (próxima sprint):
+- Termos e privacidade: Asaas e Google como suboperadores, carência de 7 dias,
+  troca de plano proporcional, retenção do ponto e das leituras de IA.
+- Unificar a tabela de preços do site (`app/(site)/planos/Precos.tsx`) com `PLANOS` de `lib/cobranca.ts`.
+- Excluir empresa com ponto: mensagem clara (hoje sai o erro cru do banco) ou arquivar.
+- Decidir se o `/painel` vira a página inicial do contador.
+- Teste de ponta a ponta da cobrança no sandbox quando a chave existir.
 
 ## Achados da integração
 
-- **Por que A e B não entraram em `main` ainda (21/11/2026):** se os arquivos 0014
-  e 0015 chegarem à `main` antes da 0011–0013, um `db push` aplica as duas fora de
-  ordem e depois recusa a 0011. A, B e D já estão juntas, verdes (288 testes), na
-  branch `integracao/sprint3` (conflito só no roadmap, resolvido com o de `main`).
-  Ordem de integração: cobrança (0011) → ponto (0012)
-  → catálogo (0013) → agenda (0014) → documentos (0015), cada uma com seu merge.
 - **Notebook (segunda máquina):** Supabase CLI logado e vinculado ao projeto
   `zxjeibkttmacpuukvyzo` em 21/11/2026; `migration list --remote` mostra 0000–0010
   aplicadas, igual à `main`.

@@ -2,6 +2,17 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Integração das Sprints 2 e 3
+
+- Integradas de uma vez, na ordem 0011 → 0015, numa branch `integracao/geral` e
+  depois `main` (fast-forward). Backup JSON antes; 0013 falhou no primeiro push
+  (gatilho barrava o próprio backfill), foi corrigida e reaplicada — a falha não
+  deixou nada pela metade.
+- **Ponto:** importação da planilha logo antes do deploy; a planilha fica como
+  arquivo morto (remover as variáveis do Sheets da Vercel depois de uns dias).
+- **Cobrança no ar sem gateway:** sem `ASAAS_API_KEY`, ninguém cai em somente
+  leitura. Ligar o Asaas é decisão consciente, porque a partir dali teste vencido trava.
+
 ## 21/11/2026 — Cobrança (Sprint 2 / Frente A)
 
 - **Gateway: Asaas.** Consultor de cobrança confirmou: é o único entre Asaas, Iugu,
