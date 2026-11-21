@@ -126,3 +126,71 @@ Desde 21/11/2026 o projeto é tocado **só no notebook** (o computador de casa f
 sem orçamento; o João pediu para esquecê-lo). Não há tarefa agendada: a antiga
 `clickcontas-revisao-semanal` do computador de casa não deve ser reativada sem
 combinar, para não rodar duas integrações sobre a mesma branch.
+
+## 7. Passagem de bastão (sessão do dono limpa em 21/11/2026)
+
+A conversa da sessão do dono foi limpa para liberar contexto. **Ao retomar, leia esta
+seção primeiro**, depois `roadmap.md` (Sprints 1–11) e `equipe.md` (item 8, ciclo das
+sessões).
+
+### O que o João combinou (vale até ele dizer o contrário)
+- **Não perguntar** "abro a próxima?": seguir evoluindo sprint após sprint até ele mandar
+  pausar. Ao João só vai fato que só ele sabe.
+- **Não vender ainda**: venda escondida (`VENDAS_ABERTAS = false`); foco em
+  funcionalidade, inteligência e otimização. Sem nomes de pessoas no site.
+- **Só este notebook** (o computador de casa ficou sem orçamento).
+- **Ao fim de cada integração**: arquivar as sessões concluídas, remover worktrees e
+  apagar branches `integracao/*` já em `main`.
+- **Quando o contexto passar de ~50%**: documentar aqui e limpar a sessão.
+
+### Em andamento neste momento (Sprint 11)
+| Frente | Onde | Como integrar |
+|---|---|---|
+| A. Página inicial do cliente (`/inicio`) | subagente em worktree → branch `claude/inicio-cliente` | migração 0029 se houver |
+| B. Rescisão completa (INSS/IRRF, médias do ponto) | subagente em worktree → branch `claude/rescisao-completa` | migração 0030 se houver |
+| C. Pente-fino visual no navegador | sessão "Sprint 11 C — Pente-fino visual" → branch `claude/pente-fino-visual-*` | relatório em `docs/qa-visual.md` |
+
+Se a notificação de alguma frente não chegar (subagentes podem não sobreviver à
+limpeza), confira com `git fetch --all` e `git log main..origin/<branch>`. Branch vazia
+depois de bastante tempo = refazer a frente (brief no `roadmap.md`, Sprint 11).
+Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
+
+### Rotina de integração (a que vem funcionando)
+1. `git fetch --all`; criar `integracao/<sprint>` a partir de `main`; merge `--no-ff` de
+   cada branch na ordem das migrações. Conflitos comuns: docs (manter os dois lados;
+   arquivos com CRLF — normalizar antes de resolver) e imports.
+2. Ler a seção "Para o integrador" de cada doc; ligar o que uma frente deixou para a
+   outra (ganchos).
+3. `rm -rf .next` (o cache de tipos de outra branch quebra o typecheck) e rodar
+   `npm run typecheck && npm run lint && npm test && npm run build`.
+4. Migração: backup JSON das tabelas afetadas em `Desktop\backups-clickcontas\`
+   (script com supabase-js e a secret key), `npx --yes supabase@3.2.0 db push --remote
+   --dry-run`, depois `--yes`, e `migration list --remote`. No PowerShell use `npx.cmd`.
+5. `git checkout main && git merge --ff-only integracao/<sprint> && git push origin main`;
+   esperar a CI (`gh run watch`) e o status da Vercel (API de statuses do commit, com
+   `GH_TOKEN` tirado de `git credential fill`, usuário `joaoromaodev`).
+6. Testar em produção: rotas públicas por `curl`; fluxos com o app local
+   (`npx next dev -p 3100`, mesmo código, banco de produção) usando **conta de teste**
+   criada em `/criar-conta` e sessão local da Edilse **só para leitura** (`criarSessao`
+   de `lib/auth.ts`). Apagar a conta de teste e tudo dela no fim e conferir as
+   contagens (escritórios 2, usuários 4, empresas 3, lançamentos 46, frequências 183,
+   empregados 9). Matar o processo da porta 3100 no fim (`Get-NetTCPConnection`).
+7. Atualizar `roadmap.md`, arquivar sessões, limpar worktrees e `integracao/*`.
+
+### Produção agora
+- Migrações **0000–0028** aplicadas (0024–0026 não usadas). Próximo livre: **0029**.
+- Funções da Vercel em `gru1` (São Paulo), junto do Supabase (`sa-east-1`).
+- 909 testes; CI verde no último push.
+
+### Pendências que só o João resolve
+- Vercel: `CRON_SECRET` (resumo da agenda), `RESEND_API_KEY` + `EMAIL_REMETENTE`
+  (e-mails), `MASTER_PASSWORD` forte (o login de master fica desligado com senha fraca).
+- Gemini no nível pago.
+- Mensagem para a Edilse com as 3 perguntas (Carnê-Leão/beneficiário, IA lendo
+  documentos, conta bancária fora do caixa) e pedido de digitar as 9 admissões no `/dp`
+  (dá para fazer em lote). Texto pronto no último relatório; não enviar.
+
+### Próximas ideias (depois da Sprint 11)
+Carnê-Leão e documento → lançamento (dependem da Edilse); rescisão com convenção
+coletiva; e-mail ao cliente de folha devolvida/pendência (depende do Resend); medir a
+duração das funções na Vercel após uso real.
