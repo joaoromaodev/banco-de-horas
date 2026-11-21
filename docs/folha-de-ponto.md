@@ -191,3 +191,143 @@ gate de módulo vale igual: contador só-caixa vai ao `/caixa`, sem módulo algu
 - Funcionário ligado à frequência pelo nome: renomear no cadastro "solta" o
   histórico. Mesmo comportamento da planilha.
 - O painel do contador (`/painel`, Sprint 3) pode ler o ponto daqui (`lib/pontoDb.ts`).
+
+## Revisão inteligente (Sprint 7 · Frente A)
+
+> Antes de fechar o mês, a Timesheet aponta o que pede atenção na folha: dia por
+> dia, por funcionário, do maior risco para o menor. **Só alerta**: nada é
+> bloqueado nem alterado — corrigir continua sendo abrir a folha e editar o dia.
+> Branch: `claude/revisao-ponto-853f4d`. **Sem migração.**
+
+Regras puras e explicáveis em `lib/revisaoPonto.ts` (`tests/revisaoPonto.test.ts`),
+no mesmo padrão da revisão do Livro Caixa (`lib/revisaoCaixa.ts`): cada achado tem
+nível, rótulo curto (o selo), motivo de uma frase **com a regra legal** e o dia. Os
+critérios foram definidos com o subagente `contador` em 21/11/2026; o maior cuidado
+foi não virar ruído.
+
+| Achado (selo) | Nível | Critério | Base |
+|---|---|---|---|
+| Horário ilegível | alto | texto que não é `HH:MM` (`12>54`), hora > 23 ou minuto > 59 | — (não dá para calcular) |
+| Fora de ordem | alto | uma marcação antes da anterior; o motivo pergunta se virou a meia-noite | — |
+| Falta marcação | alto | 1 ou 3 marcações, ou pares trocados (só saída do almoço + retorno etc.) | CLT art. 74 §2º |
+| Acima de 2h extras | alto | trabalhado > **menor entre (jornada contratual do dia + 2h) e 10h**, + 10 min de tolerância. 8h → 10h; 8h48 → 10h; sábado de 4h → 6h | art. 59 e §2º; art. 58 §1º / Súm. 366 |
+| Sem intervalo | alto | 4 marcações, saída e retorno do almoço iguais, jornada > 6h10 | art. 71 |
+| Intervalo curto | médio | jornada > 6h10 com intervalo < 55 min; ou entre 4h e 6h10 com < 15 min | art. 71 e §1º |
+| Pouco descanso | médio | < 11h entre a última marcação de ontem e a primeira de hoje (o dia 1 usa o último dia do mês anterior, se salvo) | art. 66 |
+| 7º dia seguido | alto | 7º dia consecutivo com horário (conta a última semana do mês anterior); qualquer dia sem horário zera | art. 67; OJ 410 SDI-1 |
+| Feriado trabalhado | médio | feriado cadastrado **ou** marcador FERIADO com horário | Lei 605/49 art. 9º |
+| Horário na folga | baixo | domingo / sábado sem expediente com horário e sem marcador | — |
+| Marcador × horário | alto (FÉRIAS, ATESTADO, FALTA) · médio (FOLGA) | marcador de "não trabalhou" com horário; BANCO DE HORAS com meio dia passa | — |
+| Dia em branco | médio | dia útil sem horário nem marcador **entre o primeiro e o último dia lançados** (admissão ou desligamento no meio do mês não acusam) | Lei 605/49 (DSR) |
+| Falta | baixo | marcador FALTA: perde o DSR da semana; conta no resumo | Lei 605/49 art. 6º |
+| Atestado > 15 dias | alto | 16º dia corrido de atestado (fim de semana sem dado não quebra a sequência) | Lei 8.213 art. 60 |
+| Leitura incerta | baixo · médio se o dia já tem outro achado | campo que a IA marcou como dúvida (só existe logo após a leitura; não é gravado) | — |
+| Intervalo > 2h | baixo, **1 por mês** | lista os dias | art. 71 |
+| Intervalo não marcado | baixo, **1 por mês** | só entrada e saída (pode ser pré-assinalado) — não desconta 1h por conta própria | art. 74 §2º |
+| Trabalho noturno | médio, **1 por mês** | marcação depois das 22h ou antes das 5h | art. 73 |
+| Horário britânico | médio, **1 por mês** | ≥ 10 dias trabalhados e **entrada e saída** idênticas em ≥ 80% (o almoço fixo não conta: pode ser pré-assinalado) | Súmula 338 III TST |
+| Sem feriados | baixo, do escritório | nenhum feriado cadastrado no ano: o feriado só é visto pelo marcador | — |
+
+**Fora de propósito** (decisão do `contador`): "semana acima de 44h" **não** é
+alerta — hora extra dentro do limite diário é legal e é paga; o que importa já está
+em "Acima de 2h extras" e "7º dia seguido". Virou informação no resumo do
+funcionário: *"Além da jornada: 14h10 em 14 dia(s) · 1 falta(s)"* (base: a jornada
+contratual, nunca 8h fixas). Também não se procura folga compensatória do feriado
+(a lei não fixa prazo; a contadora confere).
+
+Risco (ordena a fila): alto 5, médio 2, baixo 1 — igual ao caixa.
+
+### Na tela (`/ponto`)
+
+- **Revisão do mês** (seção nova, com a empresa e o mês escolhidos): resumo
+  ("2 de 6 funcionário(s) com 5 dia(s) pedindo atenção em OUTUBRO/2026"), alternador
+  **"Só os que pedem atenção"** (ligado por padrão), um item por funcionário do
+  maior risco para o menor, com contagem por nível, horas além da jornada, faltas e
+  os achados (dia + selo + motivo; 4 visíveis, "Ver todos"). **Abrir folha** carrega
+  os dias salvos no editor (com confirmação se a folha aberta tem alteração não
+  salva) e já liga o filtro de dias.
+- **Na folha em edição**: coluna **Revisão** com o selo do achado mais grave do dia
+  (+N), todos os motivos no balão (mouse e teclado); no topo, "N dia(s) pede(m)
+  atenção" e os achados do mês; alternador **"Só os dias que pedem atenção"**. A
+  revisão roda ao vivo no navegador enquanto se edita (e usa a leitura incerta da IA
+  logo após o OCR). Salvar recarrega a revisão do mês.
+- A validação antiga (`lib/validacao.ts`) continua pintando as células; só os
+  **erros** dela (ordem cronológica) seguram o download, como antes. A frase "geral"
+  que ela escrevia sob o marcador saiu: a revisão cobre o mesmo (dia vazio,
+  incompleto, folga com horário) com menos ruído.
+
+### Desempenho
+
+`GET /api/revisao-ponto?empresa=&ano=&mes=` (gestor + escritório da empresa, via
+`exigirEmpresaPonto`; o cliente não chega — `proxy.ts`, `ROTAS_PONTO`). **Uma**
+consulta de frequências (`lerFrequenciasParaRevisao` em `lib/pontoDb.ts`: o mês +
+os dias ≥ 22 do anterior, num `or`, paginada por `lerTudo`) em paralelo com
+feriados, funcionários e jornada (as mesmas leituras do `gerar-lote`). Cálculo em
+memória: 100 funcionários × 30 dias em poucos ms (teste < 200 ms). Contra o banco de
+produção, de fora da Vercel: ~200 ms com a rede.
+
+Nada é guardado. Um "visto pela contadora" para silenciar um alerta **não** foi
+feito: com 4% dos dias acusando nos dados reais, não pagou uma migração agora
+(a 0021 continua livre). Se a contadora pedir, é uma tabela aditiva
+`ponto_revisao_vistos (escritorio_id, empresa_id, funcionario, ano, mes, dia, codigo, visto_por, visto_em)`.
+
+### Calibração com os dados reais (21/11/2026, só leitura)
+
+Vaz & Vouzela, 183 dias de 6 funcionários (06, 07, 08 e 10/2026), sem feriados
+cadastrados, jornada padrão 8h, sem sábado:
+
+| Achado | Quantos | Onde |
+|---|---|---|
+| Sem intervalo | 3 | EDILENE 04, 05 e 08/06 (saída e retorno do almoço no mesmo minuto; 7h06–8h49 corridas) |
+| Horário ilegível | 1 | ORIEL 15/10 — o `12>54` conhecido |
+| Acima de 2h extras | 1 | ORIEL 22/10 — 06:02 às 17:35, 10h13 |
+| Intervalo curto | 1 | ORIEL 09/10 — 30 min |
+| Falta | 2 | ORIEL 07/10, HELBERT 26/10 |
+| Sem feriados (do escritório) | 1 por mês | nenhum feriado cadastrado; 12/10 está como marcador FERIADO |
+| todos os outros | 0 | interjornada, 7º dia, britânico, noturno, marcador × horário, atestado, dia em branco |
+
+**8 de 183 dias (4,4%) pedem atenção**; julho e agosto saem limpos. Nenhum tipo
+dispara em quase todo dia. Sem os ajustes do `contador`, a régua de "semana > 44h" e
+o "dia vazio" da validação antiga (que acusaria 17 dias do CAIO, admitido em 26/10)
+seriam o ruído.
+
+Informativo (não é alerta): além da jornada em outubro, ORIEL 14h10 em 14 dias e
+LEONARDO 8h22 em 14 dias.
+
+### Para o integrador
+
+- **Sem migração** (a 0021 segue livre). Rota nova `GET /api/revisao-ponto`, já em
+  `ROTAS_PONTO` do `proxy.ts`. `lib/pontoDb.ts` ganhou `lerFrequenciasParaRevisao`
+  (só leitura).
+- **O que testar em produção** (conta de teste, empresa de teste do escritório de
+  teste — **nunca** salvar nas empresas da Edilse):
+  1. Salvar uma folha com: um dia `08:00 13:00 13:00 17:00` (Sem intervalo), um
+     `06:00 12:00 13:00 17:30` (Acima de 2h extras), um `12>54` (Horário ilegível), um
+     dia útil em branco no meio do mês (Dia em branco) e uma FALTA. A seção **Revisão
+     do mês** mostra o funcionário no topo com esses selos; "Abrir folha" carrega os
+     dias e liga "Só os dias que pedem atenção".
+  2. Corrigir um dia no editor → o selo some na hora; Salvar → a lista do mês se
+     atualiza.
+  3. Editar sem salvar e clicar "Abrir folha" de outro funcionário → aparece a
+     confirmação.
+  4. Só leitura na Edilse: Vaz & Vouzela → outubro/2026 deve mostrar ORIEL e HELBERT
+     (2 de 6), com o `12>54` no dia 15; junho/2026, EDILENE com 3 "Sem intervalo".
+  5. Conta de outro escritório: `GET /api/revisao-ponto?empresa=<id da Vaz>&ano=2026&mes=10`
+     → 403; como **cliente** → bloqueado pelo `proxy.ts`.
+- **Não verificado no navegador** nesta etapa (não há ambiente local com banco além
+  do de produção). A consulta nova foi conferida contra o banco real, só leitura.
+  typecheck, lint, testes e build verdes.
+
+### Pendências
+
+- **Convenção coletiva** (alerta do `contador`): intervalo reduzido a 30 min
+  (art. 611-A III), 12x36 (art. 59-A) e turno noturno mudam as regras de jornada,
+  intervalo e "fora de ordem". Hoje não há ajuste por empresa — se algum cliente
+  tiver, prever "intervalo mínimo" e "escala 12x36" no cadastro da empresa.
+- Perguntas para a contadora: os clientes usam intervalo pré-assinalado (só 2
+  marcações)? Alguma empresa com 12x36 ou noturno?
+- Cadastrar os feriados do escritório da Edilse (hoje 0): sem eles o "Feriado
+  trabalhado" só vê o marcador.
+- A leitura incerta da IA não é gravada: some ao salvar. Gravar exigiria coluna nova.
+- O painel do contador (`/painel`) pode mostrar "pedem atenção" por empresa chamando
+  `revisarMes` com as mesmas leituras da rota. Não toquei no painel.

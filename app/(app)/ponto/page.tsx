@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DiaFreq, Empresa, Frequencia, Funcionario, MARCADORES } from '@/lib/tipos';
 import { MESES, DIAS_SEMANA, diasNoMes, diaSemana, tipoDoDia, JORNADA_PADRAO } from '@/lib/calendario';
 import { validar, Alerta } from '@/lib/validacao';
+import { achadosPorDia, revisarFolha } from '@/lib/revisaoPonto';
 import { dataBR } from '@/lib/data';
 import LupaImagem from '../LupaImagem';
 import { AbasPonto } from '../AbasPonto';
 import { IconeBaixar } from '../icones';
-import { Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
+import { DialogoConfirmacao } from '../Dialogo';
+import { AchadosDoMes, PainelRevisaoMes, RevisaoDoMes, SeloAchados } from './RevisaoPonto';
+import { Alternador, Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 
@@ -67,6 +70,38 @@ export default function Home() {
   const [feriadosCad, setFeriadosCad] = useState<string[]>([]);
   const [cota, setCota] = useState<CotaOcr | null>(null);
   const [bancoPendente, setBancoPendente] = useState(false);
+  // Revisão inteligente (lib/revisaoPonto.ts): o mês salvo da empresa + a folha em edição.
+  const [revisaoMes, setRevisaoMes] = useState<RevisaoDoMes | null>(null);
+  const [carregandoRevisao, setCarregandoRevisao] = useState(false);
+  const [soDiasAtencao, setSoDiasAtencao] = useState(false);
+  /** A folha em edição tem mudanças não salvas (abrir outra pede confirmação). */
+  const [sujo, setSujo] = useState(false);
+  const [pedidoAbrir, setPedidoAbrir] = useState<string | null>(null);
+  const editorRef = useRef<HTMLElement | null>(null);
+  const chaveRevisao = useRef('');
+
+  const carregarRevisao = useCallback(async () => {
+    if (!empresa) { setRevisaoMes(null); return; }
+    const chave = `${empresa}|${ano}|${mes}`;
+    chaveRevisao.current = chave;
+    // Trocou empresa ou mês: some a revisão antiga (recarregar o mesmo mês não pisca).
+    setRevisaoMes((atual) => (atual?.chave === chave ? atual : null));
+    setCarregandoRevisao(true);
+    try {
+      const r = await fetch(`/api/revisao-ponto?empresa=${encodeURIComponent(empresa)}&ano=${ano}&mes=${mes}`);
+      const d = await r.json();
+      if (chaveRevisao.current === chave) setRevisaoMes(r.ok ? { ...d, chave } : null); // resposta atrasada de outro mês: ignora
+    } catch {
+      setRevisaoMes(null);
+    } finally {
+      setCarregandoRevisao(false);
+    }
+  }, [empresa, ano, mes]);
+
+  useEffect(() => {
+    const t = setTimeout(carregarRevisao, 250); // o ano é digitado: espera parar
+    return () => clearTimeout(t);
+  }, [carregarRevisao]);
 
   // Carrega cadastros (funciona mesmo se a planilha não estiver configurada).
   useEffect(() => {
@@ -109,6 +144,45 @@ export default function Home() {
     return validar(freq, feriados, { ...JORNADA_PADRAO, trabalhaSabado });
   }, [dias, empresa, funcionario, ano, mes, feriados, trabalhaSabado]);
 
+  // Revisão da folha em edição, ao vivo: jornada do cadastro do funcionário e, se a
+  // folha veio do banco, a última semana do mês anterior (interjornada, 7º dia).
+  const revisaoFolha = useMemo(() => {
+    if (!dias) return null;
+    const cad = funcList.find((f) => f.nome === funcionario);
+    const salva = revisaoMes?.folhas.find((f) => f.funcionario === funcionario);
+    return revisarFolha({
+      funcionario,
+      dias,
+      anteriores: salva?.anteriores,
+      jornada: {
+        utilMin: cad?.jornadaUtilMin ?? empresaSel?.jornadaUtilMin ?? JORNADA_PADRAO.utilMin,
+        sabadoMin: cad?.jornadaSabadoMin ?? empresaSel?.jornadaSabadoMin ?? JORNADA_PADRAO.sabadoMin,
+        trabalhaSabado,
+      },
+      incertos: [...incertos].map((k) => {
+        const [d, campo] = k.split(':');
+        return { dia: Number(d), campo };
+      }),
+    }, { ano, mes, feriados });
+  }, [dias, funcionario, funcList, revisaoMes, empresaSel, trabalhaSabado, incertos, ano, mes, feriados]);
+  const achadosDoDia = useMemo(() => (revisaoFolha ? achadosPorDia(revisaoFolha) : new Map()), [revisaoFolha]);
+  const achadosDoMesFolha = useMemo(() => revisaoFolha?.achados.filter((a) => a.dia === null) ?? [], [revisaoFolha]);
+
+  /** Abre a folha salva do funcionário no editor (pede confirmação se há edição não salva). */
+  function abrirFolha(nome: string, confirmado = false) {
+    const salva = revisaoMes?.folhas.find((f) => f.funcionario === nome);
+    if (!salva) return;
+    if (!confirmado && sujo && dias && nome !== funcionario) { setPedidoAbrir(nome); return; }
+    setPedidoAbrir(null);
+    setFuncionario(nome);
+    setDias(mesclar(ano, mes, salva.dias));
+    setIncertos(new Set());
+    escolherArquivo(null);
+    setSujo(false);
+    setSoDiasAtencao(true);
+    requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
+  }
+
   const alertaPorCampo = useMemo(() => {
     const m = new Map<string, Alerta>();
     for (const a of alertas) {
@@ -144,6 +218,7 @@ export default function Home() {
       if (data.cota?.nivel === 'aviso' && data.cota.mensagem) setAviso(data.cota.mensagem);
       if (data.frequencia?.funcionario && !funcionario) setFuncionario(data.frequencia.funcionario);
       setDias(mesclar(ano, mes, data.frequencia.dias ?? []));
+      setSujo(true);
       setIncertos(new Set((data.incertos ?? []).map((c: { dia: number; campo: string }) => `${c.dia}:${c.campo}`)));
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -156,9 +231,11 @@ export default function Home() {
     setErro(null);
     setDias(gridVazio(ano, mes));
     setIncertos(new Set());
+    setSujo(false);
   }
 
   function editar(dia: number, campo: Campo | 'marcador', valor: string) {
+    setSujo(true);
     setDias((prev) =>
       (prev ?? []).map((d) =>
         d.dia === dia ? { ...d, [campo]: valor === '' ? null : valor } : d,
@@ -229,6 +306,8 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.erro ?? 'Falha ao salvar.');
       setAviso(`Salvo: ${data.dias} dia(s) de ${funcionario} (${MESES[mes]}/${ano}).`);
+      setSujo(false);
+      carregarRevisao();
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -265,7 +344,8 @@ export default function Home() {
   }
 
   const nErros = alertas.filter((a) => a.nivel === 'erro').length;
-  const nAlertas = alertas.filter((a) => a.nivel === 'alerta').length;
+  const diasComErro = new Set(alertas.filter((a) => a.nivel === 'erro').map((a) => a.dia));
+  const diasAtencao = revisaoFolha?.diasAtencao ?? 0;
 
   return (
     <div className="text-sm">
@@ -327,8 +407,13 @@ export default function Home() {
           <Botao onClick={gerarLote} disabled={carregando} icone={<IconeBaixar />}>Baixar todas (.zip)</Botao>
         </Cartao>
 
+        {empresa && !bancoPendente && (
+          <PainelRevisaoMes revisao={revisaoMes} carregando={carregandoRevisao} ano={ano} mes={mes}
+            funcionarioAberto={dias ? funcionario : ''} onAbrir={(nome) => abrirFolha(nome)} />
+        )}
+
         {dias && (
-          <section className="grid grid-cols-1 gap-5 lg:grid-cols-2" aria-label="Revisão da folha">
+          <section ref={editorRef} className="grid scroll-mt-4 grid-cols-1 gap-5 lg:grid-cols-2" aria-label="Revisão da folha">
             <div className="lg:sticky lg:top-4 lg:self-start">
               <h2 className="mb-2 text-[15px] font-semibold text-tinta">Folha original</h2>
               {imgUrl
@@ -341,9 +426,16 @@ export default function Home() {
                 <h2 className="text-[15px] font-semibold text-tinta">Revisão — {MESES[mes]}/{ano}</h2>
                 <span className="flex flex-wrap gap-1.5" role="status">
                   {nErros > 0 && <Selo tom="perigo">{nErros} erro(s)</Selo>}
-                  {nAlertas > 0 && <Selo tom="aviso">{nAlertas} alerta(s)</Selo>}
-                  {nErros + nAlertas === 0 && <Selo tom="sucesso">tudo certo</Selo>}
+                  {diasAtencao > 0 && <Selo tom="aviso">{diasAtencao} dia(s) pede(m) atenção</Selo>}
+                  {nErros + diasAtencao + achadosDoMesFolha.length === 0 && <Selo tom="sucesso">tudo certo</Selo>}
                 </span>
+              </div>
+              {achadosDoMesFolha.length > 0 && <div className="mb-3"><AchadosDoMes achados={achadosDoMesFolha} /></div>}
+              <div className="mb-2 text-[13px] text-tinta-suave">
+                <Alternador checked={soDiasAtencao} onChange={(e) => setSoDiasAtencao(e.target.checked)}
+                  disabled={diasAtencao === 0 && !soDiasAtencao}>
+                  Só os dias que pedem atenção
+                </Alternador>
               </div>
 
               <div className={tb.moldura}>
@@ -353,6 +445,7 @@ export default function Home() {
                       <th className={`${tb.th} text-center`}>Dia</th>
                       {CAMPOS.map((c) => <th key={c} className={`${tb.th} text-center`}>{CAMPO_LABEL[c]}</th>)}
                       <th className={tb.th}>Marcador</th>
+                      <th className={tb.th}>Revisão</th>
                     </tr>
                   </thead>
                   <tbody className={tb.corpo}>
@@ -360,7 +453,8 @@ export default function Home() {
                       const wd = diaSemana(ano, mes, d.dia);
                       const tipo = tipoDoDia(ano, mes, d.dia, feriados);
                       const fds = wd === 0 || wd === 6 || tipo === 'feriado';
-                      const geral = alertaPorCampo.get(`${d.dia}:geral`);
+                      const achadosDia = achadosDoDia.get(d.dia);
+                      if (soDiasAtencao && !achadosDia && !diasComErro.has(d.dia)) return null;
                       return (
                         <tr key={d.dia} className={fds ? 'bg-superficie-suave' : ''}>
                           <td className="whitespace-nowrap px-2 py-1 text-center" data-dica={DIAS_SEMANA[wd]}>
@@ -395,8 +489,8 @@ export default function Home() {
                             <Selecao aparencia="celula" largura="w-32" aria-label={`Marcador do dia ${d.dia}`} placeholder="—"
                               valor={d.marcador ?? ''} onChange={(v) => editar(d.dia, 'marcador', v)}
                               opcoes={[{ valor: '', rotulo: '—' }, ...MARCADORES.map((m) => ({ valor: m, rotulo: m }))]} />
-                            {geral && <div className="mt-0.5 text-[11px] font-medium text-aviso">{geral.msg}</div>}
                           </td>
+                          <td className="px-2 py-1"><SeloAchados achados={achadosDia} /></td>
                         </tr>
                       );
                     })}
@@ -418,6 +512,13 @@ export default function Home() {
           </section>
         )}
       </Conteudo>
+
+      {pedidoAbrir && (
+        <DialogoConfirmacao titulo="Trocar a folha em edição?"
+          mensagem={`A folha de ${funcionario || 'quem está aberto'} tem alterações que ainda não foram salvas. Abrir a de ${pedidoAbrir} descarta essas alterações.`}
+          textoConfirmar="Abrir mesmo assim" perigo
+          onConfirmar={() => abrirFolha(pedidoAbrir, true)} onCancelar={() => setPedidoAbrir(null)} />
+      )}
     </div>
   );
 }
