@@ -1,6 +1,6 @@
 # Desempenho e robustez
 
-Última atualização: **21/11/2026** (Sprint 7, Frente B — medição com as funções em São Paulo).
+Última atualização: **21/11/2026** (Sprint 15, Frente A — medição própria dentro do app).
 
 ## O problema que importava: o corte silencioso de 1.000 linhas
 
@@ -138,6 +138,50 @@ Conclusão: **sem regressão**; a diferença entre rodadas é variação da rede
 notebook até o Supabase, não do código. A frente de arquivadas não acrescentou
 consulta à leitura (usa o mesmo cache de empresas).
 
+## Sprint 15: medição própria (dentro do app)
+
+O que antes só aparecia no painel da Vercel agora é medido pelo próprio app e
+resumido para o master em **/configuracoes → "Como o app está respondendo"**:
+as 10 chamadas e as 10 telas mais lentas (p50/p95), os erros mais frequentes e as
+visitas por tela, nos últimos 7 dias.
+
+**Como mede (tudo central; nenhuma tela mudou):**
+
+| O quê | Onde | Observação |
+|---|---|---|
+| Tempo das chamadas a `/api` (método, rota, status, ms) | `components/medicao.tsx`, montado no `app/layout.tsx`, embrulha o `fetch` uma vez | Tempo **percebido no navegador** (rede incluída), não a duração da função. A ordem das rotas mais lentas vale; o número absoluto inclui a ida e volta. Cron e webhook não passam por navegador e ficam de fora. |
+| LCP, TTFB, INP da carga da tela | `useReportWebVitals` no mesmo componente | Só carga completa (a navegação interna não gera LCP/TTFB). Os vitais ficam com a rota em que a tela abriu. |
+| Visitas por tela | mudança de `usePathname` | Estimativa: amostra × 1/taxa. |
+| Exceções do servidor (rota + código) | `instrumentation.ts` → `onRequestError` | Sempre (não é amostra). Código = nome da classe e código do banco (`TypeError`, `Error:23505`); nunca a mensagem. |
+
+**Amostra:** cada carga de página sorteia se entra (`TAXA_AMOSTRA` = 25%, em
+`lib/medicao.ts`); fora dela o navegador só manda os **erros** (status ≥ 400 ou sem
+rede). Os tempos (p50/p95) usam só a amostra (`amostra = true`); os erros contam tudo.
+O envio é em lote para `POST /api/medicao` (a cada 15 s ou 20 itens; `sendBeacon`
+ao sair da tela), com limite de 10 envios/min por sessão e instância.
+
+**Sem dado pessoal, em três travas:** (1) `normalizarRota` no navegador e de novo
+no servidor — sem query nem âncora; uuid/número/CPF/e-mail/nome/texto com dígito
+viram `[id]`, data vira `[data]`; (2) `classificarRota` só aceita rota que existe no
+app (`lib/medicaoRotas.ts`; o resto vira `/[outra]`), e `tests/medicao.test.ts`
+confere a lista contra `app/**/page.tsx` e `app/api/**/route.ts`; (3) CHECKs da
+tabela (rota só `[a-z0-9/-[]]`, erro só código curto). Gravam-se só rota, método,
+status, ms, métrica, código do erro e **papel** (da sessão, nunca do corpo); nada de
+id, e-mail, escritório, empresa, corpo ou mensagem. `em` é arredondado ao minuto. Do
+navegador, o único código de erro aceito é `rede`. Revisado pelo Escudo (21/11/2026).
+
+**Nunca atrasa nem derruba:** a rota responde 204 na hora e grava em `after`;
+`gravarMedicoes` nunca lança, tem prazo de 2 s por consulta e pausa (10 min sem a
+tabela, 1 min com o banco falhando). Sem a 0031 aplicada, nada é gravado e a seção
+do master avisa que falta a migração.
+
+**Retenção:** ≈1 a cada 50 gravações apaga o que passou de 30 dias (índice em `em`).
+Sem cron; se não houver tráfego, nada é apagado (e nada novo entra).
+
+**Limites conhecidos:** usuário logado consegue enviar medições falsas (dentro do
+limite e da lista de rotas) — só distorce o resumo, não vaza nada. A leitura do
+resumo vai das mais novas às mais velhas com teto de 50 mil linhas.
+
 ## Para o integrador
 
 1. **Aplicar `0020_indices_desempenho.sql`** (`supabase db push`). Pode ser antes ou
@@ -150,5 +194,14 @@ consulta à leitura (usa o mesmo cache de empresas).
    da Vercel.
 4. Rota/consulta nova que possa passar de 1.000 linhas: usar `lerTudo`/`lerAteTeto`,
    com `.order('id')` no fim. Nunca `.limit(n>1000)`.
-5. Pendência conhecida: `garantirExercicio` ainda abre exercício num GET (escrita em
+5. **Medição própria (Sprint 15): aplicar `0031_medicoes.sql`** (`supabase db push`).
+   Ordem indiferente: sem a tabela o app não grava e não quebra; a seção do master
+   avisa. Depois de publicar, abrir algumas telas logado e conferir em
+   /configuracoes → "Como o app está respondendo" (com 25% de amostra pode levar
+   algumas visitas para aparecer). Rota ou tela nova: acrescentar em
+   `lib/medicaoRotas.ts` (o teste acusa). Rota de API nova que o cliente use já
+   passa pela medição sem nada a fazer.
+6. Sugestão do Escudo (decisão do fundador/jurídico): mencionar em `/privacidade`
+   "medição técnica de desempenho, sem dado pessoal, guardada por 30 dias".
+7. Pendência conhecida: `garantirExercicio` ainda abre exercício num GET (escrita em
    leitura) e `/api/caixa/lancamentos` ainda faz 2 etapas sequenciais (exercício → resto).

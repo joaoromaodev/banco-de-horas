@@ -72,6 +72,7 @@ class ConsultaFalsa implements PromiseLike<Resposta> {
   order(col: string, op?: { ascending?: boolean }) { this.ordens.push({ col, asc: op?.ascending !== false }); return this; }
   range(de: number, ate: number) { this.faixa = [de, ate]; return this; }
   limit(n: number) { this.teto = n; return this; }
+  abortSignal() { return this; }
   maybeSingle() { this.unica = 'maybe'; return this; }
   single() { this.unica = 'single'; return this; }
 

@@ -30,7 +30,9 @@ const CLIENTE_PODE = ['/inicio', '/api/inicio-cliente', '/caixa', '/api/caixa', 
   // Folha de ponto enviada pelo cliente (0028): a rota da API recorta por empresa e papel.
   '/enviar-ponto', '/api/envio-ponto',
   // Sino com os avisos da própria empresa (Sprint 13): a rota recorta pela sessão (exigirClienteDaEmpresa).
-  '/api/notificacoes'];
+  '/api/notificacoes',
+  // Medição própria (Sprint 15): o navegador envia a amostra; a rota só grava rota normalizada + papel.
+  '/api/medicao'];
 
 /** Rotas do módulo Folha de Ponto (timesheet em `/ponto` + folhas em branco).
  *  `/` NÃO é mais do ponto: é só um redirecionamento por papel (ver lib/inicio). */

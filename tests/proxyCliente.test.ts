@@ -29,6 +29,8 @@ const API_CLIENTE = CLIENTE_PODE.filter((p) => p.startsWith('/api/'));
 const TELAS_CLIENTE = ['inicio', 'caixa', 'documentos', 'enviar-ponto'];
 const APP = join(RAIZ, 'app', '(app)');
 const ENTRADAS = [
+  // Layout raiz: envolve todas as telas (medição própria, Sprint 15 — POST /api/medicao).
+  join(RAIZ, 'app', 'layout.tsx'),
   join(APP, 'layout.tsx'),
   ...TELAS_CLIENTE.flatMap((t) => listarArquivos(join(APP, t), (n) => n === 'page.tsx')),
 ];
