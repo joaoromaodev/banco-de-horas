@@ -40,24 +40,41 @@ Backup antes da 0011–0015: `Desktopackups-clickcontasackup-antes-0011-0015-2
 envio de PDF, painel, cobrança sem Asaas, 403 nas 3 empresas da Edilse): 26/26 ok;
 conta apagada, contagens iguais às do backup.
 
-## Pendências do lançamento (o que falta para o 1º escritório pagante)
+## Sprint 4 — Venda fechada e acabamentos (✅ concluída e publicada em 21/11/2026)
 
-Só o João consegue (contas e painéis que o Claude não acessa):
-- [ ] Vercel → variáveis de produção: `CRON_SECRET`; `RESEND_API_KEY` + `EMAIL_REMETENTE`
-      (domínio verificado no Resend); `ASAAS_API_KEY`, `ASAAS_AMBIENTE=sandbox`,
-      `ASAAS_WEBHOOK_TOKEN`; conferir `GEMINI_API_KEY` e `MASTER_PASSWORD`. Novo deploy depois.
-- [ ] Asaas: criar conta, webhook apontando para `/api/cobranca/webhook` (passo a passo em `docs/cobranca.md`).
+**Decisão do João (21/11):** não vender ainda; primeiro deixar o produto pronto.
+Prioridade: funcionalidades, inteligência e otimização.
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Venda escondida atrás de `VENDAS_ABERTAS = false` (`lib/brand.ts`): sem preços, teste grátis nem "Assinatura" no site e no menu; `/planos` → `/conheca`. Preços do site lidos de `PLANOS` | `claude/termos-precos-a471e7` | ✅ publicada. Termos/privacidade adiados (lista em `estrategia.md` → "Antes de ir ao mercado") |
+| B. Excluir empresa = **arquivar** (0016; dados preservados, reativável); `/` redireciona por papel (contador → `/painel`, cliente → `/caixa`); Timesheet em `/ponto` | `claude/acabamentos-f68827` | ✅ publicada; 0016 aplicada (backup `backup-antes-0016-2026-11-21.json`). Teste de ponta a ponta 11/11, conta de teste apagada |
+
+Produção: migrações 0000–0016; próximo número livre **0017**.
+
+## Sprint 5 — Caixa inteligente e fechamento mensal (planejada)
+
+Priorizada pelo consultor contador (21/11/2026), em ordem:
+
+| Frente | Modelo | O que é |
+|---|---|---|
+| A. Caixa inteligente | Opus alto | (1) sugestão de conta/analítica ao lançar — histórico padrão → frequência no que a contadora já conferiu naquela empresa → IA só se nada resolver; aprende com a correção; nunca cria conta nem marca conferido. (2) Revisão antes da conferência: duplicidade, valor fora do padrão, receita lançada como saída, pagador/CPF faltando, juros recorrentes, mês sem lançamento, saldo negativo; fila por risco; só alerta, regras explicáveis |
+| B. Fechamento mensal | Sonnet médio | pendências recorrentes abertas no dia 1º e fechadas quando o arquivo chega; checklist do mês no painel (lançou, conferiu, confirmou, documentos); propor modelo de obrigações pelo regime/funcionários; vencimento de contrato de experiência na agenda |
+
+Depois (dependem da Edilse): Carnê-Leão e recibos para PF (campo de beneficiário além
+do pagador); documento enviado → lançamento sugerido por IA (opção por empresa).
+Fora por ora: extrato OFX/conciliação (não há conta de banco no modelo do livro caixa).
+
+## Antes de ir ao mercado (adiado por decisão do João)
+
+Só o João consegue:
+- [ ] Vercel → `CRON_SECRET` (o aviso da agenda precisa disto **já**, mesmo sem venda);
+      `RESEND_API_KEY` + `EMAIL_REMETENTE`; mais tarde `ASAAS_*`. Conferir `GEMINI_API_KEY` e `MASTER_PASSWORD`.
 - [ ] Gemini no nível pago (no gratuito o Google pode usar as fotos das folhas).
-- [ ] Razão social e CNPJ da ClickContas (termos, NFS-e do Asaas).
+- [ ] Asaas, razão social e CNPJ — só quando o lançamento for decidido.
 
-O time faz (próxima sprint):
-- Termos e privacidade (**adiado**: venda fechada, ver `estrategia.md` → "Antes de ir ao mercado"): Asaas e Google como suboperadores, carência de 7 dias,
-  troca de plano proporcional, retenção do ponto e das leituras de IA.
-- [x] Unificar a tabela de preços do site (`app/(site)/planos/Precos.tsx`) com `PLANOS` de `lib/cobranca.ts` (teste em `tests/precosSite.test.ts`).
-- [x] Esconder a venda do site e do app atrás de `VENDAS_ABERTAS` (`lib/brand.ts`).
-- Excluir empresa com ponto: mensagem clara (hoje sai o erro cru do banco) ou arquivar.
-- Decidir se o `/painel` vira a página inicial do contador.
-- Teste de ponta a ponta da cobrança no sandbox quando a chave existir.
+O time faz quando o lançamento for decidido: termos e privacidade (lista em
+`estrategia.md`), teste da cobrança no sandbox, `VENDAS_ABERTAS = true`.
 
 ## Achados da integração
 
