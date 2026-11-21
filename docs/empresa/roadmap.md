@@ -116,7 +116,7 @@ teste (empregado, férias, agenda); conta apagada.
 | A. Folha de ponto enviada pelo cliente (`/enviar-ponto`): foto pelo celular → bucket privado `ponto` → leitura pela IA em fila (cota do escritório) → rascunho → a contadora confere ao lado da foto e aplica (com desfazer) ou devolve com motivo; o cliente acompanha o status | `claude/ponto-cliente-c3e04b` | ✅ publicada; 0028 aplicada. Na integração: avisos no sino (folha recebida, lida, falhou), sem nome de funcionário |
 | B. Edição em lote e importação por planilha no DP (com desfazer); sino de notificações no app; `/ponto?empresa=&ano=&mes=` | `claude/agilidade-1dcfee` | ✅ publicada; 0027 aplicada |
 
-Produção: migrações 0000–0028 (0024–0026 não usadas); próximo número livre **0029**.
+Produção: migrações 0000–0029 (0024–0026 não usadas); próximo número livre **0030**.
 Teste de ponta a ponta da folha pelo cliente com conta de teste: envio, foto no bucket,
 leitura ("lida"), fila da contadora, 2 avisos no sino, cliente barrado na empresa da
 Edilse e na Timesheet; conta, foto e dados apagados.
@@ -132,11 +132,11 @@ Edilse e na Timesheet; conta, foto e dados apagados.
 Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/dp/medias` responde 401 sem sessão. A + C, CI e Vercel verdes; em produção `/inicio` exige login e
 `/api/inicio-cliente` responde 401 sem sessão.
 
-## Sprint 12 — IA lendo documentos e acabamentos (🔄 em andamento)
+## Sprint 12 — IA lendo documentos e acabamentos (✅ concluída e publicada em 21/11/2026)
 
 | Frente | Branch | Status |
 |---|---|---|
-| A. Documento → lançamento sugerido por IA, atrás de chave desligada (plataforma + empresa) | `claude/documento-lancamento` | 🔄 subagente |
+| A. Documento → lançamento sugerido por IA, atrás de chave desligada (plataforma + empresa) | `claude/documento-lancamento` | ✅ publicada **desligada**; 0029 aplicada (backup `backup-antes-0029-2026-11-21.json`). Escudo: aprovado com ressalvas (corrigidas; 3 menores no doc). Para ligar: privacidade citando a IA do caixa, Gemini pago (`GEMINI_API_KEY_CAIXA`), aceite da Edilse, depois `CAIXA_IA_DOCUMENTO=ligada` e opção por empresa |
 | B. Acabamentos das ressalvas do QA visual | `claude/acabamentos-qa` | ✅ publicada em 21/11 (KPIs lado a lado no celular, Demonstrativo abre no último mês confirmado — `mesInicial`, contratos em duas linhas, gráfico do resumo em 12 px). Falta: gráfico do Demonstrativo no celular |
 | C. Teste logado em produção de `/inicio` e da rescisão (conta de teste, só relatório) | — | ✅ feito em 21/11: tudo passou (isolamento do cliente em 12 telas e 8 APIs, rescisão conferida à mão com R$ 3.000 e R$ 9.000, PDF "SIMULAÇÃO"); contagens iguais antes e depois. Corrigido na main: menu da contadora piscava para o cliente |
 
@@ -154,7 +154,8 @@ Só o João consegue:
       `RESEND_API_KEY` + `EMAIL_REMETENTE`; mais tarde `ASAAS_*`. Conferir `GEMINI_API_KEY`.
 - [ ] **`MASTER_PASSWORD` forte na Vercel (≥ 12 caracteres, não `admin1234`)**: desde 21/11 o
       login de administrador fica desligado em produção com senha ausente ou fraca.
-- [ ] Gemini no nível pago (no gratuito o Google pode usar as fotos das folhas).
+- [ ] Gemini no nível pago (no gratuito o Google pode usar as fotos das folhas). Também
+      destrava a IA que lê documentos do caixa (Sprint 12 A).
 - [ ] Asaas, razão social e CNPJ — só quando o lançamento for decidido.
 
 O time faz quando o lançamento for decidido: termos e privacidade (lista em
