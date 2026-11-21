@@ -11,7 +11,7 @@
 //   PATCH { acao: 'confirmar' } → o servidor baixa o objeto, confere tamanho e
 //           assinatura dos bytes e só então o documento aparece como `recebido`.
 import { NextRequest } from 'next/server';
-import { ehGestor, exigirSessao } from '@/lib/acesso';
+import { ehGestor, exigirSessao, respostaNegadaEmpresa } from '@/lib/acesso';
 import {
   categoriaValida, competenciaValida, podeAtenderPendencia, podeConferir, podeExcluirDocumento, podeRestaurarDocumento,
   podeVerRegistro, validarArquivo,
@@ -83,6 +83,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const d = await lerDocumento(String(body.id ?? ''));
     if (!d || !podeVerRegistro(g.sessao, d)) return naoEncontrado('Documento');
+    { const r = await respostaNegadaEmpresa(g.sessao, d.empresaId); if (r) return r; }
     const s = g.sessao;
 
     switch (body.acao) {
@@ -115,6 +116,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const d = await lerDocumento(req.nextUrl.searchParams.get('id') ?? '');
     if (!d || d.excluidoEm || !podeVerRegistro(g.sessao, d)) return naoEncontrado('Documento');
+    { const r = await respostaNegadaEmpresa(g.sessao, d.empresaId); if (r) return r; }
     if (!podeExcluirDocumento(g.sessao, d)) return negado();
     await excluirDocumento(d, g.sessao.email, ehGestor(g.sessao));
     return Response.json({ ok: true });

@@ -15,6 +15,7 @@ import { br, SITUACOES_EMPREGADO, type DadosEmpregado, type Empregado } from '@/
 import { alertasFerias, situacaoFerias, type FeriasProgramada } from '@/lib/ferias';
 import { avosDecimo, entraNoDecimo, faltasPorMesDoAno } from '@/lib/decimoTerceiro';
 import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
+import ConferenciaModulos from '../ConferenciaModulos';
 import { Ficha, TOM_SITUACAO } from './Ficha';
 import { FormEmpregado } from './FormEmpregado';
 
@@ -174,6 +175,8 @@ export default function DepartamentoPessoalPage() {
                 {semAdmissao === 1 ? '1 empregado está' : `${semAdmissao} empregados estão`} sem data de admissão — sem ela não dá para calcular férias nem 13º. Abra a ficha e use “Editar dados”.
               </Aviso>
             )}
+
+            <ConferenciaModulos key={`${empresaSel}|${dados.empregados.length}|${dados.ferias.length}`} url={`/api/dp/conferencia?empresa=${encodeURIComponent(empresaSel)}`} />
 
             <Secao titulo="Empregados"
               acoes={<div className="flex flex-wrap items-center gap-2">

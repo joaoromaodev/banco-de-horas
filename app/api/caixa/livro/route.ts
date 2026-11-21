@@ -6,7 +6,7 @@
 // Só gestor, e só das empresas dele. A identidade vem de `empresas`, o fiscal de
 // `empresa_fiscal` e os campos por-livro de `exercicios` — ver docs/livro-caixa.md.
 import { NextRequest } from 'next/server';
-import { exigirGestor, exigirEmpresa, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirGestor, exigirEmpresa, motivoNegado } from '@/lib/acesso';
 import { ErroCaixa, montarLivro, garantirExercicio, salvarTermo } from '@/lib/caixa';
 import { gerarLivroCaixaPDF } from '@/lib/livroCaixa';
 import { gerarLivroCaixaXLSX } from '@/lib/planilhaCaixa';
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const empresa = String(body.empresa ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    { const n = await motivoNegado(g.sessao, empresa); if (n) throw new ErroCaixa(n.erro, n.status); }
 
     const ano = anoDe(String(body.ano ?? ''));
     const ex = await garantirExercicio(empresa, ano);

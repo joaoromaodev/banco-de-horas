@@ -4,7 +4,7 @@
 // pendência 2 em docs/livro-caixa.md), então exige gestor — o cliente não mexe,
 // mesmo alcançando /api/caixa. O contador só toca nas empresas dele.
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirGestor, motivoNegado } from '@/lib/acesso';
 import { DadosFiscais, ErroCaixa, lerFiscal, salvarFiscal } from '@/lib/caixa';
 
 export const runtime = 'nodejs';
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const empresa = req.nextUrl.searchParams.get('empresa') ?? '';
     if (!empresa.trim()) throw new ErroCaixa('Informe a empresa.');
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    { const n = await motivoNegado(g.sessao, empresa); if (n) throw new ErroCaixa(n.erro, n.status); }
     return Response.json({ fiscal: await lerFiscal(empresa) });
   } catch (e) {
     return falha(e);
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const empresa = String(body.empresa ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    { const n = await motivoNegado(g.sessao, empresa); if (n) throw new ErroCaixa(n.erro, n.status); }
 
     const f = (body.fiscal ?? {}) as Partial<DadosFiscais>;
     const dados: DadosFiscais = {

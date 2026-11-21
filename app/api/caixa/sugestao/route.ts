@@ -13,7 +13,7 @@
 // sugestão e o usuário decide.
 import { NextRequest } from 'next/server';
 import { GoogleGenAI, Type } from '@google/genai';
-import { exigirEmpresa, exigirSessao, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirEmpresa, exigirSessao, motivoNegado } from '@/lib/acesso';
 import { contasDaEmpresa, ErroCaixa, historicosDaEmpresa, paraValor } from '@/lib/caixa';
 import { lerEmpresa } from '@/lib/cadastro';
 import {
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const empresa = String(body.empresa ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    { const n = await motivoNegado(g.sessao, empresa); if (n) throw new ErroCaixa(n.erro, n.status); }
 
     const complemento = String(body.complemento ?? '').trim();
     if (complemento.length < 3) throw new ErroCaixa('Escreva o complemento para a IA ter o que ler.');

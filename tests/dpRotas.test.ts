@@ -141,8 +141,10 @@ describe('cliente e empresa arquivada', () => {
   it('arquivada: a ficha abre (consulta), mas editar e programar são barrados', async () => {
     sessaoAtual = SESSOES.contadorA;
     expect((await ficha.GET(req(`/api/dp/empregado?id=${EMP_ARQ}`))).status).toBe(200);
-    expect((await lista.PATCH(req('/api/dp', { method: 'PATCH', body: { id: EMP_ARQ, dados: { nome: 'X' } } }))).status).toBe(403);
-    expect((await ferias.POST(req('/api/dp/ferias', { method: 'POST', body: { empregadoId: EMP_ARQ, aquisitivoInicio: '2025-03-10', inicio: '2027-01-04', dias: 30 } }))).status).toBe(403);
+    const patch = await lista.PATCH(req('/api/dp', { method: 'PATCH', body: { id: EMP_ARQ, dados: { nome: 'X' } } }));
+    expect(patch.status).toBe(409);
+    expect((await patch.json()).erro).toBe('Empresa arquivada — reative em Cadastros para alterar');
+    expect((await ferias.POST(req('/api/dp/ferias', { method: 'POST', body: { empregadoId: EMP_ARQ, aquisitivoInicio: '2025-03-10', inicio: '2027-01-04', dias: 30 } }))).status).toBe(409);
     expect(gravacoes).toEqual([]);
   });
   it('contador A programa férias válidas na empresa ativa (validação do servidor)', async () => {

@@ -8,6 +8,7 @@
 // 366 e 146 do TST). Detalhes e exemplo em docs/folha-de-ponto.md.
 import type { DiaFreq, Funcionario } from './tipos';
 import { formatarMin } from './tempo';
+import { jornadaDaFolha } from './dp';
 import {
   diasNoMes, diaSemana, tipoDoDia, minutosACumprir, ehDiaDeTrabalho, MESES, Jornada, JORNADA_PADRAO, TipoDia,
 } from './calendario';
@@ -56,11 +57,7 @@ export function regrasDoEmpregado(
   bancoDoCadastro?: boolean,
 ): RegrasEmpregado {
   return {
-    jornada: {
-      utilMin: cad?.jornadaUtilMin ?? empresa.utilMin,
-      sabadoMin: cad?.jornadaSabadoMin ?? empresa.sabadoMin,
-      trabalhaSabado: empresa.trabalhaSabado,
-    },
+    jornada: jornadaDaFolha(null, cad, empresa),
     temBanco: Boolean(bancoDoCadastro) || Boolean(banco?.has(nome)),
   };
 }

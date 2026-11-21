@@ -11,7 +11,7 @@
 import { NextRequest } from 'next/server';
 import { COOKIE_SESSAO, lerSessao, Sessao } from './auth';
 import { buscarUsuario, lerEmpresas, lerEmpresasComArquivadas } from './cadastro';
-import { acessoAArquivada, ehEscritaDeDados, estaArquivada, soArquivadas } from './arquivamento';
+import { acessoAArquivada, ehEscritaDeDados, estaArquivada, MENSAGEM_ARQUIVADA, soArquivadas } from './arquivamento';
 import { empresaVisivel } from './visibilidade';
 import { Empresa } from './tipos';
 import { mensagemSomenteLeitura, type MotivoBloqueio } from './cobranca';
@@ -81,15 +81,40 @@ export async function empresasArquivadasVisiveis(s: Sessao): Promise<Empresa[]> 
  * demais consultam o escritório da empresa (leitura cacheada em lib/cadastro).
  */
 export async function podeAcessarEmpresa(s: Sessao, empresaId: string): Promise<boolean> {
-  if (!empresaId?.trim()) return false;
+  return (await motivoNegado(s, empresaId)) === null;
+}
+
+export interface Negacao { status: 403 | 409; erro: string; codigo?: 'empresa_arquivada' }
+
+/**
+ * Por que esta sessão NÃO pode acessar a empresa (`null` = pode). Mesma decisão de
+ * `podeAcessarEmpresa`, com o motivo: gravar em empresa arquivada é 409 com a
+ * mensagem de reativar; tudo o mais que era negado continua 403. A visibilidade é
+ * conferida ANTES — quem não enxerga a empresa (outro escritório, outro cliente)
+ * recebe o 403 genérico e não descobre que ela existe nem que está arquivada.
+ */
+export async function motivoNegado(s: Sessao, empresaId: string): Promise<Negacao | null> {
+  const proibido: Negacao = { status: 403, erro: 'Acesso restrito a esta empresa.' };
+  if (!empresaId?.trim()) return proibido;
   // Master em leitura resolve sem I/O.
-  if (s.role === 'master' && !s.escrita) return true;
-  if (s.role === 'cliente' && s.empresa !== empresaId) return false;
+  if (s.role === 'master' && !s.escrita) return null;
+  if (s.role === 'cliente' && s.empresa !== empresaId) return proibido;
   // Inclui arquivadas: a contabilidade as consulta (só leitura); o resto é barrado aqui.
   const e = (await lerEmpresasComArquivadas()).find((x) => x.id === empresaId);
-  if (!e) return s.role === 'master';
-  if (estaArquivada(e) && !acessoAArquivada(s.role, Boolean(s.escrita))) return false;
-  return s.role === 'master' || empresaVisivelPara(s, e);
+  if (!e) return s.role === 'master' ? null : proibido;
+  if (!(s.role === 'master' || empresaVisivelPara(s, e))) return proibido;
+  if (estaArquivada(e) && !acessoAArquivada(s.role, Boolean(s.escrita))) {
+    // O cliente nunca acessa arquivada (403); a contabilidade só é barrada ao gravar (409).
+    if (s.role !== 'cliente' && s.escrita) return { status: 409, erro: MENSAGEM_ARQUIVADA, codigo: 'empresa_arquivada' };
+    return proibido;
+  }
+  return null;
+}
+
+/** Resposta pronta (403/409) para a negação, ou `null` se pode acessar. */
+export async function respostaNegadaEmpresa(s: Sessao, empresaId: string): Promise<Response | null> {
+  const n = await motivoNegado(s, empresaId);
+  return n ? Response.json({ erro: n.erro, ...(n.codigo ? { codigo: n.codigo } : {}) }, { status: n.status }) : null;
 }
 
 function negar(msg: string, status: number): Guarda {
@@ -123,7 +148,8 @@ export async function exigirEmpresa(req: NextRequest, empresaId: string): Promis
   const sessao = await sessaoDe(req);
   if (!sessao) return negar('Não autenticado.', 401);
   if (!empresaId?.trim()) return negar('Informe a empresa.', 400);
-  if (!(await podeAcessarEmpresa(sessao, empresaId))) return negar('Acesso restrito a esta empresa.', 403);
+  const n = await motivoNegado(sessao, empresaId);
+  if (n) return negar(n.erro, n.status);
   return { ok: true, sessao };
 }
 

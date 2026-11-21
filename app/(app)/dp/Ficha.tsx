@@ -19,6 +19,7 @@ import {
   situacaoFerias, type EstadoPeriodo, type FeriasProgramada,
 } from '@/lib/ferias';
 import { avisoAfastamento13, avosDecimo, entraNoDecimo, faltasPorMesDoAno, MESES_CURTOS, prazosDecimo } from '@/lib/decimoTerceiro';
+import ConferenciaModulos from '../ConferenciaModulos';
 import { FormEmpregado } from './FormEmpregado';
 import { ProgramarFerias, type PedidoTela } from './ProgramarFerias';
 
@@ -196,6 +197,7 @@ export function Ficha({ id, hoje, onVoltar, onMudou }: { id: string; hoje: strin
           {e.aquisitivoBase && <Linha rotulo="Início do aquisitivo">{br(e.aquisitivoBase)} (editado)</Linha>}
           <Linha rotulo="Folha de ponto">{d.funcionario ? `Ligado a “${d.funcionario.nome}”` : <span className="text-tinta-suave">Sem cadastro no ponto com este nome</span>}</Linha>
         </dl>
+        <div className="mt-3"><ConferenciaModulos key={`${e.atualizadoEm}|${d.ferias.length}`} url={`/api/dp/conferencia?empresa=${encodeURIComponent(d.empresa.id)}`} empregadoId={e.id} /></div>
         {avisosCad.length > 0 && <Aviso tom="aviso" className="mt-3"><ul className="list-disc pl-4">{avisosCad.map((a) => <li key={a}>{a}</li>)}</ul></Aviso>}
       </Secao>
 

@@ -11,6 +11,8 @@ import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
 import { lerFeriados, lerFrequenciasParaRevisao, lerFuncionarios } from '@/lib/pontoDb';
 import { lerJornadaEmpresa } from '@/lib/cadastro';
 import { revisarMes } from '@/lib/revisaoPonto';
+import { jornadaDaFolha, type Empregado } from '@/lib/dp';
+import { lerEmpregadosParaFolha } from '@/lib/dpServidor';
 
 export const runtime = 'nodejs';
 
@@ -25,11 +27,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [freqs, feriadosArr, funcs, jornadaEmpresa] = await Promise.all([
+    const [freqs, feriadosArr, funcs, jornadaEmpresa, empregadoPorNome] = await Promise.all([
       lerFrequenciasParaRevisao(g.escritorioId, g.empresa.id, ano, mes),
       lerFeriados(g.escritorioId),
       lerFuncionarios(g.escritorioId, g.empresa.id),
       lerJornadaEmpresa(g.empresa.id),
+      // Cadastro do DP (0021); sem a tabela, segue sem ele.
+      lerEmpregadosParaFolha(g.escritorioId, g.empresa.id).catch(() => new Map<string, Empregado>()),
     ]);
     const feriados = new Set(feriadosArr.map((f) => f.data));
     const porNome = new Map(funcs.map((f) => [f.nome, f]));
@@ -45,11 +49,8 @@ export async function GET(req: NextRequest) {
         funcionario: f.funcionario,
         dias: f.dias,
         anteriores: freqs.anteriores.get(f.funcionario),
-        jornada: {
-          utilMin: cad?.jornadaUtilMin ?? jornadaEmpresa.utilMin,
-          sabadoMin: cad?.jornadaSabadoMin ?? jornadaEmpresa.sabadoMin,
-          trabalhaSabado: jornadaEmpresa.trabalhaSabado,
-        },
+        // Mesma jornada do resumo da folha e da planilha (jornadaDoEmpregado, via lib/dp.ts).
+        jornada: jornadaDaFolha(empregadoPorNome.get(f.funcionario), cad, jornadaEmpresa),
       };
     }), { ano, mes, feriados });
 

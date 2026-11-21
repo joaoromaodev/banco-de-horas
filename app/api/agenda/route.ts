@@ -4,7 +4,7 @@
 // barrado no proxy (a rota não está em CLIENTE_PODE). As ocorrências não vêm
 // daqui: a tela as gera com lib/agenda.ts a partir das obrigações.
 import { NextRequest } from 'next/server';
-import { empresasVisiveis, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { empresasVisiveis, exigirGestor, respostaNegadaEmpresa } from '@/lib/acesso';
 import { temModulo } from '@/lib/auth';
 import { hojeBelem } from '@/lib/agenda';
 import { itensDeContratos } from '@/lib/agendaDerivada';
@@ -17,7 +17,7 @@ import {
   atualizarObrigacao, AVISO_PADRAO, criarObrigacoes, equipeDoEscritorio, ErroAgenda, excluirObrigacoes,
   lerAviso, listarConclusoes, listarObrigacoes,
 } from '@/lib/agendaServidor';
-import { escopoDe, escritorioDaEmpresa, falha, negado, obrigacaoAcessivel } from './comum';
+import { escopoDe, escritorioDaEmpresa, falha, obrigacaoAcessivel } from './comum';
 
 export const runtime = 'nodejs';
 
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   const escopo = escopoDe(g.sessao);
   if (!escopo) return Response.json({ erro: 'Usuário sem escritório vinculado.' }, { status: 403 });
   const empresa = req.nextUrl.searchParams.get('empresa') || undefined;
-  if (empresa && !(await podeAcessarEmpresa(g.sessao, empresa))) return negado();
+  if (empresa) { const r = await respostaNegadaEmpresa(g.sessao, empresa); if (r) return r; }
   try {
     const anoAtual = new Date().getUTCFullYear();
     const [obrigacoes, conclusoes] = await Promise.all([

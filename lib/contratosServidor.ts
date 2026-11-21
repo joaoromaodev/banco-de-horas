@@ -115,6 +115,16 @@ export async function excluirContrato(id: string, restaurar = false): Promise<vo
   if (error) traduzir(error);
 }
 
+/** Todos os contratos (qualquer situação) de várias empresas, para a conferência entre módulos. */
+export async function listarContratosDeEmpresas(empresas: string[]): Promise<ContratoSalvo[]> {
+  if (!empresas.length) return [];
+  const db = getDb();
+  const data = await emLotes(empresas, (lote) => lerTudo<Linha>((de, ate) => db.from(TABELA)
+    .select('id, empresa_id, situacao, dados, criado_por, criado_em, atualizado_em')
+    .in('empresa_id', lote).is('excluido_em', null).order('id').range(de, ate), { falhar: traduzir }));
+  return data.map(deLinha);
+}
+
 /**
  * Contratos em experiência de várias empresas de uma vez (faixa de alertas do
  * topo). O chamador passa só as empresas que a sessão pode ver.

@@ -6,7 +6,7 @@
 // /api/cron/agenda) abre as pendências; o envio do documento fecha. Ver
 // docs/documentos.md.
 import { NextRequest } from 'next/server';
-import { empresasVisiveis, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { empresasVisiveis, exigirGestor, motivoNegado, respostaNegadaEmpresa } from '@/lib/acesso';
 import { lerEmpresa } from '@/lib/cadastro';
 import { categoriaValida } from '@/lib/documentos';
 import { CamposRecorrente, criarRecorrentes, editarRecorrente, ErroFechamento, excluirRecorrente, lerRecorrente, listarRecorrentes } from '@/lib/fechamentoServidor';
@@ -25,7 +25,6 @@ function falha(e: unknown) {
   return Response.json({ erro: 'Falha ao processar o pedido mensal.' }, { status: 502 });
 }
 
-const negado = () => Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- corpo JSON livre, validado aqui */
 /** `padrao`: dia usado quando o corpo não traz `diaPrazo` (prazo padrão do escritório). */
@@ -41,10 +40,10 @@ function campos(b: any, padrao: number): CamposRecorrente {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 /** Escritório do registro (da EMPRESA dele, não da sessão) e acesso à empresa. */
-async function recorrenteAcessivel(g: { sessao: Parameters<typeof podeAcessarEmpresa>[0] }, id: string, incluirExcluido = false) {
+async function recorrenteAcessivel(g: { sessao: Parameters<typeof motivoNegado>[0] }, id: string, incluirExcluido = false) {
   const m = await lerRecorrente(id, incluirExcluido);
   if (!m) throw new ErroFechamento('Pedido mensal não encontrado.', 404);
-  if (!(await podeAcessarEmpresa(g.sessao, m.empresaId))) throw new ErroFechamento('Acesso restrito a esta empresa.', 403);
+  { const n = await motivoNegado(g.sessao, m.empresaId); if (n) throw new ErroFechamento(n.erro, n.status); }
   return m;
 }
 
@@ -54,7 +53,7 @@ export async function GET(req: NextRequest) {
   if (!g.ok) return g.resposta;
   try {
     const empresa = req.nextUrl.searchParams.get('empresa') || '';
-    if (empresa && !(await podeAcessarEmpresa(g.sessao, empresa))) return negado();
+    if (empresa) { const r = await respostaNegadaEmpresa(g.sessao, empresa); if (r) return r; }
     const ids = empresa ? [empresa] : (await empresasVisiveis(g.sessao)).map((e) => e.id);
     const escritorio = g.sessao.role === 'master' ? null : (g.sessao.escritorioId ?? '__nenhum__');
     return Response.json({ modelos: await listarRecorrentes(ids, escritorio) });
@@ -84,7 +83,7 @@ export async function POST(req: NextRequest) {
     // Confere TODAS as empresas antes de gravar qualquer uma (tudo ou nada).
     const donas = new Map<string, string>();
     for (const id of empresas) {
-      if (!(await podeAcessarEmpresa(g.sessao, id))) return negado();
+      { const r = await respostaNegadaEmpresa(g.sessao, id); if (r) return r; }
       const e = await lerEmpresa(id);
       if (!e?.escritorioId) throw new ErroFechamento('Empresa sem escritório vinculado.', 409);
       donas.set(id, e.escritorioId);

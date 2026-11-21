@@ -4,7 +4,7 @@
 // Ler: cliente (só a própria empresa) e contabilidade. Criar, editar, fechar,
 // reabrir e excluir: só a contabilidade do escritório (podeGerirPendencia).
 import { NextRequest } from 'next/server';
-import { exigirSessao } from '@/lib/acesso';
+import { exigirSessao, respostaNegadaEmpresa } from '@/lib/acesso';
 import { Sessao } from '@/lib/auth';
 import { hojeBelem } from '@/lib/contratos';
 import {
@@ -71,6 +71,7 @@ export async function PATCH(req: NextRequest) {
     const p = await lerPendencia(String(body.id ?? ''));
     if (!p || !podeVerRegistro(g.sessao, p)) return naoEncontrado('Pendência');
     if (!podeGerirPendencia(g.sessao, p)) return negado();
+    { const r = await respostaNegadaEmpresa(g.sessao, p.empresaId); if (r) return r; }
     const s = g.sessao;
     switch (body.acao) {
       case 'editar': return Response.json({ pendencia: await editarPendencia(p.id, campos(body)) });
@@ -89,6 +90,7 @@ export async function DELETE(req: NextRequest) {
     const p = await lerPendencia(req.nextUrl.searchParams.get('id') ?? '');
     if (!p || p.excluidoEm || !podeVerRegistro(g.sessao, p)) return naoEncontrado('Pendência');
     if (!podeGerirPendencia(g.sessao, p)) return negado();
+    { const r = await respostaNegadaEmpresa(g.sessao, p.empresaId); if (r) return r; }
     await excluirPendencia(p.id);
     return Response.json({ ok: true });
   } catch (e) { return falha(e); }
