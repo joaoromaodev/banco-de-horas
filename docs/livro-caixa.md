@@ -802,6 +802,11 @@ inicial de 2026 ainda é zero, pendência 1) e **setembro e outubro sem lançame
   de 1000 lançamentos num exercício o Supabase corta a resposta. Não é desta frente;
   `paginado()` em `lib/caixaInteligente.ts` resolve se for preciso.
 
+### ✅ Caixa para o cliente (0023) — 21/11/2026 (Sprint 8, Frente C)
+
+Alerta de limite de faturamento (MEI/Simples) e **Demonstrativo de caixa** mensal com envio ao
+cliente: regras, decisões e **"Para o integrador"** em [`resumo-cliente.md`](resumo-cliente.md).
+
 ## Estado do banco
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e
