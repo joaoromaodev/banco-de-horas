@@ -637,6 +637,6 @@ de ideia.
   `spreadsheets.get` + `values.update` **antes de qualquer leitura** — ~3 chamadas
   por request, uma delas de escrita. Um teste com ~85 requisições estourou a cota
   de 60/min e devolveu 502. Vale enxugar se o módulo de ponto crescer.
-- **Modo escuro quebrado.** `app/globals.css` define fundo preto via
-  `prefers-color-scheme`, mas todos os componentes assumem tema claro. Afeta o app
-  inteiro, é anterior a este módulo.
+- ~~Modo escuro quebrado~~ — **resolvido (Sprint 2, frente D)**: papéis de cor
+  redefinidos para o escuro em `app/globals.css`, seletor claro/escuro/automático no
+  menu do usuário. Ver `docs/identidade-visual.md` ("Tema escuro").

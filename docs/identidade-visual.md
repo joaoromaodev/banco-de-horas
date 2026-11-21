@@ -7,7 +7,7 @@
 > marca; em caso de divergência, vale este arquivo.)
 
 Marca: **ClickContas — Praticidade Contábil** (`lib/brand.ts`). Petróleo + verde,
-superfícies claras, só tema claro. Objetivo: bonito, simples, elegante — e nada
+tema claro e escuro (claro / escuro / automático). Objetivo: bonito, simples, elegante — e nada
 com cara de padrão do navegador.
 
 ## Regras de ouro
@@ -46,7 +46,18 @@ com cara de padrão do navegador.
 | sucesso | `text-sucesso`, `bg-sucesso-suave`, `ring-sucesso-borda` | `#15803d` | **entradas**, confirmado |
 | aviso | `text-aviso`, `bg-aviso-suave`, `border-aviso-borda` | `#92400e` | atenção, a conferir |
 | perigo | `text-perigo`, `bg-perigo-suave`, `bg-perigo-solido` | `#b91c1c` / `#c81e1e` | erro, **saídas**, excluir |
+| primária borda / realce | `border-primaria-borda`, `ring-primaria-borda`, `bg-primaria-realce` | `#bcdadd` / `#d7e7e9` | contorno do tonal e do aviso info; hover do tonal, esqueleto |
+| sobre primária | `text-sobre-primaria` | `#ffffff` | texto/ícone sobre `bg-primaria` (**no escuro é petróleo escuro**) |
+| sucesso realce | `bg-sucesso-realce` | `#d1fadf` | hover do botão de sucesso |
+| perigo hover | `bg-perigo-hover` | `#b91c1c` | hover do botão destrutivo |
 | foco | (automático) | `#1c808b` | anel de foco do teclado |
+| gráficos | `var(--color-grafico-entrada)`, `-saida` | `#059669` / `#dc2626` | séries do resumo do caixa (SVG) |
+
+Os valores acima são do **tema claro**; o escuro redefine os mesmos papéis (ver
+abaixo). Regra de ouro: **texto sobre `bg-primaria` é `text-sobre-primaria`, nunca
+`text-white`** — no escuro a primária é um azul-petróleo claro e o texto vira
+escuro. `text-white` só vale sobre o que é fixo nos dois temas (botão perigo sólido,
+barra lateral, painel da marca, hero do site).
 
 As rampas `petroleo-50…950` e `verde-50…700` continuam existindo, mas são para a
 moldura da marca (barra lateral, painel do login). Nas telas, use os papéis.
@@ -68,6 +79,33 @@ moldura da marca (barra lateral, painel do login). Nas telas, use os papéis.
 Globais prontos (não reimplementar): barra de rolagem da marca (use
 `rolagem-escura` sobre fundo petróleo), checkbox e radio desenhados, indicador de
 data/hora, `::selection`.
+
+## Tema escuro
+
+Mesmos papéis, outros valores — definidos em `app/globals.css`, bloco
+`:root[data-tema='escuro']`. Telas **nunca** testam o tema: só usam papéis, então
+tudo já nasce nos dois temas. Não escreva `dark:`.
+
+- **Mecanismo** (`components/tema.tsx`): um script no `<head>` (antes da primeira
+  pintura, sem piscar) resolve a preferência — `localStorage['cc-tema']` =
+  `claro` | `escuro`; ausente = **automático**, que segue `prefers-color-scheme` ao
+  vivo — e grava o tema resolvido em `<html data-tema>`. `color-scheme` acompanha, então
+  campos de data e a barra do navegador também escurecem. O botão `BotaoTema`
+  (menu do usuário, na barra lateral) alterna automático → claro → escuro.
+- **Paleta escura**: fundo `#0a1618`, superfície `#112226`, tinta `#e9f2f3`,
+  primária `#4fb3bf` (texto sobre ela `#05262b`), sucesso `#4ade80`, aviso `#fbbf24`,
+  perigo `#f87171`. Contrastes sobre a superfície: tinta 15:1, tinta-suave 9:1,
+  tinta-fraca 6,4:1, primária-texto 8:1, estados ≥ 6:1, borda-forte 4,6:1 (AA).
+- **O que é igual nos dois temas** (moldura da marca, escura por natureza): barra
+  lateral, painel do login e hero do site (`petroleo-*` e `.hero`), `Dialogo` (só o
+  véu). Dentro deles use `text-white`/`petroleo-*`; fora, só papéis.
+- **Balão de dica**: invertido (`bg-tinta text-fundo`) — claro no escuro, escuro no claro.
+- **Gráficos SVG**: cores via `var(--color-…)` em `fill`/`stroke` (funcionam como
+  atributo); entrada/saída têm tokens próprios (`grafico-entrada/saida`), mais claros
+  no escuro. Nunca hex solto.
+- **Conferir uma tela nova**: alterne o tema (botão do rodapé da barra lateral) e
+  veja desktop e 375 px nos dois. Se algo ficar ilegível, falta um papel — crie em
+  `globals.css` (nos dois blocos), não pinte a tela.
 
 ## Primitivas
 
@@ -146,9 +184,8 @@ com `tb.num` + `text-sucesso` (entrada) ou `text-perigo` (saída).
 
 ## O que ficou de fora (de propósito)
 
-- **Modo escuro**: os papéis estão prontos para isso (basta redefinir as
-  variáveis), mas os gráficos e a moldura petróleo precisariam de revisão visual.
 - **Calendário próprio**: data e hora usam o campo nativo, estilizado (teclado e
   leitor de tela de graça); só o pop-up do calendário é do navegador.
-- **Cores dos gráficos** (`caixa/resumo/Graficos.tsx`): entrada `#059669` e saída
-  `#dc2626` foram mantidas — o par foi validado para daltonismo.
+- **Cores dos gráficos** (`caixa/resumo/Graficos.tsx`): entrada verde e saída
+  vermelha foram mantidas (par validado para daltonismo); no escuro viram
+  `#34d399` / `#f87171`, via tokens `grafico-entrada/saida`.

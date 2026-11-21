@@ -408,7 +408,7 @@ export default function Caixa() {
               {pendencias.map((p) => (
                 <Botao key={p.empresaId} tamanho="sm" onClick={() => { setEmpresaSel(p.empresaId); irPara(ano, p.ultimo.mes); }}>
                   {nomeEmpresa(p.empresaId)}
-                  <span className="rounded-full bg-primaria px-1.5 text-[11px] font-semibold leading-5 text-white">{p.pendentes}</span>
+                  <span className="rounded-full bg-primaria px-1.5 text-[11px] font-semibold leading-5 text-sobre-primaria">{p.pendentes}</span>
                 </Botao>
               ))}
             </div>
@@ -427,12 +427,12 @@ export default function Caixa() {
               <button key={m} type="button" onClick={() => irPara(ano, m)} aria-current={m === mes ? 'true' : undefined}
                 aria-label={`${MESES_LONGOS[i]}${confirmado ? ' — confirmado' : ''}${temMovimento ? '' : ' — sem movimento'}`}
                 className={`relative flex h-9 items-center justify-center gap-1 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
-                  m === mes ? 'bg-primaria text-white shadow-cartao'
+                  m === mes ? 'bg-primaria text-sobre-primaria shadow-cartao'
                     : temMovimento ? 'text-tinta hover:bg-superficie-realce'
                     : 'font-medium text-tinta-fraca hover:bg-superficie-realce hover:text-tinta'
                 }`}>
                 {rotulo}
-                {confirmado && <IconeCheck size={12} className={m === mes ? 'text-verde-100' : 'text-sucesso'} />}
+                {confirmado && <IconeCheck size={12} className={m === mes ? 'text-sobre-primaria' : 'text-sucesso'} />}
               </button>
             );
           })}
@@ -543,7 +543,7 @@ export default function Caixa() {
                   </td>
                 </tr>
               ) : (
-                <tr key={l.id} className={`transition-colors ${l.conferidoEm ? 'hover:bg-superficie-realce/60' : 'bg-primaria-suave/70 hover:bg-petroleo-100/60'}`}>
+                <tr key={l.id} className={`transition-colors ${l.conferidoEm ? 'hover:bg-superficie-realce/60' : 'bg-primaria-suave/70 hover:bg-primaria-realce/60'}`}>
                   <td className={`${tb.td} whitespace-nowrap`}>{diaMes(l.data)}</td>
                   <td className={`${tb.td} text-tinta-suave`}>{l.complemento}</td>
                   {identificaPagador && <td className={`${tb.td} text-tinta-suave`}>{l.pagadorNome}</td>}

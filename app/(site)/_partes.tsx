@@ -19,10 +19,10 @@ export const TESTE = 'Começar teste grátis de 14 dias';
 
 type Variante = 'primaria' | 'secundaria' | 'claro' | 'vazado';
 const VARIANTE: Record<Variante, string> = {
-  primaria: 'bg-primaria text-white shadow-cartao hover:bg-primaria-hover',
+  primaria: 'bg-primaria text-sobre-primaria shadow-cartao hover:bg-primaria-hover',
   secundaria: 'border border-borda-forte/50 bg-superficie text-tinta hover:border-borda-forte hover:bg-superficie-realce',
   // sobre o painel petróleo
-  claro: 'bg-superficie text-primaria shadow-cartao hover:bg-superficie-realce',
+  claro: 'bg-white text-petroleo-900 shadow-cartao hover:bg-petroleo-50',
   vazado: 'border border-white/40 text-white hover:bg-white/10',
 };
 const TAMANHO = { md: 'h-9 gap-2 px-3.5 text-sm', lg: 'h-11 gap-2 px-5 text-[15px]' };

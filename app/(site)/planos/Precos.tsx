@@ -22,7 +22,7 @@ export function Precos() {
       <div role="group" aria-label="Periodicidade da cobrança" className="inline-flex rounded-lg border border-borda bg-superficie p-1">
         {[[false, 'Mensal'], [true, 'Anual']].map(([val, rot]) => (
           <button key={String(rot)} type="button" aria-pressed={anual === val} onClick={() => setAnual(val as boolean)}
-            className={`h-9 rounded-md px-4 text-sm font-medium transition-colors ${anual === val ? 'bg-primaria text-white' : 'text-tinta-suave hover:text-tinta'}`}>
+            className={`h-9 rounded-md px-4 text-sm font-medium transition-colors ${anual === val ? 'bg-primaria text-sobre-primaria' : 'text-tinta-suave hover:text-tinta'}`}>
             {rot as string}
           </button>
         ))}

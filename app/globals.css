@@ -47,12 +47,16 @@
   --color-primaria: #0f4c54;          /* botão primário, aba ativa */
   --color-primaria-hover: #0a3a40;
   --color-primaria-suave: #eef5f6;    /* fundo de botão tonal / aviso informativo */
-  --color-primaria-texto: #14636c;    /* links e texto de destaque sobre claro */
+  --color-primaria-texto: #14636c;    /* links e texto de destaque sobre a superfície */
+  --color-primaria-borda: #bcdadd;    /* contorno de botão tonal / aviso informativo */
+  --color-primaria-realce: #d7e7e9;   /* hover do tonal, esqueleto de carregamento */
+  --color-sobre-primaria: #ffffff;    /* texto/ícone sobre `primaria` (no escuro é escuro) */
 
   /* ---- estados ---- */
   --color-sucesso: #15803d;           /* texto/ícone — entradas, confirmado */
   --color-sucesso-suave: #ecfdf5;
   --color-sucesso-borda: #a7dfbd;
+  --color-sucesso-realce: #d1fadf;    /* hover do botão de sucesso */
 
   --color-aviso: #92400e;             /* texto/ícone — atenção, a conferir */
   --color-aviso-suave: #fffbeb;
@@ -60,10 +64,18 @@
 
   --color-perigo: #b91c1c;            /* texto/ícone — erro, saídas, excluir */
   --color-perigo-solido: #c81e1e;     /* fundo do botão destrutivo (branco em cima: 5,7:1) */
+  --color-perigo-hover: #b91c1c;      /* hover do botão destrutivo */
   --color-perigo-suave: #fef2f2;
   --color-perigo-borda: #f3bcbc;
 
   --color-foco: #1c808b;              /* anel de foco do teclado */
+  --color-selecao: #bcdadd;           /* texto selecionado */
+  --color-rolagem: #93c4ca;           /* barra de rolagem */
+  --color-rolagem-hover: #1c808b;
+
+  /* ---- gráficos (caixa/resumo): par validado para daltonismo ---- */
+  --color-grafico-entrada: #059669;
+  --color-grafico-saida: #dc2626;
 
   /* ---- sombras: quase nenhuma; só para separar camadas ---- */
   --shadow-cartao: 0 1px 2px rgb(15 34 38 / 0.05);
@@ -77,11 +89,68 @@
   --shadow-flutuante: 0 16px 40px -12px rgb(15 34 38 / 0.28), 0 2px 8px rgb(15 34 38 / 0.08);
 }
 
+/* ---- TEMA ESCURO ----
+   Mesmos papéis, outros valores. O tema vem do atributo `data-tema` no <html>
+   ("claro" | "escuro"), definido por um script no <head> antes da primeira pintura
+   (components/tema.tsx) a partir da preferência salva ou do sistema. Telas nunca
+   testam o tema: só usam os papéis. Moldura petróleo (barra lateral, painel do
+   login, balão de dica) é igual nos dois temas. Contrastes medidos sobre
+   `superficie` (#112226): tinta 15:1 · tinta-suave 9:1 · tinta-fraca 6,4:1 ·
+   primaria-texto 8:1 · sucesso/aviso/perigo ≥ 6:1 · borda-forte 4,6:1. */
+:root[data-tema='escuro'] {
+  --color-fundo: #0a1618;
+  --color-superficie: #112226;
+  --color-superficie-suave: #0e1e22;
+  --color-superficie-realce: #173036;
+
+  --color-borda: #223e44;
+  --color-borda-forte: #6f8d93;
+
+  --color-tinta: #e9f2f3;
+  --color-tinta-suave: #aec3c7;
+  --color-tinta-fraca: #8ba5aa;
+
+  --color-primaria: #4fb3bf;
+  --color-primaria-hover: #6ac5d0;
+  --color-primaria-suave: #153239;
+  --color-primaria-texto: #7ccfd9;
+  --color-primaria-borda: #2b5a63;
+  --color-primaria-realce: #1d4148;
+  --color-sobre-primaria: #05262b;
+
+  --color-sucesso: #4ade80;
+  --color-sucesso-suave: #0f2b1e;
+  --color-sucesso-borda: #226b43;
+  --color-sucesso-realce: #153d29;
+
+  --color-aviso: #fbbf24;
+  --color-aviso-suave: #2b2310;
+  --color-aviso-borda: #6b5418;
+
+  --color-perigo: #f87171;
+  --color-perigo-hover: #dc2626;
+  --color-perigo-suave: #2e1618;
+  --color-perigo-borda: #6b2b2e;
+
+  --color-foco: #5cc0cb;
+  --color-selecao: #2b5a63;
+  --color-rolagem: #3d6770;
+  --color-rolagem-hover: #5aa7b0;
+
+  --color-grafico-entrada: #34d399;
+  --color-grafico-saida: #f87171;
+
+  --shadow-cartao: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-flutuante: 0 16px 40px -12px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.4);
+}
+
 @layer base {
   html {
-    /* Só tema claro por enquanto: evita que o navegador pinte campos nativos
-       (date, select) no escuro e quebre o contraste. */
+    /* Campos nativos (date, scrollbar do SO) acompanham o tema. */
     color-scheme: light;
+  }
+  html[data-tema='escuro'] {
+    color-scheme: dark;
   }
 
   body {
@@ -113,7 +182,7 @@
   }
 
   ::selection {
-    background: var(--color-petroleo-200);
+    background: var(--color-selecao);
     color: var(--color-tinta);
   }
 
@@ -128,19 +197,19 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: var(--color-petroleo-300);
+    background-color: var(--color-rolagem);
     border: 2px solid transparent;
     border-radius: 999px;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--color-petroleo-600);
+    background-color: var(--color-rolagem-hover);
   }
   /* Firefox (não tem ::-webkit-scrollbar): o equivalente padrão, sem hover. */
   @supports not selector(::-webkit-scrollbar) {
     * {
       scrollbar-width: thin;
-      scrollbar-color: var(--color-petroleo-300) transparent;
+      scrollbar-color: var(--color-rolagem) transparent;
     }
   }
   /* Sobre o petróleo escuro (barra lateral). */
@@ -179,7 +248,10 @@
   :where(input[type='checkbox']):checked {
     border-color: var(--color-primaria);
     background-color: var(--color-primaria);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 9.5l3 3 6-6.5'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 9.5l3 3 6-6.5'/%3E%3C/svg%3E");
+  }
+  html[data-tema='escuro'] :where(input[type='checkbox']):checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' fill='none' stroke='%2305262b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 9.5l3 3 6-6.5'/%3E%3C/svg%3E");
   }
   :where(input[type='radio']):checked {
     border-color: var(--color-primaria);
@@ -204,7 +276,7 @@
   input[type='date']::-webkit-calendar-picker-indicator:hover,
   input[type='time']::-webkit-calendar-picker-indicator:hover {
     opacity: 1;
-    background-color: var(--color-petroleo-100);
+    background-color: var(--color-primaria-realce);
   }
   input[type='date']:disabled::-webkit-calendar-picker-indicator,
   input[type='time']:disabled::-webkit-calendar-picker-indicator {
@@ -233,7 +305,7 @@ input[type='checkbox'].alternador {
   height: 1.25rem;
   border: 0;
   border-radius: 999px;
-  background: var(--color-borda-forte) radial-gradient(circle at center, #fff 0 0.45rem, transparent 0.5rem) left center / 1.25rem 1.25rem no-repeat;
+  background: var(--color-borda-forte) radial-gradient(circle at center, var(--color-sobre-primaria) 0 0.45rem, transparent 0.5rem) left center / 1.25rem 1.25rem no-repeat;
   transition: background-position 0.15s ease, background-color 0.15s ease;
 }
 input[type='checkbox'].alternador:hover {
@@ -241,7 +313,7 @@ input[type='checkbox'].alternador:hover {
 }
 input[type='checkbox'].alternador:checked {
   background-color: var(--color-primaria);
-  background-image: radial-gradient(circle at center, #fff 0 0.45rem, transparent 0.5rem);
+  background-image: radial-gradient(circle at center, var(--color-sobre-primaria) 0 0.45rem, transparent 0.5rem);
   background-position: right center;
 }
 

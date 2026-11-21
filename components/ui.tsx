@@ -43,17 +43,17 @@ const BOTAO_BASE =
 
 const BOTAO_VARIANTE: Record<VarianteBotao, string> = {
   /** A ação principal da tela (ou do cartão-formulário). Uma só. */
-  primaria: 'bg-primaria text-white shadow-cartao hover:bg-primaria-hover',
+  primaria: 'bg-primaria text-sobre-primaria shadow-cartao hover:bg-primaria-hover',
   /** Ações de apoio: cancelar, adicionar linha, baixar. */
   secundaria: 'border border-borda-forte/50 bg-superficie text-tinta hover:border-borda-forte hover:bg-superficie-realce',
   /** Destaque suave: a segunda ação mais importante. */
-  tonal: 'bg-primaria-suave text-primaria-texto ring-1 ring-inset ring-petroleo-200 hover:bg-petroleo-100',
+  tonal: 'bg-primaria-suave text-primaria-texto ring-1 ring-inset ring-primaria-borda hover:bg-primaria-realce',
   /** Ação discreta em linha (links de ação). */
   fantasma: 'text-primaria-texto hover:bg-superficie-realce',
   /** Confirmação de ação destrutiva. */
-  perigo: 'bg-perigo-solido text-white shadow-cartao hover:bg-perigo',
+  perigo: 'bg-perigo-solido text-white shadow-cartao hover:bg-perigo-hover',
   /** Ação positiva de fluxo (confirmar o mês). */
-  sucesso: 'bg-sucesso-suave text-sucesso ring-1 ring-inset ring-sucesso-borda hover:bg-verde-100',
+  sucesso: 'bg-sucesso-suave text-sucesso ring-1 ring-inset ring-sucesso-borda hover:bg-sucesso-realce',
 };
 
 const BOTAO_TAMANHO: Record<TamanhoBotao, string> = {
@@ -292,7 +292,7 @@ export function CampoArquivo({ rotulo, dica, accept, nome, onArquivo, texto = 'E
 
 /** Bloco pulsante que ocupa o lugar do conteúdo enquanto ele carrega. */
 export function Esqueleto({ className = 'h-4 w-full' }: { className?: string }) {
-  return <span aria-hidden="true" className={cx('block animate-pulse rounded-md bg-petroleo-100', className)} />;
+  return <span aria-hidden="true" className={cx('block animate-pulse rounded-md bg-primaria-realce', className)} />;
 }
 
 /** Paginação simples: anterior · "página X de Y" · próxima. */
@@ -403,7 +403,7 @@ export type Tom = 'neutro' | 'primaria' | 'sucesso' | 'aviso' | 'perigo';
 
 const SELO_TOM: Record<Tom, string> = {
   neutro: 'bg-superficie-realce text-tinta-suave ring-borda',
-  primaria: 'bg-primaria-suave text-primaria-texto ring-petroleo-200',
+  primaria: 'bg-primaria-suave text-primaria-texto ring-primaria-borda',
   sucesso: 'bg-sucesso-suave text-sucesso ring-sucesso-borda',
   aviso: 'bg-aviso-suave text-aviso ring-aviso-borda',
   perigo: 'bg-perigo-suave text-perigo ring-perigo-borda',
@@ -420,7 +420,7 @@ export function Selo({ tom = 'neutro', className, children }: { tom?: Tom; class
 
 type TomAviso = 'info' | 'sucesso' | 'aviso' | 'perigo' | 'neutro';
 const AVISO_TOM: Record<TomAviso, { caixa: string; icone: string; Icone: typeof IconeInfo }> = {
-  info: { caixa: 'border-petroleo-200 bg-primaria-suave', icone: 'text-primaria-texto', Icone: IconeInfo },
+  info: { caixa: 'border-primaria-borda bg-primaria-suave', icone: 'text-primaria-texto', Icone: IconeInfo },
   sucesso: { caixa: 'border-sucesso-borda bg-sucesso-suave', icone: 'text-sucesso', Icone: IconeConfirmar },
   aviso: { caixa: 'border-aviso-borda bg-aviso-suave', icone: 'text-aviso', Icone: IconeAlerta },
   perigo: { caixa: 'border-perigo-borda bg-perigo-suave', icone: 'text-perigo', Icone: IconeErro },
@@ -479,7 +479,7 @@ export function Indicador({ rotulo, valor, tom = 'neutro', destaque = false }: {
   return (
     <div className={cx(
       'rounded-xl border bg-superficie px-4 py-3.5 shadow-cartao',
-      destaque ? 'border-petroleo-300 ring-1 ring-petroleo-100' : 'border-borda',
+      destaque ? 'border-primaria-borda ring-1 ring-primaria-borda' : 'border-borda',
     )}>
       <div className="text-xs font-medium text-tinta-suave">{rotulo}</div>
       <div className={cx('mt-1 text-xl font-semibold tracking-tight tabular-nums', INDICADOR_TOM[tom])}>{valor}</div>
