@@ -14,10 +14,11 @@ import { DialogoConfirmacao } from '../Dialogo';
 import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar, IconeDesfazer, IconeExcluir, IconeMais } from '../icones';
 import {
-  Aviso, Botao, BotaoIcone, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, Marcacao, Secao, Selo, Tom,
+  Aviso, Botao, BotaoIcone, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, FalhaCarregamento, Marcacao, Secao, Selo, Tom,
 } from '@/components/ui';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 
 interface Empresa { id: string; nome: string; trabalhaSabado: boolean; jornadaUtilMin?: number; jornadaSabadoMin?: number; arquivadaEm?: string | null }
 interface Funcionario { nome: string; cargo?: string | null }
@@ -49,6 +50,8 @@ export default function ContratosPage() {
   const [sujo, setSujo] = useState(false);
 
   const [erro, setErro] = useState<string | null>(null);
+  const [falhaEmpresas, setFalhaEmpresas] = useState<string | null>(null);
+  const [falhaLista, setFalhaLista] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState<ContratoSalvo | null>(null);
@@ -87,9 +90,7 @@ export default function ContratosPage() {
   /** Carrega a lista; com `reiniciar`, abre um formulário novo já com o pré-preenchimento dela. */
   async function carregar(id = empresaSel, reiniciar = false) {
     if (!id) return;
-    const r = await fetch(`/api/contratos?empresa=${encodeURIComponent(id)}`);
-    const x = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(x.erro ?? 'Falha ao carregar.');
+    const x = await lerJson(`/api/contratos?empresa=${encodeURIComponent(id)}`);
     const lista: ContratoSalvo[] = x.contratos ?? [];
     setSemTabela(Boolean(x.semTabela));
     empregadoraRef.current = x.empregadora ?? null;
@@ -132,22 +133,34 @@ export default function ContratosPage() {
     // Arquivada (consulta) não vira a empresa lembrada.
     if (!lista.find((e) => e.id === id)?.arquivadaEm) { try { localStorage.setItem('contratos.empresa', id); } catch {} }
     novo(lista.find((e) => e.id === id), []);
+    // Funcionários são só sugestões do campo nome: sem eles, a tela segue.
     fetch(`/api/funcionarios?empresa=${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null)).then((x) => setFuncionarios(x?.funcionarios ?? [])).catch(() => setFuncionarios([]));
-    carregar(id, true).catch((e) => setErro(e.message));
+    carregarLista(id, true);
   }
 
-  useEffect(() => {
-    try { if (localStorage.getItem('contratos.formato') === 'pdf') setFormato('pdf'); } catch {}
-    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then(async (x) => {
+  /** Carga da lista de contratos com a falha na tela ("Tentar de novo"), não num toast que some. */
+  function carregarLista(id = empresaSel, reiniciar = false) {
+    setFalhaLista(null);
+    carregar(id, reiniciar).catch((e) => setFalhaLista(mensagemDeCarga(e)));
+  }
+
+  function carregarEmpresas() {
+    setFalhaEmpresas(null);
+    lerJson<{ empresas?: Empresa[] }>('/api/empresas').then(async (x) => {
       // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
-      const { lista, consulta } = await comArquivadaDaUrl<Empresa>(x?.empresas ?? []);
+      const { lista, consulta } = await comArquivadaDaUrl<Empresa>(x.empresas ?? []);
       empresasRef.current = lista;
       setEmpresas(lista);
       let salva = '';
       try { salva = localStorage.getItem('contratos.empresa') ?? ''; } catch {}
       trocarEmpresa(consulta || (lista.some((e) => e.id === salva) ? salva : lista[0]?.id || ''), lista);
-    }).catch(() => {});
+    }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
+  }
+
+  useEffect(() => {
+    try { if (localStorage.getItem('contratos.formato') === 'pdf') setFormato('pdf'); } catch {}
+    carregarEmpresas();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
   }, []);
 
@@ -333,6 +346,12 @@ export default function ContratosPage() {
       </Toasts>
 
       <Conteudo>
+        {falhaEmpresas && (
+          <FalhaCarregamento titulo="Não foi possível carregar as empresas." onTentar={carregarEmpresas}>{falhaEmpresas}</FalhaCarregamento>
+        )}
+        {falhaLista && (
+          <FalhaCarregamento titulo="Não foi possível carregar os contratos desta empresa." onTentar={() => carregarLista(empresaSel)}>{falhaLista}</FalhaCarregamento>
+        )}
         <FaixaArquivada empresa={empresa} />
         {semTabela && (
           <Aviso tom="aviso">

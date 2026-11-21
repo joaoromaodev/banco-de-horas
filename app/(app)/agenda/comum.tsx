@@ -6,6 +6,7 @@ import { Abas } from '@/components/ui';
 import { chaveConclusao, Conclusao, Obrigacao } from '@/lib/agenda';
 import type { ItemContrato } from '@/lib/agendaDerivada';
 import type { ItemDp } from '@/lib/dpAgenda';
+import { MENSAGEM_SEM_REDE } from '@/lib/carga';
 
 export function AbasAgenda({ ativa }: { ativa: 'visao' | 'obrigacoes' }) {
   return (
@@ -30,6 +31,9 @@ export function useAgenda() {
   const [semTabela, setSemTabela] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  // Falha da carga (não das ações): a tela mostra `FalhaCarregamento` com "Tentar de novo".
+  // Na primeira carga, `carregando` continua true — nada da agenda aparece vazio por engano.
+  const [falha, setFalha] = useState<string | null>(null);
 
   const recarregar = useCallback(async () => {
     try {
@@ -37,6 +41,7 @@ export function useAgenda() {
       const a = await ra.json().catch(() => ({}));
       const e = await re.json().catch(() => ({}));
       if (!ra.ok) throw new Error(a.erro ?? 'Falha ao carregar a agenda.');
+      if (!re.ok) throw new Error(e.erro ?? 'Falha ao carregar as empresas.');
       setObrigacoes(a.obrigacoes ?? []);
       setConclusoes(a.conclusoes ?? []);
       setEquipe(a.equipe ?? []);
@@ -44,12 +49,13 @@ export function useAgenda() {
       setDp(a.dp ?? []);
       setSemTabela(Boolean(a.semTabela));
       setEmpresas((e.empresas ?? []).map((x: EmpresaLista) => ({ id: x.id, nome: x.nome })));
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Falha ao carregar a agenda.');
-    } finally {
+      setFalha(null);
       setCarregando(false);
+    } catch (err) {
+      setFalha(err instanceof TypeError ? MENSAGEM_SEM_REDE : err instanceof Error && err.message ? err.message : 'Falha ao carregar a agenda.');
     }
   }, []);
+  const tentarDeNovo = useCallback(() => { setFalha(null); void recarregar(); }, [recarregar]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial (o setState acontece depois do fetch)
   useEffect(() => { recarregar(); }, [recarregar]);
@@ -79,7 +85,7 @@ export function useAgenda() {
   }
 
   return {
-    obrigacoes, setObrigacoes, conclusoes, empresas, equipe, contratos, dp, semTabela, carregando, erro, setErro,
+    obrigacoes, setObrigacoes, conclusoes, empresas, equipe, contratos, dp, semTabela, carregando, erro, setErro, falha, tentarDeNovo,
     feitas, nomeEmpresa, nomeMembro, recarregar, alternarFeita,
   };
 }

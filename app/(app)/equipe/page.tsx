@@ -6,8 +6,9 @@
 import { useEffect, useState } from 'react';
 import { IconeExcluir } from '../icones';
 import {
-  Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, Entrada, EstadoVazio, Marcacao, Secao, Selo,
+  Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, Entrada, EstadoVazio, FalhaCarregamento, Marcacao, Secao, Selo,
 } from '@/components/ui';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
 import { SENHA_MIN } from '@/lib/auth';
@@ -40,21 +41,25 @@ export default function Equipe() {
   const [erro, setErro] = useState<string | null>(null);
 
   // Os clientes (administradores das empresas) ficam no módulo Cadastro.
-  const lerEquipe = () => fetch('/api/usuarios').then(async (r) => {
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.erro);
-    return (d.usuarios ?? []).filter((u: Usuario) => u.role === 'usuario') as Usuario[];
-  });
-  const falhou = (e: unknown) => setErro(e instanceof Error ? e.message : String(e));
+  const lerEquipe = () => lerJson<{ usuarios?: Usuario[] }>('/api/usuarios')
+    .then((d) => (d.usuarios ?? []).filter((u: Usuario) => u.role === 'usuario'));
+  const falhou = (e: unknown) => setErro(mensagemDeCarga(e));
   const carregar = () => lerEquipe().then(setEquipe).catch(falhou);
+  // Falha da carga inicial: fica no lugar da lista, com "Tentar de novo" (antes, "Carregando…" para sempre).
+  const [falhaEquipe, setFalhaEquipe] = useState<string | null>(null);
+  const carregarInicial = () => {
+    setFalhaEquipe(null);
+    lerEquipe().then(setEquipe).catch((e) => setFalhaEquipe(mensagemDeCarga(e)));
+  };
 
   useEffect(() => {
     lerMe().then((d: Me | null) => {
       if (!d) return;
       setMe(d);
       setNovo(novoVazio(d.modulos.includes('caixa') ? ['caixa'] : d.modulos));
-    }).catch(() => {});
-    lerEquipe().then(setEquipe).catch(falhou);
+    }).catch(() => {}); // lerMe nunca rejeita
+    carregarInicial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
   }, []);
 
   async function adicionar() {
@@ -144,7 +149,9 @@ export default function Equipe() {
         <Secao titulo="Contadores"
           descricao={<>Todos enxergam as empresas-clientes do escritório. Os <strong>administradores das empresas</strong> (quem
             lança o Livro Caixa) são cadastrados no módulo <strong>Cadastro</strong>.</>}>
-          {equipe === null ? (
+          {equipe === null && falhaEquipe ? (
+            <FalhaCarregamento titulo="Não foi possível carregar a equipe." onTentar={carregarInicial}>{falhaEquipe}</FalhaCarregamento>
+          ) : equipe === null ? (
             <Carregando />
           ) : equipe.length === 0 ? (
             <EstadoVazio titulo="Ninguém na equipe ainda" descricao="Adicione o primeiro contador pelo formulário abaixo." />

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Empresa, Funcionario } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
 import { AbasPonto } from '../AbasPonto';
 import { IconeBaixar } from '../icones';
-import { Botao, CabecalhoPagina, Cartao, Conteudo, Entrada, Secao } from '@/components/ui';
+import { Botao, CabecalhoPagina, Cartao, Conteudo, Entrada, FalhaCarregamento, Secao } from '@/components/ui';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 
@@ -19,14 +20,18 @@ export default function Folhas() {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch('/api/empresas').then((r) => r.json()).then((d) => {
+  const [falhaEmpresas, setFalhaEmpresas] = useState<string | null>(null);
+  const carregarEmpresas = useCallback(() => {
+    setFalhaEmpresas(null);
+    lerJson<{ empresas?: Empresa[] }>('/api/empresas').then((d) => {
       if (Array.isArray(d.empresas)) {
-        setEmpresas(d.empresas);
-        if (d.empresas.length) setEmpresa((prev) => prev || d.empresas[0].id);
+        const lista = d.empresas;
+        setEmpresas(lista);
+        if (lista.length) setEmpresa((prev) => prev || lista[0].id);
       }
-    }).catch(() => {});
+    }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
   }, []);
+  useEffect(() => { carregarEmpresas(); }, [carregarEmpresas]);
 
   useEffect(() => {
     if (!empresa) { setFuncList([]); return; }
@@ -80,6 +85,9 @@ export default function Folhas() {
       </Toasts>
 
       <Conteudo largura="media">
+        {falhaEmpresas && (
+          <FalhaCarregamento titulo="Não foi possível carregar as empresas." onTentar={carregarEmpresas}>{falhaEmpresas}</FalhaCarregamento>
+        )}
         <Secao titulo="Empresa e período">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <Selecao rotulo="Empresa" classeCampo="sm:col-span-2" valor={empresa} placeholder="— cadastre uma empresa —"

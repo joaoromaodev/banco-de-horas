@@ -4,6 +4,10 @@
 // Os blocos consultam em paralelo e cada um falha sozinho (lib/painel `isolar`):
 // tabela de migração pendente vira bloco "indisponível", nunca derruba o painel.
 // Bloco de módulo que o contador não tem (ponto → contratos, caixa) nem entra.
+//
+// Primeira visita do mês da contadora: abre os pedidos mensais do escritório
+// (lib/pedidosNaVisita — não depende do cron) e agenda a faxina das fotos do ponto
+// para depois da resposta. Ambos falham sozinhos, sem derrubar o painel.
 import { NextRequest } from 'next/server';
 import { temModulo } from '@/lib/auth';
 import { empresasVisiveis, exigirGestor } from '@/lib/acesso';
@@ -16,6 +20,7 @@ import {
   isolar, ordenarBlocos, resumir,
 } from '@/lib/painel';
 import { documentosAConferir, lancamentosAConferir, pendenciasComPrazo, Recorte } from '@/lib/painelServidor';
+import { abrirPedidosNaVisita, agendarFaxinaOportunista } from '@/lib/pedidosNaVisita';
 
 export const runtime = 'nodejs';
 
@@ -37,6 +42,11 @@ export async function GET(req: NextRequest) {
   const semEscritorio = sessao.role !== 'master' && !recorte.escritorioId;
   const hoje = hojeBelem();
   const ano = Number(hoje.slice(0, 4));
+
+  if (sessao.role === 'usuario' && recorte.escritorioId) {
+    await abrirPedidosNaVisita(recorte.escritorioId, hoje);
+    agendarFaxinaOportunista(hoje);
+  }
 
   const tarefas: Promise<Bloco>[] = [
     isolar('agenda', async () => {

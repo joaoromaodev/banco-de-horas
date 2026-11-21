@@ -123,6 +123,37 @@ Migração **0018** (`empresa_regime`; **não aplicada**). Regras puras em `lib/
   IRRF. Criar um contrato de experiência com 1º período a vencer em até 30 dias: aparece em Visão geral e
   no resumo (cron com `?dia=` de uma segunda).
 
+## Sprint 14 · Frente A — "nada falha calado"
+
+- **Sem `CRON_SECRET` o cron continua recusando (503)**, mas deixou de ser o único caminho:
+  os **pedidos mensais** abrem na primeira visita do mês ao `/painel` (contadora) e ao `/inicio`
+  (cliente) — ver [`documentos.md`](documentos.md), "Sprint 14 · Frente A". O resumo da agenda
+  por e-mail **continua dependendo do cron**.
+- **Faxina das fotos do ponto (LGPD) — decisão:** também roda de forma oportunista, mas só na
+  visita da **contadora ao `/painel`**, no máximo **uma vez por dia por processo**, com lote de
+  **50** (o cron usa 200) e **depois da resposta** (`after()` do Next), para não pesar na tela.
+  Por quê: sem o cron as fotos com prazo de guarda vencido ficariam para sempre; a operação é
+  global e mexe no Storage, então não roda na visita do cliente nem em toda visita. Com o cron
+  ligado, ele segue sendo o caminho principal. Código: `agendarFaxinaOportunista` em
+  `lib/pedidosNaVisita.ts`.
+- O cron grava `escritorios.pedidos_competencia_aberta` (0030) depois de abrir sem falhas, só no
+  dia real (não com `?dia=`), para a primeira visita nem consultar.
+- O master vê em **Configurações → "O que está desligado"** se `CRON_SECRET`, e-mail
+  (`RESEND_API_KEY`/`EMAIL_REMETENTE`), senha forte do master, Gemini e as travas
+  `CAIXA_IA_DOCUMENTO`, `CAIXA_IA_SUGESTAO` e `AVISOS_CLIENTE_EMAIL` estão configurados e o que
+  cada um destrava — **nunca o valor**. `GET /api/config/ambiente`, só master (`exigirMaster`),
+  lógica em `lib/ambiente.ts`, testes em `tests/ambienteMaster.test.ts`.
+
+### Para o integrador (Sprint 14 · Frente A)
+
+- `app/api/cron/agenda/route.ts` ganhou a gravação da marca (import de `lib/pedidosNaVisita`).
+  Conflito provável só com outra frente que mexa no mesmo bloco do fechamento; trivial.
+- Migração **0030** (coluna nullable, sem índice) — detalhes em `documentos.md`. Não aplicada.
+- Rota nova `app/api/config/ambiente/route.ts` chama `exigirMaster` (e fica sob `/api/config`,
+  em `SOMENTE_MASTER` no `proxy.ts`). Sem variável nova.
+- Testar: sem `CRON_SECRET`, entrar como contadora no `/painel` no início do mês → pedidos abertos;
+  entrar como master em `/configuracoes` → "Rotina diária (cron)" aparece como **Desligado**.
+
 ## Pendências
 
 - **Feriados estaduais/municipais** não entram no cálculo (afetam ISS, ICMS e

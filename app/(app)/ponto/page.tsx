@@ -15,7 +15,8 @@ import { DialogoConfirmacao } from '../Dialogo';
 import { AchadosDoMes, PainelRevisaoMes, RevisaoDoMes, SeloAchados } from './RevisaoPonto';
 import { ResumoFolha } from './ResumoFolha';
 import { acaoEnvio, DialogoDevolver, FolhasEnviadas, type EnvioGestor } from './FolhasEnviadas';
-import { Alternador, Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
+import { Alternador, Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, FalhaCarregamento, Secao, Selo, tb } from '@/components/ui';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 
@@ -128,9 +129,15 @@ export default function Home() {
     if (nova !== window.location.href) window.history.replaceState(null, '', nova);
   }, [empresa, ano, mes]);
 
-  // Carrega cadastros (funciona mesmo se a planilha não estiver configurada).
-  useEffect(() => {
-    fetch('/api/empresas').then((r) => r.json()).then(async (d) => {
+  // Carrega cadastros (funciona mesmo se a planilha não estiver configurada). Falha
+  // aqui fica na tela com "Tentar de novo": sem empresas, funcionários ou feriados a
+  // conferência sairia errada (feriado faltando muda o cálculo) sem ninguém perceber.
+  const [falhaEmpresas, setFalhaEmpresas] = useState<string | null>(null);
+  const [falhaCadastros, setFalhaCadastros] = useState<string | null>(null);
+  const [tentativaCadastros, setTentativaCadastros] = useState(0);
+  const carregarEmpresas = useCallback(() => {
+    setFalhaEmpresas(null);
+    lerJson<{ empresas?: Empresa[] }>('/api/empresas').then(async (d) => {
       if (Array.isArray(d.empresas)) {
         // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
         const { lista, consulta } = await comArquivadaDaUrl<Empresa>(d.empresas);
@@ -140,22 +147,26 @@ export default function Home() {
         const valida = lista.some((e) => e.id === daUrl) ? daUrl : '';
         if (lista.length) setEmpresa((prev) => consulta || prev || valida || lista[0].id);
       }
-    }).catch(() => {});
+    }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
   }, []);
+  useEffect(() => { carregarEmpresas(); }, [carregarEmpresas]);
 
   // Funcionários, feriados (do escritório da empresa) e cota de leituras por IA.
   useEffect(() => {
     if (!empresa) { setFuncList([]); setFeriadosCad([]); setCota(null); return; }
     const q = `empresa=${encodeURIComponent(empresa)}`;
-    fetch(`/api/funcionarios?${q}`).then((r) => r.json()).then((d) => {
+    setFalhaCadastros(null);
+    const falhou = (e: unknown) => setFalhaCadastros(mensagemDeCarga(e));
+    lerJson(`/api/funcionarios?${q}`).then((d) => {
       setBancoPendente(Boolean(d.aguardandoBanco));
       if (Array.isArray(d.funcionarios)) setFuncList(d.funcionarios);
-    }).catch(() => {});
-    fetch(`/api/feriados?${q}`).then((r) => r.json()).then((d) => {
+    }).catch(falhou);
+    lerJson(`/api/feriados?${q}`).then((d) => {
       if (Array.isArray(d.feriados)) setFeriadosCad(d.feriados.map((f: { data: string }) => f.data));
-    }).catch(() => {});
+    }).catch(falhou);
+    // A cota é só informativa: sem ela, a leitura segue (a rota de leitura confere a cota de novo).
     fetch(`/api/extrair?${q}`).then((r) => r.json()).then((d) => setCota(d.cota ?? null)).catch(() => {});
-  }, [empresa]);
+  }, [empresa, tentativaCadastros]);
 
   const empresaSel = useMemo(() => empresas.find((e) => e.id === empresa), [empresas, empresa]);
   const trabalhaSabado = empresaSel?.trabalhaSabado ?? JORNADA_PADRAO.trabalhaSabado;
@@ -483,6 +494,14 @@ export default function Home() {
       </Toasts>
 
       <Conteudo>
+        {falhaEmpresas && (
+          <FalhaCarregamento titulo="Não foi possível carregar as empresas." onTentar={carregarEmpresas}>{falhaEmpresas}</FalhaCarregamento>
+        )}
+        {falhaCadastros && (
+          <FalhaCarregamento titulo="Não foi possível carregar os funcionários e feriados desta empresa." onTentar={() => setTentativaCadastros((n) => n + 1)}>
+            {falhaCadastros} Sem eles, a conferência do mês pode sair errada.
+          </FalhaCarregamento>
+        )}
         <FaixaArquivada empresa={empresaSel} />
         {bancoPendente && (
           <Aviso tom="aviso" titulo="Aguardando o banco de dados">

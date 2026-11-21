@@ -8,8 +8,9 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { fraseResumo, textoRestante, Bloco, ItemPainel, ResumoPainel } from '@/lib/painel';
 import { br } from '@/lib/agenda';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import {
-  Aviso, Botao, botaoCls, CabecalhoPagina, Carregando, Conteudo, cx, EstadoVazio, Indicador, Secao, Selo, Tom,
+  Aviso, Botao, botaoCls, CabecalhoPagina, Carregando, Conteudo, cx, EstadoVazio, FalhaCarregamento, Indicador, Secao, Selo, Tom,
 } from '@/components/ui';
 import { IconeCheck } from '../icones';
 import ConferenciaModulos from '../ConferenciaModulos';
@@ -103,12 +104,9 @@ export default function PainelPage() {
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('');
     try {
-      const r = await fetch('/api/painel', { cache: 'no-store' });
-      const x = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(x.erro || 'Não foi possível carregar o painel.');
-      setDados(x as Dados);
+      setDados(await lerJson<Dados>('/api/painel', { cache: 'no-store' }));
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível carregar o painel.');
+      setErro(mensagemDeCarga(e));
     } finally {
       setCarregando(false);
     }
@@ -123,7 +121,7 @@ export default function PainelPage() {
         subtitulo={dados ? `O que precisa de atenção hoje · ${br(dados.hoje)}` : 'O que precisa de atenção hoje'}
         acoes={<Botao variante="secundaria" tamanho="sm" onClick={carregar} disabled={carregando}>Atualizar</Botao>} />
       <Conteudo largura="media">
-        {erro && <Aviso tom="perigo" titulo="Painel indisponível">{erro}</Aviso>}
+        {erro && <FalhaCarregamento titulo="Não foi possível carregar o painel." onTentar={carregar} tentando={carregando}>{erro}</FalhaCarregamento>}
         {!dados && carregando && <Carregando>Juntando o que precisa de atenção…</Carregando>}
 
         {dados && r && (

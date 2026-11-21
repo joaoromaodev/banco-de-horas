@@ -3,9 +3,10 @@
 // Início do cliente (empresa): só o que pede ação dele. Ver docs/portal-cliente.md.
 // As regras de montagem estão em lib/inicioCliente.ts e a rota é /api/inicio-cliente
 // (sempre da empresa da própria sessão). Cada bloco leva à tela certa em um clique.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { saudacaoDaHora, type Bloco, type InicioCliente } from '@/lib/inicioCliente';
-import { Aviso, botaoCls, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, Secao, Selo } from '@/components/ui';
+import { Aviso, botaoCls, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, FalhaCarregamento, Secao, Selo } from '@/components/ui';
+import { lerJson } from '@/lib/carga';
 import { IconeConfirmar } from '../icones';
 
 const ROTULO_FONTE: Record<Bloco['id'], string> = {
@@ -22,13 +23,19 @@ export default function InicioCliente() {
   const [falhou, setFalhou] = useState(false);
   const [hora, setHora] = useState<number | null>(null);
 
+  const [tentando, setTentando] = useState(false);
+  const carregar = useCallback(() => {
+    setTentando(true);
+    lerJson<InicioCliente>('/api/inicio-cliente')
+      .then((d) => { setDados(d); setFalhou(false); })
+      .catch(() => setFalhou(true))
+      .finally(() => setTentando(false));
+  }, []);
+
   useEffect(() => {
     setHora(horaBelem());
-    fetch('/api/inicio-cliente')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: InicioCliente) => setDados(d))
-      .catch(() => setFalhou(true));
-  }, []);
+    carregar();
+  }, [carregar]);
 
   const saudacao = dados ? `${hora === null ? 'Olá' : saudacaoDaHora(hora)}, ${dados.saudacao.replace(/^Olá,?\s*/, '') || 'tudo bem?'}` : 'Início';
   const primeiroDePedido = dados?.blocos.findIndex((b) => b.pedeAcao) ?? -1;
@@ -40,10 +47,9 @@ export default function InicioCliente() {
       <Conteudo largura="estreita">
         {!dados && !falhou && <Carregando>Buscando o que precisa de você…</Carregando>}
         {falhou && (
-          <Aviso tom="aviso" titulo="Não foi possível carregar esta página agora."
-            acao={<button type="button" className={botaoCls({ tamanho: 'sm' })} onClick={() => location.reload()}>Tentar de novo</button>}>
+          <FalhaCarregamento titulo="Não foi possível carregar esta página agora." onTentar={carregar} tentando={tentando}>
             Você ainda pode usar o menu para lançar o caixa, enviar documentos e folhas de ponto.
-          </Aviso>
+          </FalhaCarregamento>
         )}
 
         {dados && dados.indisponiveis.length > 0 && (

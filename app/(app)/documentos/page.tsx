@@ -15,11 +15,12 @@ import {
 } from '@/lib/documentos';
 import { hojeBelem } from '@/lib/contratos';
 import { lerMe } from '@/lib/meCliente';
+import { lerJson as lerCarga, mensagemDeCarga, MENSAGEM_GENERICA, MENSAGEM_SEM_REDE } from '@/lib/carga';
 import { DialogoConfirmacao, Modal } from '../Dialogo';
 import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar, IconeCheck, IconeDesfazer, IconeDocumento, IconeExcluir, IconeLapis, IconeMais } from '../icones';
 import {
-  AreaTexto, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, Secao,
+  AreaTexto, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, FalhaCarregamento, Secao,
   Selo, tb, Tom,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
@@ -70,6 +71,8 @@ export default function DocumentosPage() {
   const [semTabela, setSemTabela] = useState(false);
 
   const [erro, setErro] = useState<string | null>(null);
+  // Falha da carga principal: na tela, com "Tentar de novo" (antes, "Carregando…" para sempre).
+  const [falha, setFalha] = useState<{ msg: string; de: 'inicio' | 'lista'; id?: string } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [desfazer, setDesfazer] = useState<{ tipo: 'documento' | 'pendencia'; id: string; texto: string } | null>(null);
   const [excluindoDoc, setExcluindoDoc] = useState<Documento | null>(null);
@@ -92,6 +95,7 @@ export default function DocumentosPage() {
   const carregar = useCallback(async (id: string) => {
     if (!id) return;
     const q = `empresa=${encodeURIComponent(id)}`;
+    setFalha(null);
     try {
       const [d, p] = await Promise.all([
         fetch(`/api/documentos?${q}`).then(lerJson),
@@ -103,16 +107,17 @@ export default function DocumentosPage() {
     } catch (e) {
       const m = e instanceof Error ? e.message : '';
       if (/migração 0015/.test(m)) { setSemTabela(true); setDocumentos([]); setPendencias([]); return; }
-      setErro(m || 'Falha ao carregar.');
+      setFalha({ msg: e instanceof TypeError ? MENSAGEM_SEM_REDE : m || MENSAGEM_GENERICA, de: 'lista', id });
     }
   }, []);
 
-  useEffect(() => {
+  const iniciar = useCallback(() => {
+    setFalha(null);
     Promise.all([
       lerMe(),
-      fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)),
+      lerCarga<{ empresas?: Empresa[] }>('/api/empresas'),
     ]).then(async ([m, e]) => {
-      if (!m?.autenticado) return;
+      if (!m?.autenticado) throw new Error(MENSAGEM_GENERICA);
       setMe({ role: m.role, email: m.email, empresa: m.empresa });
       const base: Empresa[] = (e?.empresas ?? []).map((x: Empresa) => ({ id: x.id, nome: x.nome }));
       // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
@@ -124,8 +129,10 @@ export default function DocumentosPage() {
       const id = consulta || (lista.some((x) => x.id === salva) ? salva : lista[0]?.id ?? '');
       setEmpresaSel(id);
       carregar(id);
-    }).catch(() => setErro('Falha ao carregar.'));
+    }).catch((e) => setFalha({ msg: mensagemDeCarga(e), de: 'inicio' }));
   }, [carregar]);
+
+  useEffect(() => { iniciar(); }, [iniciar]);
 
   function trocarEmpresa(id: string) {
     setEmpresaSel(id);
@@ -293,7 +300,11 @@ export default function DocumentosPage() {
 
       <Conteudo largura="media">
         {me && gestor && <FaixaArquivada empresa={empresas.find((e) => e.id === empresaSel)} />}
-        {!me && <Carregando />}
+        {falha && (
+          <FalhaCarregamento titulo={falha.de === 'inicio' ? 'Não foi possível abrir os documentos.' : 'Não foi possível carregar os documentos desta empresa.'}
+            onTentar={() => (falha.de === 'inicio' ? iniciar() : void carregar(falha.id ?? ''))}>{falha.msg}</FalhaCarregamento>
+        )}
+        {!me && !falha && <Carregando />}
         {me && gestor && empresas.length === 0 && (
           <EstadoVazio titulo="Nenhuma empresa cadastrada" descricao="Cadastre uma empresa-cliente para receber documentos dela."
             acao={<a href="/cadastros" className="text-primaria-texto underline">Ir para o cadastro</a>} />
@@ -315,7 +326,7 @@ export default function DocumentosPage() {
               acoes={gestor ? (
                 <Botao variante="tonal" tamanho="sm" icone={<IconeMais />} onClick={() => setEditandoPend('nova')}>Nova pendência</Botao>
               ) : undefined}>
-              {pendencias === null ? <Carregando className="p-4" /> : (
+              {pendencias === null ? (falha ? null : <Carregando className="p-4" />) : (
                 <ListaPendencias
                   abertas={abertas} atendidas={atendidas} hoje={hoje} gestor={gestor}
                   onAtender={atender} onEditar={(p) => setEditandoPend(p)} onFechar={(p) => acaoPend(p, 'fechar')}
@@ -362,7 +373,7 @@ export default function DocumentosPage() {
                 <Selecao aria-label="Filtrar por competência" tamanho="sm" largura="w-40" valor={filtroComp} onChange={setFiltroComp}
                   opcoes={[{ valor: '', rotulo: 'Todos os meses' }, ...competencias.map((c) => ({ valor: c, rotulo: competenciaBR(c) }))]} />
               )}>
-              {documentos === null ? <Carregando className="p-4" /> : docsFiltrados.length === 0 ? (
+              {documentos === null ? (falha ? null : <Carregando className="p-4" />) : docsFiltrados.length === 0 ? (
                 <EstadoVazio moldura={false} icone={<IconeDocumento size={22} />}
                   titulo={filtroComp ? `Nada enviado em ${competenciaBR(filtroComp)}` : 'Nenhum documento ainda'}
                   descricao={gestor ? 'Quando a empresa enviar, os arquivos aparecem aqui.' : 'Os arquivos que você enviar aparecem aqui.'} />

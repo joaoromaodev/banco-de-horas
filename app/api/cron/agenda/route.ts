@@ -8,7 +8,8 @@
 // A Vercel não refaz chamada que falhou e às vezes chama duas vezes: a tabela
 // `agenda_envios` (chave escritório + dia) garante um envio por escritório por dia.
 //
-// Também abre as pendências mensais (lib/fechamentoServidor). `?dia=AAAA-MM-DD` simula outro dia (para testar em produção; a trava vale para
+// Também abre as pendências mensais (lib/fechamentoServidor) — que também abrem na
+// primeira visita do mês ao /painel e ao /inicio (lib/pedidosNaVisita), sem depender daqui. `?dia=AAAA-MM-DD` simula outro dia (para testar em produção; a trava vale para
 // o dia simulado).
 import { NextRequest } from 'next/server';
 import { timingSafeEqual } from 'crypto';
@@ -30,6 +31,8 @@ import { dadosDpParaAgenda } from '@/lib/dpServidor';
 import { conjuntoFeriados } from '@/lib/ferias';
 import { abrirPendenciasRecorrentes, ResultadoAbertura } from '@/lib/fechamentoServidor';
 import { expurgarFotos } from '@/lib/envioPontoServidor';
+import { competenciaDoPedido } from '@/lib/fechamento';
+import { marcarCompetenciaAberta } from '@/lib/pedidosNaVisita';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,6 +72,11 @@ export async function GET(req: NextRequest) {
     const suspensos = new Set(escritorios.filter((e) => e.situacao === 'suspenso').map((e) => e.id));
     const ativas = new Map(empresasAtivas.filter((e) => e.escritorioId && !suspensos.has(e.escritorioId)).map((e) => [e.id, e.escritorioId!]));
     fechamento = await abrirPendenciasRecorrentes(hoje, ativas);
+    // Marca os escritórios como já abertos no mês (0030): a primeira visita do mês
+    // (lib/pedidosNaVisita) nem consulta. Só no dia real — `?dia=` é simulação.
+    if (!fechamento.falhas && !isoValida(pedido)) {
+      await marcarCompetenciaAberta(escritorios.filter((e) => e.situacao !== 'suspenso').map((e) => e.id), competenciaDoPedido(hoje));
+    }
   } catch (e) {
     console.error('[cron agenda] fechamento mensal:', e instanceof Error ? e.message : e);
     fechamento = { erro: e instanceof Error ? e.message : 'falha' };

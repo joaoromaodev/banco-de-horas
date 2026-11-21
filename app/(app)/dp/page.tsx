@@ -6,10 +6,11 @@
 // docs/departamento-pessoal.md.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Aviso, Botao, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, Indicador, Secao, Selo, tb,
+  Aviso, Botao, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, FalhaCarregamento, Indicador, Secao, Selo, tb,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { hojeBelem } from '@/lib/agenda';
 import { br, SITUACOES_EMPREGADO, type DadosEmpregado, type Empregado } from '@/lib/dp';
 import { alertasFerias, situacaoFerias, type FeriasProgramada } from '@/lib/ferias';
@@ -51,19 +52,19 @@ export default function DepartamentoPessoalPage() {
   const [busca, setBusca] = useState('');
   const [mostrarDesligados, setMostrarDesligados] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Falha da carga principal (empresas ou empregados): na tela, com "Tentar de novo".
+  const [falha, setFalha] = useState<{ msg: string; de: 'empresas' | 'empregados' } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const empresasRef = useRef<EmpresaLista[]>([]);
 
   const carregar = useCallback(async (id: string) => {
     if (!id) { setDados(null); setCarregando(false); return; }
-    setCarregando(true);
+    setCarregando(true); setFalha(null);
     try {
-      const r = await fetch(`/api/dp?empresa=${encodeURIComponent(id)}`);
-      const x = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(x.erro ?? 'Falha ao carregar os empregados.');
-      setDados(x);
+      setDados(await lerJson(`/api/dp?empresa=${encodeURIComponent(id)}`));
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Falha ao carregar.');
+      setDados(null);
+      setFalha({ msg: mensagemDeCarga(e), de: 'empregados' });
     } finally {
       setCarregando(false);
     }
@@ -79,9 +80,10 @@ export default function DepartamentoPessoalPage() {
     carregar(id);
   }
 
-  useEffect(() => {
-    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then(async (x) => {
-      const { lista, consulta } = await comArquivadaDaUrl<EmpresaLista>(x?.empresas ?? []);
+  function carregarEmpresas() {
+    setFalha(null); setCarregando(true);
+    lerJson<{ empresas?: EmpresaLista[] }>('/api/empresas').then(async (x) => {
+      const { lista, consulta } = await comArquivadaDaUrl<EmpresaLista>(x.empresas ?? []);
       empresasRef.current = lista;
       setEmpresas(lista);
       const daUrl = lerUrl('empresa');
@@ -89,7 +91,11 @@ export default function DepartamentoPessoalPage() {
       try { salva = localStorage.getItem(CHAVE_EMPRESA) ?? ''; } catch {}
       const id = consulta || (lista.some((e) => e.id === daUrl) ? daUrl : '') || (lista.some((e) => e.id === salva) ? salva : lista[0]?.id || '');
       trocarEmpresa(id, lerUrl('empregado') || null);
-    }).catch(() => { setErro('Falha ao carregar as empresas.'); setCarregando(false); });
+    }).catch((e) => { setFalha({ msg: mensagemDeCarga(e), de: 'empresas' }); setCarregando(false); });
+  }
+
+  useEffect(() => {
+    carregarEmpresas();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
   }, []);
 
@@ -163,7 +169,10 @@ export default function DepartamentoPessoalPage() {
 
         {aberto ? (
           <Ficha key={aberto} id={aberto} hoje={hoje} onVoltar={() => abrir(null)} onMudou={() => {}} />
-        ) : carregando ? <Carregando /> : !empresaSel ? (
+        ) : carregando ? <Carregando /> : falha ? (
+          <FalhaCarregamento titulo={falha.de === 'empresas' ? 'Não foi possível carregar as empresas.' : 'Não foi possível carregar os empregados.'}
+            onTentar={() => (falha.de === 'empresas' ? carregarEmpresas() : carregar(empresaSel))}>{falha.msg}</FalhaCarregamento>
+        ) : !empresaSel ? (
           <EstadoVazio titulo="Nenhuma empresa" descricao="Cadastre uma empresa-cliente em Cadastro para começar." />
         ) : dados && !dados.aguardandoBanco && completando ? (
           <CompletarCadastro empresaId={empresaSel} empresaNome={empresa?.nome ?? ''} somenteLeitura={Boolean(empresa?.arquivadaEm)} hoje={hoje}

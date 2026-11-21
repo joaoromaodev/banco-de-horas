@@ -10,7 +10,7 @@ import {
 } from '@/lib/agenda';
 import { MESES } from '@/lib/calendario';
 import {
-  Alternador, AreaTexto, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio,
+  Alternador, AreaTexto, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, FalhaCarregamento, Conteudo, cx, Entrada, EstadoVazio,
   Marcacao, Secao, Selo, tb,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
@@ -165,7 +165,10 @@ export default function ObrigacoesPage() {
 
       <Conteudo largura="media">
         {ag.semTabela && <Aviso tom="aviso" titulo="Agenda aguardando o banco">{AVISO_MIGRACAO}</Aviso>}
-        {ag.carregando && <Carregando />}
+        {ag.falha && (
+          <FalhaCarregamento titulo="Não foi possível carregar a agenda." onTentar={ag.tentarDeNovo}>{ag.falha}</FalhaCarregamento>
+        )}
+        {ag.carregando && !ag.falha && <Carregando />}
         {!ag.carregando && !ag.empresas.length && (
           <EstadoVazio titulo="Nenhuma empresa cadastrada" descricao="Cadastre as empresas-clientes na tela Cadastro para montar a agenda delas." />
         )}

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { IconeExcluir } from '../icones';
-import { Botao, BotaoIcone, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, Marcacao, Secao, Selo } from '@/components/ui';
+import { Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, Entrada, EstadoVazio, FalhaCarregamento, Marcacao, Secao, Selo, Tom } from '@/components/ui';
+import { lerJson, mensagemDeCarga } from '@/lib/carga';
+import type { ItemAmbiente, SituacaoItem } from '@/lib/ambiente';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
@@ -27,6 +29,56 @@ const ROTULO_MODULO: Record<Modulo, string> = {
   caixa: 'Livro Caixa',
 };
 
+const SELO_SITUACAO: Record<SituacaoItem, { tom: Tom; rotulo: string }> = {
+  ligado: { tom: 'sucesso', rotulo: 'Ligado' },
+  parcial: { tom: 'aviso', rotulo: 'Incompleto' },
+  desligado: { tom: 'perigo', rotulo: 'Desligado' },
+};
+
+/**
+ * "O que está desligado" — as variáveis de ambiente da plataforma, sem valor
+ * nenhum: só se estão configuradas e o que destravam (GET /api/config/ambiente).
+ */
+function OQueEstaDesligado() {
+  const [itens, setItens] = useState<ItemAmbiente[] | null>(null);
+  const [falha, setFalha] = useState<string | null>(null);
+  const carregar = () => {
+    setFalha(null);
+    lerJson<{ itens: ItemAmbiente[] }>('/api/config/ambiente', { cache: 'no-store' })
+      .then((d) => setItens(d.itens)).catch((e) => setFalha(mensagemDeCarga(e)));
+  };
+  useEffect(() => { carregar(); }, []);
+  const desligados = (itens ?? []).filter((i) => i.situacao !== 'ligado').length;
+
+  return (
+    <Secao titulo="O que está desligado"
+      descricao="Variáveis da plataforma configuradas na Vercel. Aqui só aparece se cada uma está configurada e o que ela destrava — nunca o valor. Para mudar, altere na Vercel e publique de novo.">
+      {falha ? (
+        <FalhaCarregamento titulo="Não foi possível conferir as configurações." onTentar={carregar}>{falha}</FalhaCarregamento>
+      ) : !itens ? <Carregando /> : (
+        <>
+          <p className="mb-3 text-[13px] text-tinta-suave" aria-live="polite">
+            {desligados === 0 ? 'Tudo ligado.' : desligados === 1 ? '1 item precisa de atenção.' : `${desligados} itens precisam de atenção.`}
+          </p>
+          <ul className="divide-y divide-borda rounded-xl border border-borda">
+            {itens.map((i) => (
+              <li key={i.id} className="space-y-1 px-3.5 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-tinta">{i.titulo}</span>
+                  <Selo tom={SELO_SITUACAO[i.situacao].tom}>{SELO_SITUACAO[i.situacao].rotulo}</Selo>
+                </div>
+                <p className="text-[13px] text-tinta">{i.agora}</p>
+                <p className="text-xs text-tinta-suave">Destrava: {i.destrava}</p>
+                <p className="break-words font-mono text-[11px] text-tinta-fraca">{i.variaveis.join(' · ')}</p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Secao>
+  );
+}
+
 export default function Configuracoes() {
   // --- Leitura por IA (chave da plataforma, só consulta) ---
   const [ia, setIa] = useState<{ temChave: boolean; modelo: string } | null>(null);
@@ -43,24 +95,30 @@ export default function Configuracoes() {
   const [erro, setErro] = useState<string | null>(null);
   const [aExcluir, setAExcluir] = useState<Usuario | null>(null);
 
+  // Falha da carga principal (usuários e escritórios): na tela, com "Tentar de novo".
+  const [falhaCarga, setFalhaCarga] = useState<string | null>(null);
   async function carregarCfg() {
-    const res = await fetch('/api/config');
-    const d = await res.json();
-    if (res.ok) setIa({ temChave: Boolean(d.temChave), modelo: d.gemini_modelo || '' });
+    try {
+      const d = await lerJson('/api/config');
+      setIa({ temChave: Boolean(d.temChave), modelo: d.gemini_modelo || '' });
+    } catch { /* a situação da IA também aparece em "O que está desligado" */ }
   }
   async function carregarUsuarios() {
-    const res = await fetch('/api/usuarios');
-    const d = await res.json();
+    const d = await lerJson<{ usuarios?: Usuario[] }>('/api/usuarios');
     // Os administradores (cliente) são geridos no módulo Cadastro; aqui ficam só
     // os contadores e outros administradores do sistema.
-    if (res.ok) setUsuarios((d.usuarios ?? []).filter((u: Usuario) => u.role !== 'cliente'));
+    setUsuarios((d.usuarios ?? []).filter((u: Usuario) => u.role !== 'cliente'));
   }
   async function carregarEscritorios() {
-    const res = await fetch('/api/escritorios');
-    const d = await res.json();
-    if (res.ok) setEscritorios(d.escritorios ?? []);
+    const d = await lerJson<{ escritorios?: Escritorio[] }>('/api/escritorios');
+    setEscritorios(d.escritorios ?? []);
   }
-  useEffect(() => { carregarCfg(); carregarUsuarios(); carregarEscritorios(); }, []);
+  function carregarTudo() {
+    setFalhaCarga(null);
+    Promise.all([carregarUsuarios(), carregarEscritorios()]).catch((e) => setFalhaCarga(mensagemDeCarga(e)));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
+  useEffect(() => { carregarCfg(); carregarTudo(); }, []);
 
   async function addUsuario() {
     setErro(null); setMsgUser(null); setSavingUser(true);
@@ -70,7 +128,7 @@ export default function Configuracoes() {
       if (!res.ok) throw new Error(d.erro);
       setMsgUser('Usuário salvo.');
       setNovo(vazio);
-      carregarUsuarios();
+      carregarUsuarios().catch((e) => setFalhaCarga(mensagemDeCarga(e)));
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     finally { setSavingUser(false); }
   }
@@ -82,7 +140,7 @@ export default function Configuracoes() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.erro);
       setDesfazer({ nome: u.nome, ficha: d.desfazer });
-      carregarUsuarios();
+      carregarUsuarios().catch((e) => setFalhaCarga(mensagemDeCarga(e)));
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
@@ -98,7 +156,7 @@ export default function Configuracoes() {
       if (!res.ok) throw new Error(d.erro);
       setMsgUser(`${desfazer.nome} voltou a ter acesso.`);
       setDesfazer(null);
-      carregarUsuarios();
+      carregarUsuarios().catch((e) => setFalhaCarga(mensagemDeCarga(e)));
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
@@ -120,6 +178,12 @@ export default function Configuracoes() {
       </Toasts>
 
       <Conteudo largura="estreita">
+        {falhaCarga && (
+          <FalhaCarregamento titulo="Não foi possível carregar os usuários." onTentar={carregarTudo}>{falhaCarga}</FalhaCarregamento>
+        )}
+
+        <OQueEstaDesligado />
+
         {/* Leitura por IA */}
         <Secao titulo="Leitura das folhas por IA"
           descricao="A chave do Gemini é da plataforma e vale para todos os escritórios; cada um consome a cota mensal do seu plano. Para trocar a chave ou o modelo, altere GEMINI_API_KEY e GEMINI_MODELO na Vercel.">
