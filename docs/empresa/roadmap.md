@@ -65,14 +65,27 @@ Produção: migrações 0000–0018; próximo número livre **0019**. Backup ant
 proposta da agenda, checklist, 403 em 12 rotas das empresas da Edilse); conta apagada,
 contagens iguais às do backup.
 
-## Sprint 6 — proposta
+## Sprint 6 — Configurações e desempenho (✅ concluída e publicada em 21/11/2026)
 
-| Frente | Modelo | O que é |
+| Frente | Branch | Status |
 |---|---|---|
-| A. Configurações do escritório | Sonnet médio | tela para o escritório editar responsável técnico (contabilista/CRC — hoje só no banco), preferências (dia de prazo padrão dos pedidos, aviso por e-mail) e equipe num lugar só |
-| B. Desempenho e robustez | Sonnet médio | paginação no livro (PDF/xlsx) e no saldo transportado acima de 1.000 lançamentos; índices e N+1 nas rotas mais usadas; medir o tempo das telas principais |
-| C. Carnê-Leão e recibos (PF) | Opus alto | quando a Edilse responder as perguntas (beneficiário ≠ pagador, layout do Carnê-Leão Web) |
-| D. Documento → lançamento sugerido por IA | Opus alto | opção por empresa, desligada no início; depende do aceite da Edilse e do Gemini pago |
+| A. Tela **Escritório** (`/escritorio`): dados (CNPJ validado), responsável técnico (padrão dos dados fiscais; "aplicar às empresas sem contabilista" com desfazer), prazo padrão dos pedidos mensais, atalho da equipe | `claude/config-escritorio-a08c39` | ✅ publicada; 0019 aplicada |
+| B. Desempenho: paginação única contra o corte de 1.000 linhas do Supabase (livro, saldo, painel, ponto…), N+1 do fechamento (−69%), leituras em paralelo, índices | `claude/desempenho-d007b5` | ✅ publicada; 0020 aplicada. Números em `docs/desempenho.md` |
+| Integração: **funções da Vercel em São Paulo** (`regions: ["gru1"]`), junto do banco (`sa-east-1`) — antes rodavam nos EUA e cada consulta cruzava o continente | — | ✅ conferido pelo cabeçalho `x-vercel-id` (`gru1::gru1`) |
+
+Produção: migrações 0000–0020; próximo número livre **0021**. Backup antes:
+`backup-antes-0019-0020-2026-11-21.json`. Teste com conta de teste (CNPJ inválido
+recusado, responsável aplicado só à empresa de teste, escritório e empresas da Edilse
+intactos); conta apagada.
+
+## Próximas frentes (backlog priorizado)
+
+| Frente | Modelo | Depende de |
+|---|---|---|
+| Carnê-Leão e recibos (PF) | Opus alto | respostas da Edilse (beneficiário ≠ pagador; layout do Carnê-Leão Web) |
+| Documento → lançamento sugerido por IA | Opus alto | aceite da Edilse (opção por empresa) e Gemini pago |
+| Leitura de empresa arquivada sem reativar | Sonnet | — |
+| Medir de novo o desempenho com as funções em São Paulo | Sonnet | — |
 
 ## Antes de ir ao mercado (adiado por decisão do João)
 
