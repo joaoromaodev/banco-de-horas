@@ -195,7 +195,7 @@ function contrato(e: Escritor, c: Record<string, string>) {
   e.par(`1) O Empregado trabalhará para a Empregadora, exercendo a Função de ${c.FUNCAO}, recebendo o Salário R$ ${c.SALARIO} (${c.SALARIO_EXTENSO}) por mês.`, J);
   e.par('2) O horário a ser obedecido será:', { depois: 4 });
 
-  const cols = [70, 95, 95, 120, 70].map((w) => w * (LARGURA / 450));
+  const cols = [95, 85, 85, 110, 75].map((w) => w * (LARGURA / 450));
   const linhas: string[][] = [['Dia(s) de Trabalho', 'Entrada', 'Saída', 'Intervalo', 'Rep. Semanal']];
   for (const d of DIAS) {
     const folga = c[`${d}_E`] === 'FOLGA';
