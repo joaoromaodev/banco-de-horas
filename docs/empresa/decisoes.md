@@ -111,3 +111,20 @@ Decididas pela sessão `site-publico`, valem até alguém mudar:
 - ~~Depoimento provisório~~ — removido em 21/11/2026 (ver acima).
 - Textos legais são rascunho; campos `[entre colchetes]` (razão social, CNPJ, DPO, foro)
   dependem de dados da empresa.
+
+## 21/11/2026 — Sprint 12, decidida pelo dono
+
+O João pediu que o dono decida sozinho. O planejado até a Sprint 11 está publicado; o
+backlog restante depende de terceiros. Decisões:
+
+- **Documento → lançamento sugerido por IA entra agora, desligado.** É o coração da tese
+  ("o cliente lança, a IA lê, o contador confere"). Construímos atrás de duas travas,
+  como a IA do caixa: variável de ambiente da plataforma e opção por empresa, ambas
+  desligadas. Ligar em produção só depois do Gemini pago, do aceite da Edilse e da
+  política de privacidade citar o uso. Nada de documento real no Gemini gratuito.
+- **Acabamentos das ressalvas do QA visual** (KPIs do painel no celular, Demonstrativo
+  abrindo em janeiro, barra de ações de contratos em 1024 px, rótulos do gráfico do
+  resumo) — baratos e visíveis para quem usa todo dia.
+- **Teste logado em produção da Sprint 11** (`/inicio` e rescisão) com conta de teste,
+  que ficou faltando na integração.
+- Carnê-Leão e convenção coletiva continuam esperando a Edilse.

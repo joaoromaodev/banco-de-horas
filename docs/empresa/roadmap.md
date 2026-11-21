@@ -132,12 +132,19 @@ Edilse e na Timesheet; conta, foto e dados apagados.
 Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/dp/medias` responde 401 sem sessão. A + C, CI e Vercel verdes; em produção `/inicio` exige login e
 `/api/inicio-cliente` responde 401 sem sessão.
 
+## Sprint 12 — IA lendo documentos e acabamentos (🔄 em andamento)
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Documento → lançamento sugerido por IA, atrás de chave desligada (plataforma + empresa) | `claude/documento-lancamento` | 🔄 subagente |
+| B. Acabamentos das ressalvas do QA visual | `claude/acabamentos-qa` | 🔄 subagente |
+| C. Teste logado em produção de `/inicio` e da rescisão (conta de teste, só relatório) | — | 🔄 subagente |
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
 |---|---|---|
 | Carnê-Leão e recibos (PF) | Opus alto | respostas da Edilse (beneficiário ≠ pagador; layout do Carnê-Leão Web) |
-| Documento → lançamento sugerido por IA | Opus alto | aceite da Edilse (opção por empresa) e Gemini pago |
 | Ver no painel de logs da Vercel a duração das funções depois de uso real (ganho da região) | João/dono | acesso à Vercel |
 
 ## Antes de ir ao mercado (adiado por decisão do João)
