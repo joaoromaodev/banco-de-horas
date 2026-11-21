@@ -23,13 +23,21 @@ describe('início por papel', () => {
   it('inicioDoPapel', () => {
     expect(inicioDoPapel('usuario')).toBe('/painel');
     expect(inicioDoPapel('master')).toBe('/painel');
-    expect(inicioDoPapel('cliente')).toBe('/caixa');
+    expect(inicioDoPapel('cliente')).toBe('/inicio');
   });
 
-  it('"/" leva contador e master ao painel e o cliente ao caixa', async () => {
+  it('"/" leva contador e master ao painel e o cliente ao /inicio', async () => {
     expect(destino(await ir('/', contador(['ponto'])))).toBe('/painel');
     expect(destino(await ir('/', master))).toBe('/painel');
-    expect(destino(await ir('/', cliente))).toBe('/caixa');
+    expect(destino(await ir('/', cliente))).toBe('/inicio');
+  });
+
+  it('/inicio é do cliente: ele passa (tela e API); contador e master voltam ao painel', async () => {
+    expect((await ir('/inicio', cliente)).status).toBe(200);
+    expect((await ir('/api/inicio-cliente', cliente)).status).toBe(200);
+    expect(destino(await ir('/inicio', contador(['ponto'])))).toBe('/painel');
+    expect(destino(await ir('/inicio', master))).toBe('/painel');
+    expect((await ir('/api/inicio-cliente', contador(['ponto']))).status).toBe(403);
   });
 
   it('"/" sem sessão continua indo ao site público', async () => {
@@ -39,7 +47,7 @@ describe('início por papel', () => {
   it('a Timesheet está em /ponto: contador com módulo passa; cliente é barrado', async () => {
     expect((await ir('/ponto', contador(['ponto']))).status).toBe(200);
     expect((await ir('/ponto', master)).status).toBe(200);
-    expect(destino(await ir('/ponto', cliente))).toBe('/caixa');
+    expect(destino(await ir('/ponto', cliente))).toBe('/inicio');
   });
 
   it('contador só-caixa não alcança /ponto nem /ponto-cadastros e cai no caixa', async () => {

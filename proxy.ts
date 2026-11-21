@@ -26,7 +26,7 @@ const PUBLICO = [
 const SOMENTE_MASTER = ['/configuracoes', '/api/config'];
 /** Único caminho do papel `cliente`. Negar por padrão: o que não está aqui, ele não vê.
  *  `/api/empresas` entra porque devolve só a empresa da própria sessão (ver lib/acesso). */
-const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias',
+const CLIENTE_PODE = ['/inicio', '/api/inicio-cliente', '/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias',
   // Folha de ponto enviada pelo cliente (0028): a rota da API recorta por empresa e papel.
   '/enviar-ponto', '/api/envio-ponto'];
 
@@ -66,7 +66,7 @@ export async function proxy(req: NextRequest) {
   }
 
   // Raiz: sem tela própria — cada papel cai no seu início (contador/master → /painel,
-  // cliente → /caixa). Links e favoritos antigos de `/` continuam funcionando.
+  // cliente → /inicio). Links e favoritos antigos de `/` continuam funcionando.
   if (pathname === '/') {
     const url = req.nextUrl.clone();
     url.pathname = inicioDoPapel(sessao.role);
@@ -79,6 +79,14 @@ export async function proxy(req: NextRequest) {
 
   if (casaCom(SOMENTE_MASTER) && sessao.role !== 'master') {
     if (ehApi) return NextResponse.json({ erro: 'Acesso restrito ao administrador.' }, { status: 403 });
+    const url = req.nextUrl.clone();
+    url.pathname = inicioDoPapel(sessao.role);
+    return NextResponse.redirect(url);
+  }
+
+  // `/inicio` é a página do cliente; quem é da contabilidade volta ao próprio início.
+  if (sessao.role !== 'cliente' && (pathname === '/inicio' || pathname === '/api/inicio-cliente')) {
+    if (ehApi) return NextResponse.json({ erro: 'Acesso restrito.' }, { status: 403 });
     const url = req.nextUrl.clone();
     url.pathname = inicioDoPapel(sessao.role);
     return NextResponse.redirect(url);

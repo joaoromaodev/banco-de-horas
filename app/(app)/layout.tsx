@@ -77,12 +77,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     });
   }
 
-  // O menu segue papel e módulos. O cliente só enxerga o Livro Caixa. Para o
+  // O menu segue papel e módulos. O cliente enxerga o Início, o Livro Caixa, os Documentos e o envio da folha. Para o
   // gestor, Folha de Ponto (Timesheet + Folhas em branco) e Livro Caixa aparecem
   // só se o módulo estiver habilitado — um contador só-caixa não vê a folha.
   const temModulo = (m: Modulo) => me?.role === 'master' || (me?.modulos ?? []).includes(m);
   const grupos: Grupo[] = me?.role === 'cliente'
-    ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }, { href: '/documentos', label: 'Documentos', icon: 'folha' }, { href: '/enviar-ponto', label: 'Folha de ponto', icon: 'timesheet' }] }]
+    ? [{ itens: [{ href: '/inicio', label: 'Início', icon: 'painel' }, { href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }, { href: '/documentos', label: 'Documentos', icon: 'folha' }, { href: '/enviar-ponto', label: 'Folha de ponto', icon: 'timesheet' }] }]
     : [
         // Painel: o que precisa de atenção hoje (só da contabilidade; ver docs/painel.md).
         { itens: [{ href: '/painel', label: 'Painel', icon: 'painel' }] },

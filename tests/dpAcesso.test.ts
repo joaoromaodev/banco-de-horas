@@ -23,7 +23,7 @@ describe('acesso ao Departamento Pessoal', () => {
     expect((await ir('/api/dp?empresa=x', contador(['ponto']))).status).toBe(200);
   });
   it('cliente (empresa) é barrado na tela e na API', async () => {
-    expect(destino(await ir('/dp', cliente))).toBe('/caixa');
+    expect(destino(await ir('/dp', cliente))).toBe('/inicio');
     expect((await ir('/api/dp?empresa=emp', cliente)).status).toBe(403);
     expect((await ir('/api/dp/documento?ferias=x&doc=aviso', cliente)).status).toBe(403);
   });
