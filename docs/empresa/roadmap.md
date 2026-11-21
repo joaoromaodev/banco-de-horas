@@ -89,21 +89,18 @@ Produção: migrações 0000–0020 (0021 e 0022 não foram usadas; próximo nú
 **0021**). Testes: revisão do ponto nos dados reais da Edilse (só leitura) e arquivada
 com conta de teste (consulta e livro ok; gravação barrada); conta apagada.
 
-## Sprint 8 — Departamento Pessoal e relatórios (planejada)
+## Sprint 8 — Departamento Pessoal e relatórios (✅ concluída e publicada em 21/11/2026)
 
-Priorizada pelo consultor contador em 21/11/2026; nenhuma frente depende de resposta
-da Edilse. Decisões do dono: exportação para a folha em **xlsx genérico** (formato de
-programa específico depois); férias e 13º num **módulo próprio de Departamento
-Pessoal**, com cadastro único do empregado. Migração reservada: **0021** (DP).
-
-| Frente | Modelo | O que é |
+| Frente | Branch | Status |
 |---|---|---|
-| A. Departamento Pessoal: cadastro único do empregado (admissão, salário, jornada contratual, acordo de banco de horas; liga ponto e contratos por id, não por nome), férias (aquisitivo/concessivo, faltas do art. 130, aviso com 30 dias, fracionamento, vencidas em dobro) e 13º (prazos 30/11 e 20/12) na agenda | Opus alto | 0021; a contadora digita a admissão dos 9 da Vaz & Vouzela |
-| B. Resumo do ponto para a folha: por funcionário e mês, horas extras 50%/100%, adicional noturno com hora reduzida, faltas com perda do DSR, atestados e atrasos; só horas, nunca reais; exporta xlsx | Sonnet alto | lê o "acordo de banco de horas" do DP quando existir |
-| C. Caixa para o cliente: alerta de limite de faturamento (MEI R$ 81 mil/proporcional; Simples 12 meses e sublimite; 80/100/120%) e resumo mensal do cliente ("Demonstrativo de caixa", comparativos, maiores saídas, pendências) com prévia e envio liberado pela contadora | Sonnet médio | envio por e-mail só com `CRON_SECRET` + Resend na Vercel |
+| A. Departamento Pessoal (`/dp`): cadastro único do empregado (ponto e contratos ligados por id), férias (aquisitivo/concessivo, faltas do art. 130, fracionamento, 2 dias antes de feriado/DSR, aviso e recibo em PDF, vencidas em dobro) e 13º (avos, 30/11 e 20/12) na agenda e no e-mail | `claude/departamento-pessoal-1a4640` | ✅ publicada; 0021 aplicada. Backfill: 9 empregados criados a partir do ponto, 183 frequências ligadas por id, nenhuma marcação alterada. **Falta a contadora digitar a admissão dos 9** |
+| B. Resumo do ponto para a folha: extras 50%/100%, adicional noturno com hora reduzida, faltas com DSR, atestados, atrasos; só horas; xlsx e CSV; carimbo "conferido" | `claude/resumo-folha-b496c0` | ✅ publicada; 0022 aplicada. Na integração, ligado ao acordo de banco de horas do cadastro do DP |
+| C. Caixa para o cliente: alerta de limite de faturamento (MEI/Simples, 80/100/120%, "estimativa pelo caixa") e Demonstrativo de caixa mensal com prévia e envio liberado pela contadora (visível ao cliente) | `claude/caixa-cliente-55c77c` | ✅ publicada; 0023 aplicada. O alerta só aparece quando o regime da empresa está informado |
 
-Depois: conferência entre módulos (depende do cadastro do empregado) e simulação de
-rescisão (só depois de férias/13º, como simulação).
+Produção: migrações 0000–0023; próximo número livre **0024**. Backup antes:
+`backup-antes-0021-0023-2026-11-21.json`. Testes: leituras com os dados reais
+(DP da Vaz, resumo de outubro, limite e demonstrativo do NÉLIO) e escrita com conta de
+teste (empregado, férias, agenda); conta apagada.
 
 ## Próximas frentes (backlog priorizado)
 
@@ -112,6 +109,9 @@ rescisão (só depois de férias/13º, como simulação).
 | Carnê-Leão e recibos (PF) | Opus alto | respostas da Edilse (beneficiário ≠ pagador; layout do Carnê-Leão Web) |
 | Documento → lançamento sugerido por IA | Opus alto | aceite da Edilse (opção por empresa) e Gemini pago |
 | Mensagem clara ao gravar em empresa arquivada (hoje sai o 403 genérico "Acesso restrito"; a guarda está certa, só o texto) | Sonnet | — |
+| Conferência entre módulos (funcionário sem admissão/contrato, contrato encerrado com ponto, FÉRIAS no ponto sem férias programadas) | Sonnet | — (o cadastro do empregado já existe) |
+| Alinhar a jornada usada pela revisão do ponto e pelo `gerar-lote` com `jornadaDoEmpregado` | Sonnet | — |
+| Simulação de rescisão (sem valor de documento) | Opus alto | — |
 | Ver no painel de logs da Vercel a duração das funções depois de uso real (ganho da região) | João/dono | acesso à Vercel |
 
 ## Antes de ir ao mercado (adiado por decisão do João)
