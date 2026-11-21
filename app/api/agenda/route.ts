@@ -9,6 +9,9 @@ import { temModulo } from '@/lib/auth';
 import { hojeBelem } from '@/lib/agenda';
 import { itensDeContratos } from '@/lib/agendaDerivada';
 import { listarEmExperiencia } from '@/lib/contratosServidor';
+import { itensDoDp, itensNaJanela, type ItemDp } from '@/lib/dpAgenda';
+import { dadosDpParaAgenda } from '@/lib/dpServidor';
+import { conjuntoFeriados } from '@/lib/ferias';
 import { NovaObrigacao, validarObrigacao } from '@/lib/agenda';
 import {
   atualizarObrigacao, AVISO_PADRAO, criarObrigacoes, equipeDoEscritorio, ErroAgenda, excluirObrigacoes,
@@ -46,19 +49,30 @@ export async function GET(req: NextRequest) {
     // Vencimentos dos contratos de experiência, derivados dos contratos salvos (nada duplicado).
     // Sem o módulo de ponto ou se a leitura falhar, a agenda segue sem eles.
     let contratos: ReturnType<typeof itensDeContratos> = [];
+    let dp: ItemDp[] = [];
     if (temModulo(g.sessao, 'ponto')) {
+      const visiveis = empresa ? [] : await empresasVisiveis(g.sessao).catch(() => []);
+      const nomes = new Map(visiveis.map((e) => [e.id, e.nome]));
+      const ids = empresa ? [empresa] : visiveis.map((e) => e.id);
       try {
-        const visiveis = empresa ? [] : await empresasVisiveis(g.sessao);
-        const nomes = new Map(visiveis.map((e) => [e.id, e.nome]));
-        const lista = await listarEmExperiencia(empresa ? [empresa] : visiveis.map((e) => e.id));
+        const lista = await listarEmExperiencia(ids);
         contratos = itensDeContratos(lista, nomes, hojeBelem(), 30);
       } catch (e) { console.error('[agenda] contratos:', e instanceof Error ? e.message : e); }
+      // Departamento Pessoal (0021): férias e 13º derivados do cadastro do empregado.
+      try {
+        const d = await dadosDpParaAgenda(escritorio, ids);
+        if (d) {
+          const hoje = hojeBelem();
+          const ano = Number(hoje.slice(0, 4));
+          dp = itensNaJanela(itensDoDp({ ...d, feriados: conjuntoFeriados([ano, ano + 1]) }, nomes, hoje), 30);
+        }
+      } catch (e) { console.error('[agenda] dp:', e instanceof Error ? e.message : e); }
     }
-    return Response.json({ obrigacoes, conclusoes, equipe, aviso, contratos });
+    return Response.json({ obrigacoes, conclusoes, equipe, aviso, contratos, dp });
   } catch (e) {
     // Sem as tabelas (0014 pendente) a tela mostra o aviso em vez de quebrar.
     if (e instanceof ErroAgenda && e.status === 503) {
-      return Response.json({ obrigacoes: [], conclusoes: [], equipe: [], aviso: null, contratos: [], semTabela: true });
+      return Response.json({ obrigacoes: [], conclusoes: [], equipe: [], aviso: null, contratos: [], dp: [], semTabela: true });
     }
     return falha(e);
   }

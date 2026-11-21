@@ -8,7 +8,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 Módulos, com bancos diferentes:
 
-- **Folha de ponto** (`/`, `/folhas`) — foto da folha manuscrita → OCR com Gemini →
+- **Folha de ponto** (`/ponto`, `/folhas`) — foto da folha manuscrita → OCR com Gemini →
   revisão → `.xlsx`. Persiste no **Postgres** por escritório (migração `0012`; o
   Google Sheets só serve à importação), com cota de leituras por plano. Exclusivo
   da contabilidade. Leia [`docs/folha-de-ponto.md`](docs/folha-de-ponto.md).
@@ -19,6 +19,12 @@ Módulos, com bancos diferentes:
   Persiste no **Postgres**. Exclusivo da contabilidade. Antes de mexer, leia
   [`docs/contratos-experiencia.md`](docs/contratos-experiencia.md) (templates não
   podem ser editados no Word).
+- **Departamento Pessoal** (`/dp`) — cadastro único do empregado (admissão, salário,
+  jornada contratual, banco de horas, situação), férias (aquisitivo, art. 130,
+  fracionamento, aviso e recibo em PDF) e 13º (avos e prazos), com os prazos na
+  Agenda. Persiste no **Postgres** (migração `0021`); liga ponto e contratos ao
+  empregado por **id**. Exclusivo da contabilidade, atrás do módulo ponto. Antes de
+  mexer, leia [`docs/departamento-pessoal.md`](docs/departamento-pessoal.md).
 
 Multi-escritório: o inquilino é o **escritório contábil** (`escritorios`, migração
 `0010`); empresas e usuários têm `escritorio_id` e o recorte é por ele — leia

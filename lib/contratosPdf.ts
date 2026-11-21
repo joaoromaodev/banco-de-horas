@@ -15,16 +15,16 @@
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { camposDoDocumento, DadosContrato, DIAS, Documento } from './contratos';
 
-const A4: [number, number] = [595.28, 841.89];
-const MARGEM = { x: 70, topo: 64, base: 64 };
-const LARGURA = A4[0] - MARGEM.x * 2;
+export const A4: [number, number] = [595.28, 841.89];
+export const MARGEM = { x: 70, topo: 64, base: 64 };
+export const LARGURA = A4[0] - MARGEM.x * 2;
 const PRETO = rgb(0, 0, 0);
 
 interface Fontes { reg: PDFFont; neg: PDFFont }
 
 type Alinhar = 'esq' | 'centro' | 'justificado';
 
-interface OpcoesTexto {
+export interface OpcoesTexto {
   negrito?: boolean;
   tam?: number;
   alinhar?: Alinhar;
@@ -33,7 +33,8 @@ interface OpcoesTexto {
   depois?: number;    // espaço depois do parágrafo
 }
 
-class Escritor {
+/** Desenhista de documento A4 (também usado pelo aviso e recibo de férias, lib/feriasPdf.ts). */
+export class Escritor {
   pdf!: PDFDocument;
   fontes!: Fontes;
   pagina!: PDFPage;
