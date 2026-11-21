@@ -1,6 +1,6 @@
 # Desempenho e robustez
 
-Última atualização: **21/11/2026** (Sprint 6, Frente B).
+Última atualização: **21/11/2026** (Sprint 7, Frente B — medição com as funções em São Paulo).
 
 ## O problema que importava: o corte silencioso de 1.000 linhas
 
@@ -98,6 +98,46 @@ nº de empresas** (fechamento, saldo transportado, atividade filtrada no banco).
 teste `tests/paginacao.test.ts` prova isso com um banco falso que corta em 1.000
 linhas (2.500 lançamentos no livro, mês de 1.500, 1.300 empresas…).
 
+## Sprint 7: funções da Vercel em São Paulo (`gru1`)
+
+Desde 21/11 o `vercel.json` fixa `"regions": ["gru1"]`, junto do banco (`sa-east-1`).
+
+**O que o script mede e o que não mede.** `medir-desempenho.mjs` sobe o app **na
+máquina de quem mede** e fala direto com o Supabase: a região da Vercel **não entra**
+nesse número (e ele recusa URL remota de propósito, para nunca gravar em produção).
+Então a tabela abaixo prova que **não houve regressão** nas rotas, mas não mostra o
+ganho da região. Para isso há duas evidências em produção, só leitura, sem cookie e
+sem gravar nada:
+
+1. **Região confirmada:** `curl -sI https://banco-de-horas-henna.vercel.app/api/empresas`
+   devolve `x-vercel-id: gru1::…` (a função roda em São Paulo). O domínio
+   `clickcontas.com.br` ainda não resolve.
+2. **Tempo até a resposta** (7 chamadas, ms, do notebook do fundador; `401` = só o
+   proxy e a função, **sem tocar no banco**): `/api/empresas` 365–536 (mediana 403),
+   `/login` 357–912 (mediana 367). Esse piso de ~365 ms é a ida e volta
+   notebook ↔ Vercel; ele não carrega consulta ao banco. Rotas que consultam o banco
+   precisam de sessão, e não há como medi-las em produção sem cookie e sem gravar —
+   o ganho por consulta (a função agora a poucos ms do Postgres, em vez de ~115 ms
+   dos EUA) deve ser visto no painel de logs da Vercel (duração das funções) depois
+   de algumas horas de uso real.
+
+**Tabela do script (app local, mediana de 7, ms; mesmo alvo: 3 empresas, 46 lançamentos):**
+
+| Rota | Sprint 6 (depois) | Sprint 7 | Δ |
+|---|---:|---:|---:|
+| `/api/painel/fechamento` | 227 | 267 | ≈ (ruído; máx. 643 numa rodada) |
+| `/api/caixa/livro` (.xlsx) | 285 | 301 | ≈ |
+| `/api/caixa/lancamentos` (mês) | 256 | 234 | ≈ |
+| `/api/caixa/exercicio` / `resumo` | 236 / 232 | 241 / 243 | ≈ |
+| `/api/caixa/revisao` | 476 | 461 | ≈ |
+| `/api/painel` | 151 | 217 | ≈ (rede do notebook varia ±60 ms) |
+| `/api/caixa/atividade` | 120 | 131 | ≈ |
+| `/api/empresas`, `/api/me` | 14 / 16 | 6 / 17 | = |
+
+Conclusão: **sem regressão**; a diferença entre rodadas é variação da rede do
+notebook até o Supabase, não do código. A frente de arquivadas não acrescentou
+consulta à leitura (usa o mesmo cache de empresas).
+
 ## Para o integrador
 
 1. **Aplicar `0020_indices_desempenho.sql`** (`supabase db push`). Pode ser antes ou
@@ -105,11 +145,9 @@ linhas (2.500 lançamentos no livro, mês de 1.500, 1.300 empresas…).
 2. Testar em produção após publicar: abrir `/caixa` (trocar de mês: só os lançamentos
    recarregam), `/painel` e o fechamento, baixar um livro .xlsx/.pdf e conferir o
    total; o "N pendências" da fila do caixa deve bater com o da conferência.
-3. **Região:** `vercel.json` não fixa região (padrão da Vercel é `iad1`, EUA). Se o
-   projeto Supabase do ClickContas estiver em `sa-east-1` (os dois projetos visíveis
-   na conta estão), fixar `"regions": ["gru1"]` corta ~100+ ms **por consulta** — maior
-   ganho disponível e não mexi porque é configuração de publicação. Conferir antes qual
-   é a região do projeto.
+3. **Região:** resolvida na Sprint 6 — `vercel.json` fixa `gru1` (ver a seção acima).
+   Depois de publicar, conferir `x-vercel-id: gru1::…` e a duração das funções nos logs
+   da Vercel.
 4. Rota/consulta nova que possa passar de 1.000 linhas: usar `lerTudo`/`lerAteTeto`,
    com `.order('id')` no fim. Nunca `.limit(n>1000)`.
 5. Pendência conhecida: `garantirExercicio` ainda abre exercício num GET (escrita em

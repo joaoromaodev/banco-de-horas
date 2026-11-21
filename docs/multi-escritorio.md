@@ -91,9 +91,49 @@ pendências (sem FK). Decisão (com o subagente `contador`): **a tela nunca apag
 - Testar em produção sem alterar dados reais: abrir Cadastro (nenhuma arquivada,
   seção não aparece); `GET /api/empresas?arquivadas=1` → `[]`. Teste de ponta a ponta
   de arquivar/reativar só com empresa de teste de um escritório de teste.
-- Pendências: leitura/exportação de empresa arquivada hoje exige reativar (a
-  contadora pediu leitura; fica para depois); prazo de guarda a confirmar (5/10 anos);
+- Pendências: prazo de guarda a confirmar (5/10 anos);
   CNPJ duplicado não é validado ainda; script de exclusão definitiva não existe.
+
+### Consultar arquivada sem reativar (Sprint 7, sem migração)
+
+A contadora abre a empresa arquivada em **somente leitura**: em Cadastro → "Empresas
+arquivadas" há os botões *Livro caixa*, *Ponto*, *Contratos*, *Documentos* (links
+`/<módulo>?empresa=<id>`). A tela mostra a faixa **"Empresa arquivada em DD/MM/AAAA —
+somente consulta"** com **Reativar**. Consulta, PDF/.xlsx do livro, `.xlsx` do ponto e
+documentos funcionam; escrita não.
+
+- **Guarda central** (`lib/arquivamento.ts` + `lib/acesso.ts`):
+  - `sessaoDe(req)` marca a sessão (só em memória) com `escrita` quando o método/caminho
+    grava dados (`ehEscritaDeDados`: tudo que não é GET/HEAD, menos exportações por POST
+    como `/api/gerar` e `/api/contratos/documento`, e menos `/api/empresas`,
+    login/logout/cobrança, que têm regra própria).
+  - `podeAcessarEmpresa` agora enxerga arquivadas: **leitura** → contador do mesmo
+    escritório e master; **escrita** → sempre negada (inclusive master); `cliente` de
+    arquivada → sempre negado; arquivada de outro escritório → negada.
+  - `proxy.ts`: escrita que cita a empresa (`?empresa=`, corpo JSON `empresa`,
+    `empresaId`, `empresas[]`, `frequencia.empresa`) arquivada → **409** com
+    `codigo: 'empresa_arquivada'` e mensagem clara. Rotas que só descobrem a empresa pelo
+    id do registro (editar/excluir lançamento, contrato, pedido) caem na rede de
+    segurança de `podeAcessarEmpresa` (403 "Acesso restrito a esta empresa.").
+  - `POST /api/empresas` com id de arquivada → 409.
+- `lerEmpresa(id)` passou a devolver arquivada também (`lerEmpresas()` continua só com
+  ativas). **Regra para rota nova que grave:** chame `podeAcessarEmpresa(g.sessao, id)`
+  *depois* de `exigirGestor/exigirEmpresa(req)` (é o que dá o `escrita`); não use
+  `lerEmpresa` para decidir acesso.
+- Continuam de fora de listas, painel, agenda, cron, fechamento e contagem do plano
+  (todos usam `lerEmpresas`/`empresasVisiveis`). O login do `cliente` segue barrado.
+- Testes: `tests/arquivadasConsulta.test.ts` (regras, guarda, proxy 409).
+
+### Para o integrador (consulta de arquivadas)
+- **Sem migração.** Publicar o código; nada a aplicar.
+- Em produção, com conta de **teste** (escritório de teste; nunca as empresas da
+  Edilse): criar empresa de teste, lançar 1 item no caixa, arquivar; em Cadastro →
+  Consultar → Livro caixa: faixa aparece, livro .xlsx baixa, "Lançar" falha com a
+  mensagem de arquivada (409); `DELETE /api/caixa/lancamentos?id=…` → 403; Reativar na
+  faixa volta ao normal. Entrar como cliente da empresa arquivada → barrado no login.
+- Conferir que a arquivada **não** aparece no painel, na agenda nem no seletor das telas.
+- Pendente: as telas não escondem os botões de gravar (a barreira é do servidor; o
+  clique mostra o erro).
 
 ## Como foi testado
 

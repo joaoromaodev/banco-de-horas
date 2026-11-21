@@ -11,6 +11,7 @@ import {
   retornoSugerido, Situacao, Trajeto, validar, vencimento1, vencimento2,
 } from '@/lib/contratos';
 import { DialogoConfirmacao } from '../Dialogo';
+import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar, IconeDesfazer, IconeExcluir, IconeMais } from '../icones';
 import {
   Aviso, Botao, BotaoIcone, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, Marcacao, Secao, Selo, Tom,
@@ -18,7 +19,7 @@ import {
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 
-interface Empresa { id: string; nome: string; trabalhaSabado: boolean; jornadaUtilMin?: number; jornadaSabadoMin?: number }
+interface Empresa { id: string; nome: string; trabalhaSabado: boolean; jornadaUtilMin?: number; jornadaSabadoMin?: number; arquivadaEm?: string | null }
 interface Funcionario { nome: string; cargo?: string | null }
 
 const ROTULO_SITUACAO: Record<Situacao, string> = {
@@ -128,7 +129,8 @@ export default function ContratosPage() {
     setEmpresaSel(id);
     setDesfazer(null); setErro(null); setMsg(null);
     if (!id) return;
-    try { localStorage.setItem('contratos.empresa', id); } catch {}
+    // Arquivada (consulta) não vira a empresa lembrada.
+    if (!lista.find((e) => e.id === id)?.arquivadaEm) { try { localStorage.setItem('contratos.empresa', id); } catch {} }
     novo(lista.find((e) => e.id === id), []);
     fetch(`/api/funcionarios?empresa=${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null)).then((x) => setFuncionarios(x?.funcionarios ?? [])).catch(() => setFuncionarios([]));
@@ -137,13 +139,14 @@ export default function ContratosPage() {
 
   useEffect(() => {
     try { if (localStorage.getItem('contratos.formato') === 'pdf') setFormato('pdf'); } catch {}
-    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((x) => {
-      const lista: Empresa[] = x?.empresas ?? [];
+    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then(async (x) => {
+      // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
+      const { lista, consulta } = await comArquivadaDaUrl<Empresa>(x?.empresas ?? []);
       empresasRef.current = lista;
       setEmpresas(lista);
       let salva = '';
       try { salva = localStorage.getItem('contratos.empresa') ?? ''; } catch {}
-      trocarEmpresa(lista.some((e) => e.id === salva) ? salva : lista[0]?.id || '', lista);
+      trocarEmpresa(consulta || (lista.some((e) => e.id === salva) ? salva : lista[0]?.id || ''), lista);
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
   }, []);
@@ -330,6 +333,7 @@ export default function ContratosPage() {
       </Toasts>
 
       <Conteudo>
+        <FaixaArquivada empresa={empresa} />
         {semTabela && (
           <Aviso tom="aviso">
             O banco ainda não tem a tabela de contratos (migração <code className="font-mono text-xs">0009</code> pendente). Os documentos já podem ser

@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Empresa } from '@/lib/tipos';
 import { lerMe } from '@/lib/meCliente';
 import { IconeExcluir, IconeMais } from '../icones';
-import { Alternador, Botao, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
+import { Alternador, Botao, botaoCls, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
@@ -255,7 +256,7 @@ export default function Cadastro() {
 
         {arquivadas.length > 0 && (
           <Secao titulo="Empresas arquivadas"
-            descricao="Ficam fora das listas, do painel e da agenda, e o administrador delas não consegue entrar. Todos os dados (ponto, caixa, contratos, documentos) ficam guardados. Reativar traz tudo de volta.">
+            descricao="Ficam fora das listas, do painel e da agenda, e o administrador delas não consegue entrar. Todos os dados (ponto, caixa, contratos, documentos) ficam guardados: dá para consultar e exportar sem reativar. Reativar traz tudo de volta.">
             <ul className="divide-y divide-borda rounded-xl border border-borda">
               {arquivadas.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3.5 py-2.5">
@@ -266,7 +267,13 @@ export default function Cadastro() {
                       {e.arquivadaPor ? ` por ${e.arquivadaPor}` : ''}
                     </div>
                   </div>
-                  <Botao tamanho="sm" onClick={() => mudarArquivamento(e, 'reativar')}>Reativar</Botao>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-tinta-suave">Consultar:</span>
+                    {[['Livro caixa', '/caixa'], ['Ponto', '/ponto'], ['Contratos', '/contratos'], ['Documentos', '/documentos']].map(([rotulo, href]) => (
+                      <Link key={href} href={`${href}?empresa=${encodeURIComponent(e.id)}`} className={botaoCls({ variante: 'tonal', tamanho: 'sm' })}>{rotulo}</Link>
+                    ))}
+                    <Botao tamanho="sm" onClick={() => mudarArquivamento(e, 'reativar')}>Reativar</Botao>
+                  </div>
                 </li>
               ))}
             </ul>

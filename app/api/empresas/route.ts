@@ -5,7 +5,7 @@
 import { NextRequest } from 'next/server';
 import { empresasArquivadasVisiveis, empresasVisiveis, ehGestor, exigirGestor, exigirSessao } from '@/lib/acesso';
 import { definirArquivamento, lerEmpresasComArquivadas, salvarEmpresas } from '@/lib/cadastro';
-import { estaArquivada, limparMotivo, podeReativar } from '@/lib/arquivamento';
+import { estaArquivada, limparMotivo, MENSAGEM_ARQUIVADA, podeReativar } from '@/lib/arquivamento';
 import { Empresa } from '@/lib/tipos';
 import { cabeNoPlano, limiteEmpresas, NOME_PLANO, PLANOS, planoMinimoPara } from '@/lib/cobranca';
 import { planoDoEscritorio } from '@/lib/cobrancaServidor';
@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
     // Com arquivadas: um id arquivado de OUTRO escritório também não pode ser "roubado".
     const todas = await lerEmpresasComArquivadas();
     const porId = new Map(todas.map((e) => [e.id, e]));
+    // Arquivada é só consulta: o cadastro não a edita (reative primeiro).
+    if (enviadas.some((e) => { const a = porId.get(e.id?.trim() ?? ''); return a && estaArquivada(a); })) {
+      return Response.json({ erro: MENSAGEM_ARQUIVADA, codigo: 'empresa_arquivada' }, { status: 409 });
+    }
 
     if (g.sessao.role === 'master') {
       // O master administra a plataforma: grava a lista como veio, e cada empresa

@@ -90,6 +90,7 @@ vi.mock('@/lib/cadastro', () => ({
   lerEmpresas: async () => [
     { id: 'e1', escritorioId: 'A' }, { id: 'e2', escritorioId: 'A' }, { id: 'e3', escritorioId: 'A' }, { id: 'x', escritorioId: 'B' },
   ],
+  lerEmpresasComArquivadas: async () => [],
   buscarUsuario: async () => null,
 }));
 vi.mock('@/lib/escritorios', () => ({

@@ -112,8 +112,13 @@ export async function lerEmpresas(): Promise<Empresa[]> {
   return soAtivas(await lerEmpresasComArquivadas());
 }
 
+/**
+ * Uma empresa por id, **inclusive arquivada** (a consulta de arquivadas lê por
+ * aqui). Quem GRAVA depende de `podeAcessarEmpresa`, que barra escrita em
+ * arquivada; cadastro de usuário e de pedido mensal conferem `arquivadaEm`.
+ */
 export async function lerEmpresa(id: string): Promise<Empresa | null> {
-  return (await lerEmpresas()).find((e) => e.id === id) ?? null;
+  return (await lerEmpresasComArquivadas()).find((e) => e.id === id) ?? null;
 }
 
 /**

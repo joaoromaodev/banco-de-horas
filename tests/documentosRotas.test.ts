@@ -28,6 +28,7 @@ const EMPRESAS: Record<string, { id: string; nome: string; escritorioId: string 
 vi.mock('@/lib/cadastro', () => ({
   lerEmpresa: async (id: string) => EMPRESAS[id] ?? null,
   lerEmpresas: async () => Object.values(EMPRESAS),
+  lerEmpresasComArquivadas: async () => Object.values(EMPRESAS),
   buscarUsuario: async () => null,
 }));
 

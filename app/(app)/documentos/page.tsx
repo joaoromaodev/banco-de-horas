@@ -16,6 +16,7 @@ import {
 import { hojeBelem } from '@/lib/contratos';
 import { lerMe } from '@/lib/meCliente';
 import { DialogoConfirmacao, Modal } from '../Dialogo';
+import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar, IconeCheck, IconeDesfazer, IconeDocumento, IconeExcluir, IconeLapis, IconeMais } from '../icones';
 import {
   AreaTexto, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, Secao,
@@ -26,7 +27,7 @@ import { Toast, Toasts } from '@/components/retorno';
 
 type Papel = 'master' | 'usuario' | 'cliente';
 interface Me { role: Papel; email: string; empresa: string | null }
-interface Empresa { id: string; nome: string }
+interface Empresa { id: string; nome: string; arquivadaEm?: string | null }
 
 interface Documento {
   id: string; empresaId: string; competencia: string; categoria: Categoria; nome: string; tamanho: number;
@@ -110,15 +111,17 @@ export default function DocumentosPage() {
     Promise.all([
       lerMe(),
       fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)),
-    ]).then(([m, e]) => {
+    ]).then(async ([m, e]) => {
       if (!m?.autenticado) return;
       setMe({ role: m.role, email: m.email, empresa: m.empresa });
-      const lista: Empresa[] = (e?.empresas ?? []).map((x: Empresa) => ({ id: x.id, nome: x.nome }));
+      const base: Empresa[] = (e?.empresas ?? []).map((x: Empresa) => ({ id: x.id, nome: x.nome }));
+      // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
+      const { lista, consulta } = m.role === 'cliente' ? { lista: base, consulta: '' } : await comArquivadaDaUrl<Empresa>(base);
       setEmpresas(lista);
       if (m.role === 'cliente') { carregar(m.empresa ?? ''); return; }
       let salva = '';
       try { salva = localStorage.getItem('documentos.empresa') ?? ''; } catch {}
-      const id = lista.some((x) => x.id === salva) ? salva : lista[0]?.id ?? '';
+      const id = consulta || (lista.some((x) => x.id === salva) ? salva : lista[0]?.id ?? '');
       setEmpresaSel(id);
       carregar(id);
     }).catch(() => setErro('Falha ao carregar.'));
@@ -127,7 +130,7 @@ export default function DocumentosPage() {
   function trocarEmpresa(id: string) {
     setEmpresaSel(id);
     setDocumentos(null); setPendencias(null); setDesfazer(null); setPendenciaSel(''); setFila([]);
-    try { localStorage.setItem('documentos.empresa', id); } catch {}
+    if (!empresas.find((e) => e.id === id)?.arquivadaEm) { try { localStorage.setItem('documentos.empresa', id); } catch {} }
     carregar(id);
   }
 
@@ -289,6 +292,7 @@ export default function DocumentosPage() {
       </Toasts>
 
       <Conteudo largura="media">
+        {me && gestor && <FaixaArquivada empresa={empresas.find((e) => e.id === empresaSel)} />}
         {!me && <Carregando />}
         {me && gestor && empresas.length === 0 && (
           <EstadoVazio titulo="Nenhuma empresa cadastrada" descricao="Cadastre uma empresa-cliente para receber documentos dela."

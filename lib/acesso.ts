@@ -10,8 +10,8 @@
 // em lib/visibilidade.ts; aqui elas ganham a sessão e o I/O.
 import { NextRequest } from 'next/server';
 import { COOKIE_SESSAO, lerSessao, Sessao } from './auth';
-import { buscarUsuario, lerEmpresa, lerEmpresas, lerEmpresasComArquivadas } from './cadastro';
-import { soArquivadas } from './arquivamento';
+import { buscarUsuario, lerEmpresas, lerEmpresasComArquivadas } from './cadastro';
+import { acessoAArquivada, ehEscritaDeDados, estaArquivada, soArquivadas } from './arquivamento';
 import { empresaVisivel } from './visibilidade';
 import { Empresa } from './tipos';
 import { mensagemSomenteLeitura, type MotivoBloqueio } from './cobranca';
@@ -45,7 +45,11 @@ export async function completarEscritorio(s: Sessao): Promise<Sessao> {
 
 export async function sessaoDe(req: NextRequest): Promise<Sessao | null> {
   const s = await lerSessao(req.cookies.get(COOKIE_SESSAO)?.value);
-  return s ? completarEscritorio(s) : null;
+  if (!s) return null;
+  // Marca (só em memória) se esta requisição grava dados: `podeAcessarEmpresa` usa
+  // para deixar a empresa arquivada ser CONSULTADA, mas nunca alterada.
+  const c = await completarEscritorio(s);
+  return ehEscritaDeDados(req.method, req.nextUrl.pathname) ? { ...c, escrita: true } : c;
 }
 
 /** Master ou contador — a "contabilidade" (cadastros, ponto, conferência). */
@@ -78,10 +82,14 @@ export async function empresasArquivadasVisiveis(s: Sessao): Promise<Empresa[]> 
  */
 export async function podeAcessarEmpresa(s: Sessao, empresaId: string): Promise<boolean> {
   if (!empresaId?.trim()) return false;
-  if (s.role === 'master') return true;
+  // Master em leitura resolve sem I/O.
+  if (s.role === 'master' && !s.escrita) return true;
   if (s.role === 'cliente' && s.empresa !== empresaId) return false;
-  const e = await lerEmpresa(empresaId);
-  return e ? empresaVisivelPara(s, e) : false;
+  // Inclui arquivadas: a contabilidade as consulta (só leitura); o resto é barrado aqui.
+  const e = (await lerEmpresasComArquivadas()).find((x) => x.id === empresaId);
+  if (!e) return s.role === 'master';
+  if (estaArquivada(e) && !acessoAArquivada(s.role, Boolean(s.escrita))) return false;
+  return s.role === 'master' || empresaVisivelPara(s, e);
 }
 
 function negar(msg: string, status: number): Guarda {

@@ -11,6 +11,7 @@ const EMPRESAS: Empresa[] = [
 
 vi.mock('@/lib/cadastro', () => ({
   lerEmpresas: async () => EMPRESAS,
+  lerEmpresasComArquivadas: async () => EMPRESAS,
   lerEmpresa: async (id: string) => EMPRESAS.find((e) => e.id === id) ?? null,
   buscarUsuario: async () => null,
 }));

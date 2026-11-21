@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import SeletorAnalitica, { Historico } from './SeletorAnalitica';
+import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino, IconeSugestao } from '../icones';
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 import { AbasCaixa } from './AbasCaixa';
@@ -27,7 +28,7 @@ import { sugerirConta, type ConsultaSugestao, type ExemploConferido, type Sugest
 import type { NivelAlerta, ResultadoRevisao, RevisaoLancamento } from '@/lib/revisaoCaixa';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
-interface Empresa { id: string; nome: string; identificaPagador?: boolean; }
+interface Empresa { id: string; nome: string; identificaPagador?: boolean; arquivadaEm?: string | null; }
 // `Historico` (a Conta Analítica) vem de ./SeletorAnalitica.
 
 interface Lancamento {
@@ -151,7 +152,11 @@ export default function Caixa() {
   }, []);
   // Não persiste o filtro do cliente: ele é fixo na própria empresa; salvar
   // poluiria a próxima sessão de gestor no mesmo navegador.
-  useEffect(() => { if (empresaSel && me?.role !== 'cliente') localStorage.setItem('caixa.empresa', empresaSel); }, [empresaSel, me]);
+  useEffect(() => {
+    // Arquivada (consulta) não vira o filtro lembrado: da próxima vez ela não estará na lista.
+    const arquivada = empresas.find((e) => e.id === empresaSel)?.arquivadaEm;
+    if (empresaSel && me?.role !== 'cliente' && !arquivada) localStorage.setItem('caixa.empresa', empresaSel);
+  }, [empresaSel, me, empresas]);
   useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
   // A oferta de desfazer é do mês/empresa onde a exclusão aconteceu; ao navegar, some.
   useEffect(() => { setDesfazer(null); }, [empresaSel, mes, ano]);
@@ -170,11 +175,12 @@ export default function Caixa() {
         if (e) setEmpresaSel((atual) => atual || e);
       }
     }).catch(() => {});
-    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      const lista: Empresa[] = d?.empresas ?? [];
+    fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then(async (d) => {
+      // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
+      const { lista, consulta } = await comArquivadaDaUrl<Empresa>(d?.empresas ?? []);
       setEmpresas(lista);
       // Fallback: para o cliente, /api/empresas já devolve só a empresa dele.
-      setEmpresaSel((atual) => atual || lista[0]?.id || '');
+      setEmpresaSel((atual) => consulta || atual || lista[0]?.id || '');
     }).catch(() => {});
   }, []);
 
@@ -510,6 +516,7 @@ export default function Caixa() {
       </Toasts>
 
       <Conteudo>
+        <FaixaArquivada empresa={empresas.find((e) => e.id === empresaSel)} />
         {ehGestor && mostrarDocs && (
           <PainelDocumentos
             empresaId={empresaSel} ano={ano} termo={termo}
