@@ -12,6 +12,7 @@ import {
   vincularConta, vincularHistorico,
 } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
+import { avaliarNaConferencia, lerRegistroSugestao, registrarSugestao } from '@/lib/caixaInteligente';
 import { visaoDoCatalogo } from '@/lib/visibilidadeCatalogo';
 
 export const runtime = 'nodejs';
@@ -123,8 +124,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { data, error } = await getDb().from('lancamentos').insert(linhas).select('id');
+    const { data, error } = await getDb().from('lancamentos').insert(linhas).select('id, historico, conta_id');
     if (error) throw new ErroCaixa(traduzir(error.message), 400);
+
+    // A sugestão de conta que estava na tela (se havia): registra se foi aceita.
+    // Nunca derruba o lançamento (ver lib/caixaInteligente).
+    const sugestao = lerRegistroSugestao(body.sugestao);
+    const principal = (data ?? []).find((x) => x.historico === l.historico && x.conta_id === l.contaId) ?? data?.at(-1);
+    if (sugestao && principal) {
+      await registrarSugestao({
+        sugestao, empresaId: empresa, lancamentoId: principal.id, autor,
+        final: { contaId: l.contaId, historico: l.historico },
+      });
+    }
 
     // É isto que mantém as listas abertas: usou, entrou na lista da empresa —
     // tanto a titular (conta) quanto a analítica (histórico).
@@ -162,6 +174,8 @@ export async function PATCH(req: NextRequest) {
         conferido_em: marcar ? new Date().toISOString() : null,
       }).eq('id', id);
       if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
+      // Mede a sugestão: a conta ficou ou a contadora trocou? (o conferido já ensina)
+      if (marcar) await avaliarNaConferencia(id);
       return Response.json({ ok: true });
     }
 

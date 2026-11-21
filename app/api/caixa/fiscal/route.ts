@@ -48,8 +48,9 @@ export async function POST(req: NextRequest) {
       registroNumero: f.registroNumero ?? null,
       prefeitura: f.prefeitura ?? null,
       cidadeTermo: f.cidadeTermo ?? null,
-      contabilista: String(f.contabilista ?? '').trim() || 'Edilse Goes da Costa',
-      crc: String(f.crc ?? '').trim() || '01619/0-3',
+      // sem padrão fixo: em branco cai no responsável técnico do escritório (lerFiscal)
+      contabilista: String(f.contabilista ?? '').trim(),
+      crc: String(f.crc ?? '').trim(),
     };
     await salvarFiscal(empresa, dados, g.sessao.email);
     return Response.json({ ok: true });

@@ -13,15 +13,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import SeletorAnalitica, { Historico } from './SeletorAnalitica';
-import { IconeBaixar, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino } from '../icones';
+import { IconeBaixar, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino, IconeSugestao } from '../icones';
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 import { AbasCaixa } from './AbasCaixa';
 import {
-  Aviso, Botao, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
-  EstadoVazio, Indicador, Marcacao, Secao, Selo, tb,
+  Alternador, Aviso, Botao, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
+  EstadoVazio, Indicador, Marcacao, Secao, Selo, seloCls, tb, type Tom,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { sugerirConta, type ConsultaSugestao, type ExemploConferido, type Sugestao } from '@/lib/sugestaoConta';
+import type { NivelAlerta, ResultadoRevisao, RevisaoLancamento } from '@/lib/revisaoCaixa';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; identificaPagador?: boolean; }
@@ -61,6 +63,27 @@ function dataPadrao(ano: number, mes: number): string {
   return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
+/** Número digitado ("1.234,56", "1234.56") — 0 se vazio ou inválido. Espelha `paraValor`. */
+function numeroDigitado(s: string): number {
+  const v = Number(String(s ?? '').replace(/\s|R\$/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/** O que o formulário já diz, no formato da sugestão de conta. A analítica escolhida não entra. */
+function consultaDe(c: Campos): ConsultaSugestao {
+  const entrada = numeroDigitado(c.entrada);
+  const saida = numeroDigitado(c.saida) + numeroDigitado(c.juros) + numeroDigitado(c.multa);
+  const direcao = entrada > 0 ? 'entrada' : saida > 0 ? 'saida' : null;
+  return {
+    complemento: c.complemento, direcao, valor: entrada || saida || null,
+    pagadorNome: c.pagadorNome, pagadorDocumento: c.pagadorDocumento,
+  };
+}
+const chaveConsulta = (q: ConsultaSugestao) => `${q.complemento.trim()}|${q.direcao ?? ''}|${q.valor ?? ''}`;
+
+/** Sugestão como a tela guarda: a da IA traz o id do registro (para medir se foi aceita). */
+type SugestaoTela = Sugestao & { id?: string | null };
+
 export default function Caixa() {
   const [me, setMe] = useState<Me | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -93,6 +116,14 @@ export default function Caixa() {
   const [aExcluir, setAExcluir] = useState<Lancamento | null>(null);
   const [desfazer, setDesfazer] = useState<Lancamento | null>(null); // último excluído, para desfazer
   const [editandoSaldo, setEditandoSaldo] = useState(false);
+
+  // Caixa inteligente (Sprint 5): sugestão de conta ao lançar e revisão antes da conferência.
+  const [modelo, setModelo] = useState<{ exemplos: ExemploConferido[]; ia: boolean } | null>(null);
+  const [sugIa, setSugIa] = useState<{ chave: string; sugestao: SugestaoTela } | null>(null);
+  const [perguntandoIa, setPerguntandoIa] = useState(false);
+  const [revisao, setRevisao] = useState<ResultadoRevisao | null>(null);
+  const [soAtencao, setSoAtencao] = useState(false);
+  const [ordem, setOrdem] = useState<'livro' | 'risco'>('livro');
 
   const ehGestor = me?.role === 'master' || me?.role === 'usuario';
   const anos = useMemo(() => {
@@ -165,17 +196,24 @@ export default function Caixa() {
     setDados(d);
   }, [empresaSel, ano, mes]);
 
+  // Revisão do exercício (só a contabilidade). Falhar aqui não derruba a tela.
+  const carregarRevisao = useCallback(async () => {
+    if (!empresaSel || !ehGestor) { setRevisao(null); return; }
+    const r = await fetch(`/api/caixa/revisao?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`).catch(() => null);
+    setRevisao(r?.ok ? await r.json().catch(() => null) : null);
+  }, [empresaSel, ano, ehGestor]);
+
   const recarregar = useCallback(async () => {
     if (!empresaSel) return;
     setCarregando(true); setErro(null);
     try {
-      await Promise.all([carregarExercicio(), carregarMes()]);
+      await Promise.all([carregarExercicio(), carregarMes(), carregarRevisao()]);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
       setCarregando(false);
     }
-  }, [empresaSel, carregarExercicio, carregarMes]);
+  }, [empresaSel, carregarExercicio, carregarMes, carregarRevisao]);
 
   useEffect(() => { recarregar(); }, [recarregar]);
 
@@ -186,6 +224,16 @@ export default function Caixa() {
       .then((d) => { setContas(d.contas ?? []); setHistoricos(d.historicos ?? []); })
       .catch((e) => setErro(e instanceof Error ? e.message : String(e)));
   }, [empresaSel]);
+
+  // Exemplos para a sugestão de conta: os lançamentos já conferidos da empresa.
+  const carregarModelo = useCallback(() => {
+    if (!empresaSel) return;
+    fetch(`/api/caixa/sugestao?empresa=${encodeURIComponent(empresaSel)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setModelo(d ? { exemplos: d.exemplos ?? [], ia: !!d.ia } : null))
+      .catch(() => setModelo(null));
+  }, [empresaSel]);
+  useEffect(() => { carregarModelo(); }, [carregarModelo]);
 
   // Fila de conferência: é o aviso "a empresa lançou" que a contadora pediu.
   const carregarPendencias = useCallback(() => {
@@ -210,7 +258,8 @@ export default function Caixa() {
     try {
       const d = await chamar('/api/caixa/lancamentos', {
         method: 'POST',
-        body: JSON.stringify({ empresa: empresaSel, ano, ...novo, cheque }),
+        // A sugestão que estava na tela vai junto, para medir se foi aceita.
+        body: JSON.stringify({ empresa: empresaSel, ano, ...novo, cheque, sugestao: sugestaoNova ?? undefined }),
       });
       setMsg(d.criados > 1 ? 'Cheque lançado: retirada do banco + pagamento.' : 'Lançado.');
       setNovo(vazio(novo.data)); // mantém a data: quem digita o mês inteiro agradece
@@ -286,6 +335,7 @@ export default function Caixa() {
     try {
       await chamar('/api/caixa/lancamentos', { method: 'PATCH', body: JSON.stringify({ id: l.id, conferido: marcar }) });
       await carregarMes();
+      carregarModelo(); // o conferido vira exemplo: a sugestão aprende na hora
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
@@ -317,6 +367,28 @@ export default function Caixa() {
     }
   }
 
+  /** Fonte (c) da sugestão: a IA escolhe entre as contas da empresa. Só com clique. */
+  async function perguntarIa() {
+    const q = consultaDe(novo);
+    setPerguntandoIa(true); setErro(null); setMsg(null);
+    try {
+      const d = await chamar('/api/caixa/sugestao', {
+        method: 'POST', body: JSON.stringify({ empresa: empresaSel, complemento: q.complemento, direcao: q.direcao, valor: q.valor }),
+      });
+      if (d.sugestao) setSugIa({ chave: chaveConsulta(q), sugestao: d.sugestao });
+      else setMsg(d.aviso ?? 'A IA não encontrou uma conta segura.');
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPerguntandoIa(false);
+    }
+  }
+
+  /** "Usar" a sugestão: preenche titular + analítica — só com o clique do usuário. */
+  function usarSugestao(s: SugestaoTela) {
+    setNovo({ ...novo, contaId: s.contaId, historico: s.historico, historicoId: s.historicoId });
+  }
+
   async function recarregarContas() {
     const r = await fetch(`/api/caixa/contas?empresa=${encodeURIComponent(empresaSel)}`);
     if (r.ok) { const d = await r.json(); setContas(d.contas ?? []); setHistoricos(d.historicos ?? []); }
@@ -339,12 +411,38 @@ export default function Caixa() {
   // ---------------------------------------------------------------- derivados
   /** Saldo corrido linha a linha, partindo do que veio do mês anterior. */
   const linhas = useMemo(() => {
-    let saldo = dados?.saldoTransportado ?? 0;
-    return (dados?.lancamentos ?? []).map((l) => {
-      saldo += l.entrada - l.saida - l.juros - l.multa;
-      return { l, saldo };
-    });
+    const saida: { l: Lancamento; saldo: number }[] = [];
+    for (const l of dados?.lancamentos ?? []) {
+      const anterior = saida.length ? saida[saida.length - 1].saldo : (dados?.saldoTransportado ?? 0);
+      saida.push({ l, saldo: anterior + l.entrada - l.saida - l.juros - l.multa });
+    }
+    return saida;
   }, [dados]);
+
+  // Sugestão para o novo lançamento: (a) analítica citada, (b) conferidos da empresa;
+  // (c) a da IA, se o usuário pediu e o que está digitado não mudou desde então.
+  const consultaNova = useMemo(() => consultaDe(novo), [novo]);
+  const chaveNova = chaveConsulta(consultaNova);
+  const resultadoSug = useMemo(
+    () => (modelo ? sugerirConta(consultaNova, { exemplos: modelo.exemplos, contas, analiticas: historicos }) : null),
+    [modelo, consultaNova, contas, historicos],
+  );
+  const sugestaoNova: SugestaoTela | null =
+    (sugIa && sugIa.chave === chaveNova ? sugIa.sugestao : null) ?? resultadoSug?.sugestao ?? null;
+  const faixaSugestao = (
+    <FaixaSugestao sugestao={sugestaoNova} contas={contas} escolha={novo}
+      podeIa={!!modelo?.ia && !!resultadoSug?.precisaIa && !sugestaoNova}
+      perguntando={perguntandoIa} onUsar={usarSugestao} onPerguntarIa={perguntarIa} />
+  );
+
+  // Revisão: alertas por lançamento do mês aberto, para o selo, o filtro e a ordem.
+  const pedemAtencao = linhas.filter((x) => revisao?.porLancamento[x.l.id]).length;
+  const linhasVisiveis = useMemo(() => {
+    const base = soAtencao ? linhas.filter((x) => revisao?.porLancamento[x.l.id]) : linhas;
+    if (ordem !== 'risco') return base;
+    // sort estável: empate mantém a ordem do livro
+    return [...base].sort((a, b) => (revisao?.porLancamento[b.l.id]?.risco ?? 0) - (revisao?.porLancamento[a.l.id]?.risco ?? 0));
+  }, [linhas, soAtencao, ordem, revisao]);
 
   // Saldo negativo só avisa, não bloqueia — decisão dela.
   const negativo = linhas.find((x) => x.saldo < 0);
@@ -487,6 +585,30 @@ export default function Caixa() {
           </p>
         )}
 
+        {/* Revisão antes da conferência (só a contabilidade): o que o exercício pede
+            de atenção, e o filtro/ordem da tabela do mês. Só alerta, nunca bloqueia. */}
+        {ehGestor && revisao && revisao.gerais.length > 0 && (
+          <Aviso tom="aviso" titulo="Revisão do exercício">
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {revisao.gerais.map((g, i) => <li key={`${g.codigo}-${g.mes ?? i}`}>{g.motivo}</li>)}
+            </ul>
+          </Aviso>
+        )}
+        {ehGestor && revisao && linhas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-tinta-suave">
+            <Alternador checked={soAtencao} onChange={(e) => setSoAtencao(e.target.checked)} disabled={pedemAtencao === 0 && !soAtencao}>
+              Só os que pedem atenção
+            </Alternador>
+            <Selecao aria-label="Ordem dos lançamentos" largura="w-52" busca={false} valor={ordem}
+              onChange={(v) => setOrdem(v === 'risco' ? 'risco' : 'livro')}
+              opcoes={[{ valor: 'livro', rotulo: 'Ordem do livro' }, { valor: 'risco', rotulo: 'Maior risco primeiro' }]} />
+            <span>
+              {pedemAtencao === 0 ? 'A revisão não viu nada fora do comum neste mês.'
+                : `${pedemAtencao} lançamento(s) deste mês pede(m) atenção — passe o mouse no selo para ver o motivo.`}
+            </span>
+          </div>
+        )}
+
         {/* Novo lançamento — no celular o formulário vem empilhado, fora da tabela. */}
         <Cartao className="p-4 md:hidden">
           <h2 className="mb-3 text-[15px] font-semibold text-tinta">Novo lançamento</h2>
@@ -494,6 +616,7 @@ export default function Caixa() {
             <Celulas empilhado campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
               podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
           </div>
+          <div className="mt-3 empty:hidden">{faixaSugestao}</div>
           <Marcacao type="checkbox" className="mt-3" checked={cheque} onChange={(e) => setCheque(e.target.checked)}>
             Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
           </Marcacao>
@@ -532,7 +655,7 @@ export default function Caixa() {
                 <td></td>
               </tr>
 
-              {linhas.map(({ l, saldo }) => editandoId === l.id ? (
+              {linhasVisiveis.map(({ l, saldo }) => editandoId === l.id ? (
                 <tr key={l.id} className="bg-primaria-suave">
                   <Celulas campos={edicao} setCampos={setEdicao} contas={contas} historicos={historicos}
                     podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
@@ -558,7 +681,10 @@ export default function Caixa() {
                   <td className={`${tb.td} ${l.contaId ? 'text-tinta-suave' : 'font-medium text-aviso'}`}>
                     {rotuloConta(contas, l.contaId)}
                   </td>
-                  <td className={`${tb.td} text-tinta`}>{l.historico}</td>
+                  <td className={`${tb.td} text-tinta`}>
+                    {l.historico}
+                    {ehGestor && <SeloRevisao revisao={revisao?.porLancamento[l.id]} />}
+                  </td>
                   <td className={`${tb.td} ${tb.num} text-sucesso`}>{l.entrada > 0 ? dinheiro(l.entrada) : ''}</td>
                   <td className={`${tb.td} ${tb.num} text-perigo`}>{l.saida > 0 ? dinheiro(l.saida) : ''}</td>
                   <td className={`${tb.td} ${tb.num} text-perigo`}>{l.juros > 0 ? dinheiro(l.juros) : ''}</td>
@@ -602,6 +728,13 @@ export default function Caixa() {
                 </tr>
               ))}
 
+              {!carregando && linhas.length > 0 && linhasVisiveis.length === 0 && (
+                <tr><td colSpan={nCols}>
+                  <EstadoVazio moldura={false} titulo="Nenhum lançamento deste mês pede atenção"
+                    descricao="A revisão não encontrou nada a conferir com cuidado aqui." />
+                </td></tr>
+              )}
+
               {!carregando && linhas.length === 0 && (
                 <tr><td colSpan={nCols}>
                   <EstadoVazio moldura={false} titulo={`Nenhum lançamento em ${mesAberto}`}
@@ -621,6 +754,11 @@ export default function Caixa() {
                   </Botao>
                 </td>
               </tr>
+              {sugestaoNova || resultadoSug?.precisaIa ? (
+                <tr className="bg-superficie-suave max-md:hidden">
+                  <td colSpan={nCols} className="px-3 pt-1">{faixaSugestao}</td>
+                </tr>
+              ) : null}
               <tr className="bg-superficie-suave max-md:hidden">
                 <td colSpan={nCols} className="px-3 pb-3 pt-1 text-xs text-tinta-suave">
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
@@ -670,6 +808,62 @@ export default function Caixa() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * A sugestão de conta do novo lançamento. Só mostra — preencher é o clique em
+ * "Usar". Some quando a escolha do usuário já é a sugerida; quando ele escolheu
+ * outra, continua visível (é um segundo olhar, não uma ordem).
+ */
+function FaixaSugestao({ sugestao, contas, escolha, podeIa, perguntando, onUsar, onPerguntarIa }: {
+  sugestao: SugestaoTela | null; contas: Conta[]; escolha: Campos; podeIa: boolean; perguntando: boolean;
+  onUsar: (s: SugestaoTela) => void; onPerguntarIa: () => void;
+}) {
+  const jaEscolheu = !!escolha.historico;
+  const igual = !!sugestao && sugestao.historico === escolha.historico && (sugestao.contaId ?? null) === (escolha.contaId ?? null);
+  if (sugestao && !igual) {
+    const titular = sugestao.contaId ? rotuloConta(contas, sugestao.contaId) : 'sem conta titular';
+    return (
+      <div aria-live="polite"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-primaria-borda bg-primaria-suave px-3 py-2 text-[13px] text-tinta">
+        <IconeSugestao size={15} className="shrink-0 text-primaria-texto" />
+        <span className="min-w-0 flex-1">
+          {jaEscolheu ? 'O histórico sugere outra conta: ' : 'Sugestão: '}
+          <strong className="font-semibold">{titular} › {sugestao.historico}</strong>
+          <span className="text-tinta-suave"> — {sugestao.motivo}</span>
+          {sugestao.origem === 'ia' && <Selo tom="primaria" className="ml-2">IA</Selo>}
+        </span>
+        <Botao tamanho="sm" variante="tonal" onClick={() => onUsar(sugestao)}>Usar</Botao>
+      </div>
+    );
+  }
+  if (podeIa && !jaEscolheu) {
+    return (
+      <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-tinta-suave">
+        <IconeSugestao size={15} className="shrink-0" />
+        <span>O histórico desta empresa ainda não sabe classificar isso.</span>
+        <Botao tamanho="sm" variante="fantasma" carregando={perguntando} onClick={onPerguntarIa}>
+          Perguntar à IA
+        </Botao>
+      </div>
+    );
+  }
+  return null;
+}
+
+const TOM_NIVEL: Record<NivelAlerta, Tom> = { alto: 'perigo', medio: 'aviso', baixo: 'neutro' };
+
+/** Selo da revisão no lançamento: o rótulo do alerta mais grave; os motivos no balão (mouse e teclado). */
+function SeloRevisao({ revisao }: { revisao: RevisaoLancamento | undefined }) {
+  if (!revisao || revisao.alertas.length === 0) return null;
+  const [primeiro, ...resto] = revisao.alertas; // já vêm do mais grave para o mais leve
+  const motivos = revisao.alertas.map((a) => a.motivo).join(' · ');
+  return (
+    <span tabIndex={0} role="note" aria-label={`Pede atenção: ${motivos}`} data-dica={motivos}
+      className={`${seloCls(TOM_NIVEL[primeiro.nivel])} ml-2 cursor-help align-middle`}>
+      {primeiro.rotulo}{resto.length > 0 ? ` +${resto.length}` : ''}
+    </span>
   );
 }
 
