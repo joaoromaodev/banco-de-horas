@@ -26,7 +26,9 @@ const PUBLICO = [
 const SOMENTE_MASTER = ['/configuracoes', '/api/config'];
 /** Único caminho do papel `cliente`. Negar por padrão: o que não está aqui, ele não vê.
  *  `/api/empresas` entra porque devolve só a empresa da própria sessão (ver lib/acesso). */
-const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias'];
+const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias',
+  // Folha de ponto enviada pelo cliente (0028): a rota da API recorta por empresa e papel.
+  '/enviar-ponto', '/api/envio-ponto'];
 
 /** Rotas do módulo Folha de Ponto (timesheet em `/ponto` + folhas em branco).
  *  `/` NÃO é mais do ponto: é só um redirecionamento por papel (ver lib/inicio). */
@@ -34,6 +36,9 @@ const ROTAS_PONTO = [
   ROTA_PONTO, '/folhas', '/ponto-cadastros',
   '/api/salvar', '/api/extrair', '/api/gerar', '/api/gerar-lote',
   '/api/folha', '/api/folha-lote', '/api/funcionarios', '/api/feriados', '/api/revisao-ponto', '/api/resumo-folha',
+  // Fila das folhas enviadas pelos clientes: o contador precisa do módulo ponto
+  // (o cliente passa por CLIENTE_PODE, antes deste corte).
+  '/api/envio-ponto',
   // Contrato de experiência: departamento pessoal, da mesma contadora do ponto.
   '/contratos', '/api/contratos',
   // Departamento Pessoal (cadastro do empregado, férias, 13º) — mesma contadora.

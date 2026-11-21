@@ -175,3 +175,13 @@ export function IconeSugestao({ size = 16, className }: Props) {
     </svg>
   );
 }
+
+/** Câmera — tirar foto (folha de ponto pelo celular). */
+export function IconeCamera({ size = 16, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.4-2h5.8l1.4 2h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5Z" />
+      <circle cx="12" cy="12.75" r="3.25" />
+    </svg>
+  );
+}

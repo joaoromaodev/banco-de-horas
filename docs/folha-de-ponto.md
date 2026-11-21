@@ -476,3 +476,113 @@ Testes em `tests/conferenciaModulos.test.ts` (bloco `jornadaDaFolha`).
 - A planilha avulsa (`/api/gerar`) não monta jornada por conta própria; não foi mexida.
 - Conferir em produção: abrir revisão e resumo do mesmo mês de uma empresa real — os dias a
   cumprir e as horas devem bater com a planilha do lote (nada deve mudar em relação a antes).
+
+## Folha enviada pelo cliente (Sprint 10 · Frente A)
+
+> A empresa-cliente fotografa a folha manuscrita de cada funcionário no celular e
+> envia; a IA lê em fila e deixa um **rascunho**; a contadora confere na Timesheet,
+> ao lado da foto, e **aplica** à frequência (com desfazer) ou **devolve** com motivo.
+> Nada é gravado na frequência sem a contadora. Branch: `claude/ponto-cliente-c3e04b`.
+> Migração **0028** (**não aplicada**).
+
+### O fluxo
+
+| Passo | Quem | O que acontece |
+|---|---|---|
+| 1. Enviar | cliente, em **`/enviar-ponto`** (menu "Folha de ponto") | Escolhe o mês e o funcionário (lista do cadastro do ponto + DP da empresa, só nomes) e manda uma ou várias fotos: **Tirar foto** (abre a câmera traseira) ou **Escolher arquivo**. Foto grande vira JPEG de até 2.400 px no navegador antes de subir. |
+| 2. Subir | navegador → Storage | Igual aos documentos: `POST /api/envio-ponto` valida o que o navegador declara, grava a linha em `enviando` e devolve URL de upload assinada para `<escritorio>/<envio>.<ext>` (bucket privado **`ponto`**); `PATCH confirmar` baixa a foto e confere tamanho e **assinatura dos bytes**. Não é imagem → `rejeitada` (foto apagada). |
+| 3. Ler | IA, em fila | Logo depois da confirmação (`after()` do Next) a foto é lida pelo Gemini com a **mesma leitura da Timesheet** (`extrairFolha`), consumindo a cota do escritório. Sucesso → `lida`, com o rascunho (dias, campos incertos e o nome que a IA leu no cabeçalho). Falha → `falhou`, **não conta na cota** (fica em `ponto_leituras_ocr` como `falhou`, para o ritmo). |
+| 4. Conferir | contadora, na Timesheet (`/ponto`) | Seção **"Folhas enviadas pelos clientes"** (empresa escolhida, todos os meses pendentes; as conferidas do mês num alternador). **Abrir** carrega a foto ao lado do rascunho no editor de sempre — a **revisão CLT roda ao vivo** sobre o rascunho, com os campos incertos marcados. **Aplicar à frequência** (confirmação dizendo quantos dias entram, quantos já salvos são substituídos e quantos ainda pedem atenção) → toast com **Desfazer**. **Devolver** pede o motivo (o cliente vê) → toast com Desfazer. **Ler / Tentar ler de novo** força a leitura de uma foto que esperou ou falhou. |
+| 5. Acompanhar | cliente | Cada envio com selo: **Recebida** (inclui fila e leitura que falhou — o cliente não precisa saber), **Em conferência** (lida), **Conferida** (aplicada), **Devolvida** + motivo e botão "Enviar de novo". Pode excluir (confirmação + desfazer) o que ainda não foi conferido. A lista se atualiza sozinha enquanto há folha na fila. |
+
+Situações (`ponto_envios.situacao`): `enviando → recebida → lendo → lida | falhou → aplicada | devolvida`, e
+`rejeitada`. `aguardando` diz por que uma `recebida` ainda não foi lida: `cota`, `ritmo`, `limite_empresa`, `sem_ia`.
+
+### Decisões
+
+| Tema | Decisão |
+|---|---|
+| Fila sem worker | A Vercel só roda código dentro de requisição. A leitura começa no `after()` da confirmação e é **retomada** sempre que alguém da empresa ou da contabilidade abre a lista (`GET` → `processarFila`, até 2 por vez, também em `after()`). Foto "lendo" há mais de 5 min (função morta) volta para a fila. Reivindicação atômica (`update … where situacao in (…)`): duas requisições nunca leem a mesma foto. |
+| Cota | Mesma cota mensal do escritório (`lib/cotaOcr.ts`), mesmo fluxo de reserva/reconta de `/api/extrair`, mesmo ritmo (30 tentativas/10 min). Cota esgotada ou ritmo → a foto **espera** (`recebida` + `aguardando`), não falha. |
+| Cota burlável pelo cliente | O cliente não dispara leitura diretamente — só enviando foto. Três freios: **40 envios por empresa por hora** (inclui recusados e abandonados); **teto de leituras automáticas por empresa e mês** = 3 × funcionários do cadastro (mín. 10, máx. 300), contado em `ponto_leituras_ocr` pelo prefixo `cliente:` no `usuario`; e **2 tentativas automáticas** por foto. Passou do teto → "Aguardando você": a contadora decide ler (gasta leitura normal). Um cliente não esgota a cota das outras empresas do escritório. |
+| Funcionário | Só da lista da empresa (ponto + DP não desligado, comparação sem caixa/espaços). A frequência liga pelo **nome**: nome livre criaria um "funcionário" novo. O `empregado_id` do DP é guardado quando há. A contadora pode trocar o nome no editor antes de aplicar (a aplicação usa o nome do editor e grava no envio). Se o nome lido no cabeçalho for outro, a fila avisa. |
+| Mês | O cliente só envia mês que já começou e até 13 meses atrás. O envio fica preso ao seu mês: "Aplicar" desabilita se a contadora trocar o mês na tela. |
+| Aplicar | Reivindica o envio (`aplicada`) guardando os dias que havia (`frequencia_anterior`) e só então grava (`salvarFrequencia` — substitui o mês daquele funcionário, como o "Salvar"). Se gravar falhar, o envio volta. Não aplica duas vezes. Erros da validação (ordem cronológica) seguram o botão, como seguram o "Salvar". |
+| Desfazer | Volta a frequência aos dias de antes e o envio para a conferência. Vale por **12 h** (depois: abra a folha salva e corrija). Desfazer depois de editar a folha salva sobrescreveria a edição — por isso o desfazer é oferecido só no toast. |
+| Devolver | Motivo obrigatório (3–500 caracteres), o cliente vê. Desfazer volta à situação anterior. Devolvida não se aplica: o cliente reenvia (envio novo). |
+| HEIC | Aceito (iPhone). O Gemini lê; o Chrome não mostra HEIC na tela — aviso no editor. Na prática o Safari do iPhone já converte para JPEG no envio, e o navegador reduz para JPEG quando consegue abrir. |
+| Notificação | `lib/envioPontoEventos.ts` → `notificarEnvioPonto({ tipo, envioId, escritorioId, empresaId, ano, mes })`, chamado em `recebida`, `lida`, `falhou`, `aplicada`, `devolvida`. Hoje só registra no log (só ids). **A frente do sino liga aqui** o aviso à contadora ("folha nova da empresa X") e ao cliente ("folha devolvida"); quem chama não muda. |
+
+### Segurança e LGPD
+
+- Rotas: `/api/envio-ponto` (GET/POST/PATCH/DELETE) e `/api/envio-ponto/foto`. Em `CLIENTE_PODE` (com
+  `/enviar-ponto`) e em `ROTAS_PONTO` (contador precisa do módulo ponto). Cliente: `exigirEmpresa` (só a
+  própria empresa) + escritório do cadastro = o da sessão; contabilidade: `escritorioDaEmpresa` de
+  `lib/pontoAcesso.ts`. Por id: `podeVerEnvio` exige o `escritorio_id` **gravado no envio** = o da sessão.
+  Só o cliente inicia envio; só a contabilidade lê, aplica e devolve; só quem iniciou confirma.
+- Foto: bucket privado, sem policies; caminho só com uuids do servidor; token de upload sem `upsert`; leitura
+  por URL assinada de **60 s** com `no-store` e `no-referrer` (a URL não fica na tela).
+- Tipos: JPG, PNG, WEBP, HEIC até **8 MB** — em `TIPOS_FOTO`/`LIMITE_FOTO_BYTES` (`lib/envioPonto.ts`), no bucket e
+  no CHECK da 0028 (andam juntos; um teste trava a lista). Assinatura dos bytes conferida no servidor.
+- O cliente recebe só situação, motivo e datas: sem rascunho, sem e-mails da equipe, sem caminho.
+- Logs sem conteúdo da folha (só ids e mensagem curta do erro). A foto e o nome vão ao Gemini — o mesmo da
+  Timesheet (ver a pendência do nível pago da `GEMINI_API_KEY`).
+- **Retenção:** a foto é apagada do Storage **90 dias** depois de o envio terminar (aplicado, devolvido ou
+  excluído) e em **1 dia** se foi recusada ou abandonada (`expurgarFotos`, no cron diário; o JSON do cron ganhou
+  `fotosPonto`). A linha fica (histórico, rascunho), com `foto_apagada_em`. O prazo de guarda da frequência
+  em si continua sendo decisão do jurídico.
+
+### Arquivos
+
+- `supabase/migrations/0028_ponto_envios.sql`
+- `lib/envioPonto.ts` (regras puras), `lib/envioPontoServidor.ts` (banco, Storage, leitura, faxina),
+  `lib/envioPontoEventos.ts` (gancho de notificação)
+- `app/api/envio-ponto/route.ts`, `app/api/envio-ponto/foto/route.ts`
+- `app/(app)/enviar-ponto/page.tsx` (cliente), `app/(app)/ponto/FolhasEnviadas.tsx` (fila) e trechos de
+  `app/(app)/ponto/page.tsx` (abrir envio, aplicar, devolver, desfazer)
+- Compartilhados, mudança mínima: `proxy.ts` (listas), `app/(app)/layout.tsx` (item do menu do cliente),
+  `app/(app)/icones.tsx` (`IconeCamera`), `app/api/cron/agenda/route.ts` (faxina das fotos)
+- `tests/envioPonto.test.ts`, `tests/envioPontoRotas.test.ts`
+
+### Para o integrador
+
+- **Migração 0028** (aditiva, idempotente): tabela `ponto_envios` + bucket privado `ponto`. Depende só da 0012
+  (e da 0010). Conferir antes `npx supabase migration list --remote` (0024–0027 são de outras frentes e vêm antes:
+  o Supabase não aplica número menor depois de maior). Aplicar com `npx supabase db push` ou colar no SQL Editor. Confira em
+  *Storage* que o bucket `ponto` está **privado**, 8 MB, só imagens.
+  Reversão: `drop table if exists ponto_envios;` e apagar o bucket `ponto` no painel (vazio).
+- Sem a 0028: a tela do cliente mostra "ainda não disponível", a fila da Timesheet não aparece, o resto do
+  ponto segue igual.
+- Sem variável nova (usa `GEMINI_API_KEY`). Sem cron novo (o diário existente faz a faxina).
+- `maxDuration` da rota = 60 s (a leitura roda no `after()` dentro desse tempo).
+- **O que testar** — conta de teste, escritório criado em `/criar-conta`, empresa e usuário cliente de teste.
+  **Nunca** nas empresas da Edilse (NÉLIO, Vaz & Vouzela, L A T Hage):
+  1. Contadora: cadastrar 2 funcionários na empresa de teste (Cadastros do ponto). Criar usuário `cliente`.
+  2. Cliente, no celular: menu "Folha de ponto" → mês anterior → funcionário → **Tirar foto** de uma folha de
+     teste → Enviar. Selo "Recebida"; em ~20 s, "Em conferência". A linha "Leituras por IA" da Timesheet sobe 1.
+  3. Mandar um PDF ou um `.txt` renomeado para `.jpg` → recusado; mandar 2 fotos de uma vez → 2 envios.
+  4. Contadora, Timesheet → empresa de teste: "Folhas enviadas pelos clientes" mostra a folha "Lida pela IA".
+     **Abrir** → foto ao lado, mês e funcionário trocados sozinhos, campos incertos em amarelo, revisão no topo.
+     Corrigir um dia → **Aplicar** → confirmação → toast "aplicada" com Desfazer; a Revisão do mês e o Resumo
+     se atualizam. **Desfazer** → a frequência volta ao que era e a folha volta para a fila.
+  5. **Devolver** com motivo → o cliente vê "Devolvida" + motivo e "Enviar de novo".
+  6. Cliente exclui um envio não conferido → Desfazer traz de volta.
+  7. Isolamento: cliente de outra empresa do mesmo escritório → `GET /api/envio-ponto?empresa=<id>` 403 e
+     `/api/envio-ponto/foto?id=<id>` 404; contador de outro escritório → 403/404; cliente →
+     `PATCH { acao: 'aplicar' }` 403.
+  8. A URL da foto (aba Rede) expira em 60 s.
+  9. Cron: `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/agenda` → JSON com `fotosPonto`.
+  Apague o escritório de teste no fim (as fotos somem pela faxina; ou remova a pasta `<escritorio>/` no bucket).
+- **Não verificado no navegador** (sem banco local; a 0028 não existe em lugar nenhum ainda): typecheck, lint,
+  testes (regras e rotas com banco simulado) e build verdes.
+
+### Pendências
+
+- A página `/enviar-ponto` aparece para todo cliente, mesmo de escritório que não usa a folha de ponto (o
+  módulo é por usuário da contabilidade, não por escritório). Se incomodar: esconder o item quando a empresa
+  não tem funcionário no cadastro do ponto.
+- Ligar `notificarEnvioPonto` ao sino (frente de notificações).
+- Painel do contador (`/painel`) pode mostrar "N folhas enviadas para conferir" por empresa (contar
+  `ponto_envios` com `situacao in (recebida, lida, falhou)`).
+- Foto com mais de uma página (frente e verso): hoje cada foto é um envio e um rascunho; a contadora aplica a
+  principal e devolve/exclui a outra. Juntar duas fotos numa leitura fica para depois.

@@ -29,6 +29,7 @@ import { antecedenciaNoResumo, itensDoDp } from '@/lib/dpAgenda';
 import { dadosDpParaAgenda } from '@/lib/dpServidor';
 import { conjuntoFeriados } from '@/lib/ferias';
 import { abrirPendenciasRecorrentes, ResultadoAbertura } from '@/lib/fechamentoServidor';
+import { expurgarFotos } from '@/lib/envioPontoServidor';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -71,6 +72,16 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     console.error('[cron agenda] fechamento mensal:', e instanceof Error ? e.message : e);
     fechamento = { erro: e instanceof Error ? e.message : 'falha' };
+  }
+
+  // Folhas enviadas pelo cliente (0028): apaga do Storage as fotos fora do prazo de
+  // guarda (LGPD). Falha sozinha; sem a 0028, só registra.
+  let fotosPonto: { apagadas: number } | { erro: string };
+  try {
+    fotosPonto = await expurgarFotos();
+  } catch (e) {
+    console.error('[cron agenda] faxina das fotos do ponto:', e instanceof Error ? e.message : e);
+    fotosPonto = { erro: e instanceof Error ? e.message : 'falha' };
   }
 
   try {
@@ -157,9 +168,9 @@ export async function GET(req: NextRequest) {
         anotar('erro');
       }
     }
-    return Response.json({ dia: hoje, fechamento, escritorios: relatorio });
+    return Response.json({ dia: hoje, fechamento, fotosPonto, escritorios: relatorio });
   } catch (e) {
     console.error('[cron agenda]', e);
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha.', dia: hoje, fechamento, escritorios: relatorio }, { status: 500 });
+    return Response.json({ erro: e instanceof Error ? e.message : 'Falha.', dia: hoje, fechamento, fotosPonto, escritorios: relatorio }, { status: 500 });
   }
 }
