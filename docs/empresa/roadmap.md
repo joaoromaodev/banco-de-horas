@@ -89,6 +89,22 @@ Produção: migrações 0000–0020 (0021 e 0022 não foram usadas; próximo nú
 **0021**). Testes: revisão do ponto nos dados reais da Edilse (só leitura) e arquivada
 com conta de teste (consulta e livro ok; gravação barrada); conta apagada.
 
+## Sprint 8 — Departamento Pessoal e relatórios (planejada)
+
+Priorizada pelo consultor contador em 21/11/2026; nenhuma frente depende de resposta
+da Edilse. Decisões do dono: exportação para a folha em **xlsx genérico** (formato de
+programa específico depois); férias e 13º num **módulo próprio de Departamento
+Pessoal**, com cadastro único do empregado. Migração reservada: **0021** (DP).
+
+| Frente | Modelo | O que é |
+|---|---|---|
+| A. Departamento Pessoal: cadastro único do empregado (admissão, salário, jornada contratual, acordo de banco de horas; liga ponto e contratos por id, não por nome), férias (aquisitivo/concessivo, faltas do art. 130, aviso com 30 dias, fracionamento, vencidas em dobro) e 13º (prazos 30/11 e 20/12) na agenda | Opus alto | 0021; a contadora digita a admissão dos 9 da Vaz & Vouzela |
+| B. Resumo do ponto para a folha: por funcionário e mês, horas extras 50%/100%, adicional noturno com hora reduzida, faltas com perda do DSR, atestados e atrasos; só horas, nunca reais; exporta xlsx | Sonnet alto | lê o "acordo de banco de horas" do DP quando existir |
+| C. Caixa para o cliente: alerta de limite de faturamento (MEI R$ 81 mil/proporcional; Simples 12 meses e sublimite; 80/100/120%) e resumo mensal do cliente ("Demonstrativo de caixa", comparativos, maiores saídas, pendências) com prévia e envio liberado pela contadora | Sonnet médio | envio por e-mail só com `CRON_SECRET` + Resend na Vercel |
+
+Depois: conferência entre módulos (depende do cadastro do empregado) e simulação de
+rescisão (só depois de férias/13º, como simulação).
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
