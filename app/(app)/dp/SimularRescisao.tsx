@@ -1,14 +1,18 @@
 'use client';
 
-// Simular rescisão: escolhe o tipo, a data, o aviso e o que o sistema não sabe (médias,
-// saldo do FGTS…) e mostra a memória de cálculo linha a linha (lib/rescisao.ts). É só
-// SIMULAÇÃO: não grava nada, não muda a situação do empregado e o PDF é gerado aqui no
-// navegador (lib/rescisaoPdf.ts, carregado sob demanda), com marca d'água.
-import { useId, useState } from 'react';
+// Simular rescisão: escolhe o tipo, a data, o aviso e o que o sistema não sabe (saldo do
+// FGTS, dependentes…) e mostra a memória de cálculo linha a linha (lib/rescisao.ts), com
+// INSS, IRRF e o líquido. As médias de HE e noturno vêm do ponto (/api/dp/medias, só
+// leitura) e a contadora pode ajustar mês a mês (MediasPonto.tsx). É só SIMULAÇÃO: não
+// grava nada, não muda a situação do empregado e o PDF é gerado aqui no navegador
+// (lib/rescisaoPdf.ts, carregado sob demanda), com marca d'água.
+import { useEffect, useId, useState } from 'react';
 import { Modal } from '../Dialogo';
 import { Aviso, Botao, cx, Entrada, Indicador, Marcacao, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
-import { br, lerDinheiro, type Empregado } from '@/lib/dp';
+import { br, isoOk, lerDinheiro, type Empregado } from '@/lib/dp';
+import type { AjusteMes, MesPonto } from '@/lib/mediasPonto';
+import { PainelMediasPonto } from './MediasPonto';
 import { somarDias, type FeriasProgramada } from '@/lib/ferias';
 import {
   AVISO_SIMULACAO, ehExperiencia, modosDeAviso, reais, ROTULO_AVISO, simularRescisao, TIPOS_RESCISAO,
@@ -28,8 +32,8 @@ function LinhaTabela({ l }: { l: LinhaRescisao }) {
         <span className="block text-xs text-tinta-suave">{l.memoria}</span>
         <span className="block text-[11px] text-tinta-fraca">{l.fonte}</span>
       </td>
-      <td className={cx(tb.td, tb.num, 'whitespace-nowrap align-top', l.grupo === 'desconto' && 'text-perigo', l.grupo === 'informativo' && 'text-tinta-suave')}>
-        {l.grupo === 'desconto' ? `− ${reais(l.valor)}` : l.grupo === 'informativo' ? `(${reais(l.valor)})` : reais(l.valor)}
+      <td className={cx(tb.td, tb.num, 'whitespace-nowrap align-top', (l.grupo === 'desconto' || l.grupo === 'tributo') && 'text-perigo', l.grupo === 'informativo' && 'text-tinta-suave')}>
+        {l.grupo === 'desconto' || l.grupo === 'tributo' ? `− ${reais(l.valor)}` : l.grupo === 'informativo' ? `(${reais(l.valor)})` : reais(l.valor)}
       </td>
     </tr>
   );
@@ -61,6 +65,35 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
   const [bancoHoras, setBancoHoras] = useState('');
   const [domestico, setDomestico] = useState(false);
   const [quitados, setQuitados] = useState<string[]>([]);
+  const [dependentes, setDependentes] = useState('');
+  const [dataPagamento, setDataPagamento] = useState('');
+  const [simplificado13, setSimplificado13] = useState(false);
+  const [reducao13, setReducao13] = useState(true);
+  const [outrosRend, setOutrosRend] = useState('');
+  const [outrosInss, setOutrosInss] = useState('');
+  const [jaRetido, setJaRetido] = useState('');
+  const [usarPonto, setUsarPonto] = useState(true);
+  const [incluirMes, setIncluirMes] = useState(false);
+  const [ajustes, setAjustes] = useState<Record<string, AjusteMes>>({});
+  const [ponto, setPonto] = useState<{ ate: string; meses: MesPonto[] | null; erro: string | null } | null>(null);
+
+  // Horas do ponto (só leitura) para as médias: relê quando a data muda de mês.
+  const mesDeslig = isoOk(desligamento) ? desligamento : '';
+  useEffect(() => {
+    if (!mesDeslig || !usarPonto) return;
+    let vivo = true;
+    fetch(`/api/dp/medias?id=${encodeURIComponent(e.id)}&ate=${mesDeslig}`)
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        if (!vivo) return;
+        if (!r.ok) setPonto({ ate: mesDeslig, meses: null, erro: j.erro ?? 'Não foi possível ler o ponto. As médias ficam só pelo campo “Outras médias”.' });
+        else setPonto({ ate: mesDeslig, meses: j.meses ?? [], erro: null });
+      })
+      .catch(() => { if (vivo) setPonto({ ate: mesDeslig, meses: null, erro: 'Sem conexão para ler o ponto. Tente de novo.' }); });
+    return () => { vivo = false; };
+  }, [e.id, mesDeslig, usarPonto]);
+  const pontoAtual = ponto && ponto.ate === mesDeslig ? ponto : null;
+  const carregandoPonto = usarPonto && Boolean(mesDeslig) && !pontoAtual;
   const [gerando, setGerando] = useState(false);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
 
@@ -73,6 +106,9 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
     diasAvisoNaoCumpridos: Number(diasFaltaram) || 0, bancoHorasPositivo: Number(String(bancoHoras).replace(',', '.')) || 0,
     horasSemanais: e.horasSemanais, temBancoHoras: e.bancoHoras, domestico, faltas, aquisitivoBase: e.aquisitivoBase,
     ferias, periodosQuitados: quitados, feriados, situacao: e.situacao, afastamentoTipo: e.afastamentoTipo,
+    ponto: usarPonto ? pontoAtual?.meses ?? null : null, ajustesPonto: ajustes, incluirMesDesligamento: incluirMes,
+    dependentesIr: Number(dependentes) || 0, dataPagamento: isoOk(dataPagamento) ? dataPagamento : null, simplificado13, reducao13,
+    outrosRendimentosMes: valorOuZero(outrosRend), outrosInssMes: valorOuZero(outrosInss), irrfJaRetidoMes: valorOuZero(jaRetido),
   };
   // Recalcula a cada renderização: é puro e barato.
   const r = simularRescisao(entrada);
@@ -106,6 +142,7 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
 
   const proventos = r.linhas.filter((l) => l.grupo === 'provento');
   const descontos = r.linhas.filter((l) => l.grupo === 'desconto');
+  const tributos = r.linhas.filter((l) => l.grupo === 'tributo');
   const informativos = r.linhas.filter((l) => l.grupo === 'informativo');
   const comSaldo = r.ferias.filter((p) => p.devidos > 0);
   const ok = r.erros.length === 0;
@@ -139,8 +176,8 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
             dica="Vem do cadastro; mudar aqui não altera a ficha." />
           <Entrada rotulo="Adicionais fixos por mês (R$)" inputMode="decimal" value={adicionais} onChange={(x) => setAdicionais(x.target.value)}
             dica="Insalubridade, periculosidade, gratificação fixa. Entram também no saldo." />
-          <Entrada rotulo="Médias de variáveis por mês (R$)" inputMode="decimal" value={medias} onChange={(x) => setMedias(x.target.value)}
-            dica="Horas extras, comissões, adicional noturno. Entram no aviso, 13º e férias." />
+          <Entrada rotulo="Outras médias por mês (R$)" inputMode="decimal" value={medias} onChange={(x) => setMedias(x.target.value)}
+            dica="Comissões, gorjetas, HE fora do ponto. Somam às médias do ponto no aviso, 13º e férias." />
           <Entrada rotulo="Saldo do FGTS para fins rescisórios (R$)" inputMode="decimal" value={saldoFgts} onChange={(x) => setSaldoFgts(x.target.value)}
             dica="Do extrato. O sistema não sabe o saldo real." />
           <Entrada rotulo="FGTS do mês anterior não recolhido (R$)" inputMode="decimal" value={fgtsAnterior} onChange={(x) => setFgtsAnterior(x.target.value)}
@@ -153,6 +190,30 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
             <Marcacao type="checkbox" checked={domestico} onChange={(x) => setDomestico(x.target.checked)}>Empregador doméstico (LC 150/2015)</Marcacao>
           </div>
         </div>
+
+        <fieldset className="mt-4 rounded-lg border border-borda p-3">
+          <legend className="px-1 text-[13px] font-semibold text-tinta">INSS e IRRF</legend>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Entrada rotulo="Dependentes para o IR" type="number" min={0} max={20} value={dependentes} onChange={(x) => setDependentes(x.target.value)}
+              dica="Dedução por dependente da tabela do IRRF." />
+            <Entrada rotulo="Data do pagamento" type="date" value={dataPagamento} onChange={(x) => setDataPagamento(x.target.value)}
+              dica={`Escolhe a tabela do IRRF (regime de caixa). Vazio = o prazo, ${br(r.prazoPagamento) || '—'}.`} />
+            <div className="flex flex-col justify-end gap-1.5 pb-2">
+              <Marcacao type="checkbox" checked={reducao13} onChange={(x) => setReducao13(x.target.checked)}>Redução da Lei 15.270 no IRRF do 13º</Marcacao>
+              <Marcacao type="checkbox" checked={simplificado13} onChange={(x) => setSimplificado13(x.target.checked)}>Desconto simplificado no IRRF do 13º</Marcacao>
+            </div>
+            <Entrada rotulo="Outros rendimentos pagos no mês (R$)" inputMode="decimal" value={outrosRend} onChange={(x) => setOutrosRend(x.target.value)}
+              dica="Ex.: salário do mês anterior pago no mesmo mês da rescisão. O IRRF soma tudo o que é pago no mês." />
+            <Entrada rotulo="INSS desses rendimentos (R$)" inputMode="decimal" value={outrosInss} onChange={(x) => setOutrosInss(x.target.value)}
+              dica="Deduz da base do IRRF do mês." />
+            <Entrada rotulo="IRRF já retido sobre eles (R$)" inputMode="decimal" value={jaRetido} onChange={(x) => setJaRetido(x.target.value)}
+              dica="Abate do IRRF da rescisão." />
+          </div>
+        </fieldset>
+
+        <PainelMediasPonto ponto={pontoAtual?.meses ?? null} carregando={carregandoPonto} erro={pontoAtual?.erro ?? null} medias={r.medias}
+          ajustes={ajustes} onAjustar={(mes, a) => setAjustes((x) => ({ ...x, [mes]: a }))}
+          incluirMesDesligamento={incluirMes} onIncluirMes={setIncluirMes} usarPonto={usarPonto} onUsarPonto={setUsarPonto} desligamento={desligamento} />
 
         {comSaldo.length > 0 && (
           <fieldset className="mt-4 rounded-lg border border-borda p-3">
@@ -175,8 +236,9 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
           </Aviso>
         ) : (
           <>
-            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Indicador rotulo="Total bruto estimado" valor={reais(r.totalBruto)} destaque />
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Indicador rotulo="Líquido estimado" valor={reais(r.totalLiquido)} destaque />
+              <Indicador rotulo="Bruto (antes de INSS e IRRF)" valor={reais(r.totalBruto)} />
               <Indicador rotulo="Pagar até (art. 477 §6º)" valor={br(r.prazoPagamento)} />
               <Indicador rotulo={r.fgts?.percentual ? `Multa do FGTS (${Math.round(r.fgts.percentual * 100)}%)` : 'Multa do FGTS'}
                 valor={r.fgts?.multa != null ? reais(r.fgts.multa) : r.fgts?.percentual ? 'Informe o saldo' : 'Não há'} />
@@ -206,9 +268,20 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
                       <td className={cx(tb.td, tb.num, 'font-semibold text-perigo')}>− {reais(r.totalDescontos)}</td>
                     </tr>
                   )}
-                  <tr className="bg-superficie-realce">
-                    <td className={cx(tb.td, 'font-semibold text-tinta')}>Total bruto estimado <span className="font-normal text-tinta-suave">(sem INSS e IRRF)</span></td>
+                  <tr className="bg-superficie-suave">
+                    <td className={cx(tb.td, 'font-semibold text-tinta')}>Total bruto <span className="font-normal text-tinta-suave">(antes de INSS e IRRF)</span></td>
                     <td className={cx(tb.td, tb.num, 'font-semibold text-tinta')}>{reais(r.totalBruto)}</td>
+                  </tr>
+                  {tributos.map((l) => <LinhaTabela key={l.id} l={l} />)}
+                  {tributos.length > 0 && (
+                    <tr className="bg-superficie-suave">
+                      <td className={cx(tb.td, 'font-semibold text-tinta')}>INSS e IRRF</td>
+                      <td className={cx(tb.td, tb.num, 'font-semibold text-perigo')}>− {reais(r.totalTributos)}</td>
+                    </tr>
+                  )}
+                  <tr className="bg-superficie-realce">
+                    <td className={cx(tb.td, 'font-semibold text-tinta')}>Líquido estimado <span className="font-normal text-tinta-suave">(sem pensão alimentícia; FGTS e multa à parte{r.fgts?.percentual && r.fgts.multa == null ? ' — a multa ainda não foi estimada' : ''})</span></td>
+                    <td className={cx(tb.td, tb.num, 'font-semibold text-tinta')}>{reais(r.totalLiquido)}</td>
                   </tr>
                   {informativos.map((l) => <LinhaTabela key={l.id} l={l} />)}
                 </tbody>

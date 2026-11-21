@@ -11,6 +11,7 @@ import {
   lerDinheiro, nomeChave, soDigitos, cpfValido, type DadosEmpregado, type Empregado,
 } from './dp';
 import type { FeriasProgramada } from './ferias';
+import { MARCADORES, type DiaFreq } from './tipos';
 
 export class ErroDp extends Error {
   constructor(msg: string, readonly status = 400) {
@@ -243,6 +244,40 @@ export async function mesesComPonto(escritorioId: string, e: Pick<Empregado, 'id
     lerTudo<any>((de, ate) => base().is('empregado_id', null).eq('funcionario', e.nome).order('id').range(de, ate), { falhar, max: 20_000 }),
   ]);
   return [...new Set([...porId, ...porNome].map((l) => `${l.ano}-${String(l.mes).padStart(2, '0')}`))].sort();
+}
+
+/**
+ * Dias do ponto do empregado (marcações e marcadores) de `desde` a `ate` (AAAA-MM), por mês.
+ * Liga pelo `empregado_id`; linhas antigas sem ele, pelo nome — como `mesesComPonto`.
+ * Para as médias da rescisão (rota /api/dp/medias); só leitura.
+ */
+export async function lerPontoDoEmpregado(
+  escritorioId: string, e: Pick<Empregado, 'id' | 'empresaId' | 'nome'>, desde: string, ate: string,
+): Promise<Map<string, DiaFreq[]>> {
+  const db = getDb();
+  const [anoDe, anoAte] = [Number(desde.slice(0, 4)), Number(ate.slice(0, 4))];
+  const base = () => db.from('ponto_frequencias')
+    .select('id, ano, mes, dia, entrada_manha, saida_almoco, retorno_almoco, saida_tarde, marcador')
+    .eq('escritorio_id', escritorioId).eq('empresa_id', e.empresaId).gte('ano', anoDe).lte('ano', anoAte);
+  const [porId, porNome] = await Promise.all([
+    lerTudo<any>((de, a) => base().eq('empregado_id', e.id).order('id').range(de, a), { falhar, max: 20_000 }),
+    lerTudo<any>((de, a) => base().is('empregado_id', null).eq('funcionario', e.nome).order('id').range(de, a), { falhar, max: 20_000 }),
+  ]);
+  const r = new Map<string, Map<number, DiaFreq>>();
+  for (const l of [...porId, ...porNome]) {
+    const mes = `${l.ano}-${String(l.mes).padStart(2, '0')}`;
+    if (mes < desde || mes > ate) continue;
+    if (!r.has(mes)) r.set(mes, new Map());
+    const dia = Number(l.dia);
+    // Se o mesmo dia vier pelo id e pelo nome, fica o primeiro (o do id).
+    if (r.get(mes)!.has(dia)) continue;
+    r.get(mes)!.set(dia, {
+      dia, entradaManha: l.entrada_manha ?? null, saidaAlmoco: l.saida_almoco ?? null,
+      retornoAlmoco: l.retorno_almoco ?? null, saidaTarde: l.saida_tarde ?? null,
+      marcador: MARCADORES.includes(l.marcador) ? l.marcador : null,
+    });
+  }
+  return new Map([...r].map(([m, dias]) => [m, [...dias.values()].sort((a, b) => a.dia - b.dia)]));
 }
 
 /** Cadastro do ponto ligado (para a jornada diária e o nome usado no Timesheet). */

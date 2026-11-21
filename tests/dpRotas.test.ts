@@ -74,6 +74,10 @@ vi.mock('@/lib/dpServidor', async (orig) => {
     lerFaltas: async (_e: unknown, emps: { id: string }[]) => new Map(emps.map((e) => [e.id, []])),
     mesesComPonto: async () => [],
     funcionarioDoPonto: async () => null,
+    // Março/26 com 2 h de HE num dia útil (08–12 e 13–19 = 10 h; jornada 8 h).
+    lerPontoDoEmpregado: async () => new Map([['2026-03', [
+      { dia: 10, entradaManha: '08:00', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saidaTarde: '19:00', marcador: null },
+    ]]]),
     criarEmpregado: async () => { gravacoes.push('criarEmpregado'); return EMPREGADOS[EMP_A]; },
     atualizarEmpregado: async () => { gravacoes.push('atualizarEmpregado'); return EMPREGADOS[EMP_A]; },
     criarFerias: async () => { gravacoes.push('criarFerias'); return FERIAS[FER_A]; },
@@ -86,6 +90,7 @@ const lista = await import('@/app/api/dp/route');
 const ficha = await import('@/app/api/dp/empregado/route');
 const ferias = await import('@/app/api/dp/ferias/route');
 const documento = await import('@/app/api/dp/documento/route');
+const medias = await import('@/app/api/dp/medias/route');
 
 const req = (url: string, init?: { method?: string; body?: unknown }) => new NextRequest(new URL(url, 'http://localhost'), {
   method: init?.method ?? 'GET',
@@ -129,6 +134,33 @@ describe('isolamento entre escritórios', () => {
     expect((await ficha.GET(req('/api/dp/empregado?id=44444444-4444-4444-8444-444444444444'))).status).toBe(404);
     sessaoAtual = null;
     expect((await ficha.GET(req(`/api/dp/empregado?id=${EMP_A}`))).status).toBe(401);
+  });
+});
+
+describe('médias do ponto para a rescisão (/api/dp/medias)', () => {
+  it('B leva 403 com o id de A; cliente 403; sem sessão 401', async () => {
+    sessaoAtual = SESSOES.contadorB;
+    expect((await medias.GET(req(`/api/dp/medias?id=${EMP_A}&ate=2026-11-20`))).status).toBe(403);
+    sessaoAtual = SESSOES.clienteA;
+    expect((await medias.GET(req(`/api/dp/medias?id=${EMP_A}&ate=2026-11-20`))).status).toBe(403);
+    sessaoAtual = null;
+    expect((await medias.GET(req(`/api/dp/medias?id=${EMP_A}&ate=2026-11-20`))).status).toBe(401);
+  });
+  it('A recebe só horas, mês a mês, desde a admissão (2025-03) até o mês do desligamento', async () => {
+    sessaoAtual = SESSOES.contadorA;
+    const r = await medias.GET(req(`/api/dp/medias?id=${EMP_A}&ate=2026-11-20`));
+    expect(r.status).toBe(200);
+    const { meses } = await r.json();
+    expect(meses[0].mes).toBe('2025-03');
+    expect(meses[meses.length - 1].mes).toBe('2026-11');
+    const marco = meses.find((m: { mes: string }) => m.mes === '2026-03');
+    expect(marco).toMatchObject({ temPonto: true, he50Min: 120, he100Min: 0 });
+    expect(meses.find((m: { mes: string }) => m.mes === '2026-04').temPonto).toBe(false);
+    expect(JSON.stringify(meses)).not.toMatch(/salario|cpf/i);
+  });
+  it('data inválida → 400', async () => {
+    sessaoAtual = SESSOES.contadorA;
+    expect((await medias.GET(req(`/api/dp/medias?id=${EMP_A}&ate=xx`))).status).toBe(400);
   });
 });
 
