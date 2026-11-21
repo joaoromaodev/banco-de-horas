@@ -386,3 +386,40 @@ export function alertaDe(d: DadosContrato, situacao: Situacao, hoje = hojeBelem(
   if (dias <= janela) return { tipo: 'vence', ...marco, dias };
   return null;
 }
+
+// ------------------------------------------------------------------ alertas consolidados
+
+/** Linha da faixa de alertas do topo: um contrato de qualquer empresa do escritório. */
+export interface AlertaConsolidado extends Alerta {
+  id: string;
+  empresa: string;
+  empresaNome: string;
+  nome: string;
+}
+
+export interface ContratoParaAlerta {
+  id: string; empresa: string; empresaNome: string; situacao: Situacao; dados: DadosContrato;
+}
+
+/**
+ * O que é urgente (pura, testada): contrato **em experiência** cujo próximo marco
+ * (fim do 1º período ou da prorrogação) já passou — porque vencido sem aviso vira
+ * prazo indeterminado — ou cai nos próximos `janela` dias (padrão 7).
+ *
+ * Ordem: vencidos primeiro, do mais atrasado ao menos; depois os que vencem, do
+ * mais próximo ao mais distante. Empate: nome do empregado, depois empresa.
+ */
+export function alertasConsolidados(
+  contratos: ContratoParaAlerta[], hoje = hojeBelem(), janela = 7,
+): AlertaConsolidado[] {
+  const lista: AlertaConsolidado[] = [];
+  for (const c of contratos) {
+    const a = alertaDe(c.dados, c.situacao, hoje, janela);
+    if (a) lista.push({ ...a, id: c.id, empresa: c.empresa, empresaNome: c.empresaNome, nome: c.dados.nome });
+  }
+  // `dias` negativo = vencido; ordenar por `dias` crescente já põe o mais atrasado primeiro.
+  return lista.sort((x, y) =>
+    x.dias - y.dias
+    || x.nome.localeCompare(y.nome, 'pt-BR')
+    || x.empresaNome.localeCompare(y.empresaNome, 'pt-BR'));
+}

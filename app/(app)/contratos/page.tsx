@@ -4,9 +4,9 @@
 // três documentos (contrato, declaração de vale-transporte e aviso de término)
 // a partir dos modelos dela. Os contratos ficam salvos para lembrar dos
 // vencimentos. Ver docs/contratos-experiencia.md.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  alertaDe, avisos, br, ContratoSalvo, DadosContrato, dadosVazios, Dia, DIAS, diasEntre, Documento,
+  AlertaConsolidado, avisos, br, ContratoSalvo, DadosContrato, dadosVazios, Dia, DIAS, diasEntre, Documento,
   formatarValor, horarioPadrao, HorarioDia, hojeBelem, lerValor, minutosSemana, reaisExtenso,
   retornoSugerido, Situacao, Trajeto, validar, vencimento1, vencimento2,
 } from '@/lib/contratos';
@@ -39,6 +39,8 @@ export default function ContratosPage() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [contratos, setContratos] = useState<ContratoSalvo[]>([]);
   const [semTabela, setSemTabela] = useState(false);
+  const [alertas, setAlertas] = useState<AlertaConsolidado[]>([]);
+  const [formato, setFormato] = useState<'docx' | 'pdf'>('docx');
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [situacao, setSituacao] = useState<Situacao>('experiencia');
@@ -91,11 +93,34 @@ export default function ContratosPage() {
     setSemTabela(Boolean(x.semTabela));
     empregadoraRef.current = x.empregadora ?? null;
     setContratos(lista);
-    if (reiniciar) novo(empresasRef.current.find((e) => e.id === id), lista);
+    carregarAlertas();
+    const alvo = abrirPendente.current ? lista.find((c) => c.id === abrirPendente.current) : undefined;
+    abrirPendente.current = null;
+    if (alvo) abrir(alvo);
+    else if (reiniciar) novo(empresasRef.current.find((e) => e.id === id), lista);
+  }
+
+  /** Faixa do topo: vencimentos de TODAS as empresas que o usuário enxerga. */
+  async function carregarAlertas() {
+    try {
+      const r = await fetch('/api/contratos/alertas');
+      const x = await r.json();
+      if (r.ok) setAlertas(x.alertas ?? []);
+    } catch { /* a faixa é só um lembrete: sem ela a tela segue funcionando */ }
+  }
+
+  /** Clique num alerta: troca para a empresa dele (se preciso) e abre o contrato. */
+  function abrirAlerta(a: AlertaConsolidado) {
+    const c = a.empresa === empresaSel ? contratos.find((k) => k.id === a.id) : undefined;
+    if (c) { abrir(c); return; }
+    abrirPendente.current = a.id;
+    trocarEmpresa(a.empresa);
   }
 
   // `empresas` vista de dentro de callbacks assíncronos
   const empresasRef = useRef<Empresa[]>([]);
+  // contrato a abrir assim que a lista da empresa escolhida pelo alerta chegar
+  const abrirPendente = useRef<string | null>(null);
   // endereço/cidade da sede vindos do cadastro fiscal da empresa
   const empregadoraRef = useRef<{ endereco: string; cidade: string } | null>(null);
 
@@ -111,6 +136,7 @@ export default function ContratosPage() {
   }
 
   useEffect(() => {
+    try { if (localStorage.getItem('contratos.formato') === 'pdf') setFormato('pdf'); } catch {}
     fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)).then((x) => {
       const lista: Empresa[] = x?.empresas ?? [];
       empresasRef.current = lista;
@@ -225,13 +251,13 @@ export default function ContratosPage() {
       try { localStorage.setItem(`contratos.empregadora.${empresaSel}`, JSON.stringify({ endereco: d.empresaEndereco, cidade: d.cidade })); } catch {}
       const r = await fetch('/api/contratos/documento', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empresa: empresaSel, documento: doc, dados: d }),
+        body: JSON.stringify({ empresa: empresaSel, documento: doc, dados: d, formato }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erro ?? 'Falha ao gerar.');
       const blob = await r.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = nomeDoArquivo(r.headers.get('Content-Disposition'), doc === 'todos' ? 'documentos.zip' : `${doc}.docx`);
+      a.download = nomeDoArquivo(r.headers.get('Content-Disposition'), doc === 'todos' ? 'documentos.zip' : `${doc}.${formato}`);
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (e) {
@@ -280,11 +306,6 @@ export default function ContratosPage() {
     : undefined;
   if (anterior) listaAvisos.push(`Já existe contrato de experiência com este CPF (admissão em ${br(anterior.dados.admissao)}). A CLT (art. 452) exige 6 meses entre contratos a prazo.`);
 
-  const alertas = useMemo(() => contratos
-    .map((c) => ({ c, a: alertaDe(c.dados, c.situacao, hoje) }))
-    .filter((x): x is { c: ContratoSalvo; a: NonNullable<ReturnType<typeof alertaDe>> } => x.a != null)
-    .sort((x, y) => x.a.dias - y.a.dias), [contratos, hoje]);
-
   const filtrados = contratos.filter((c) => !busca.trim() || c.dados.nome.toLowerCase().includes(busca.trim().toLowerCase()));
 
   return (
@@ -317,12 +338,13 @@ export default function ContratosPage() {
         )}
 
         {alertas.length > 0 && (
-          <Aviso tom="aviso" titulo="Vencimentos de experiência">
+          <Aviso tom={alertas.some((a) => a.tipo === 'vencido') ? 'perigo' : 'aviso'} titulo="Vencimentos de experiência — todas as empresas">
             <ul className="mt-1 space-y-1">
-              {alertas.map(({ c, a }) => (
-                <li key={c.id}>
-                  <button type="button" onClick={() => abrir(c)} className="rounded text-left underline-offset-2 hover:underline">
-                    <strong>{c.dados.nome}</strong> — {a.marco} {a.tipo === 'vencido'
+              {alertas.map((a) => (
+                <li key={a.id}>
+                  <button type="button" onClick={() => abrirAlerta(a)} className="rounded text-left underline-offset-2 hover:underline">
+                    <strong>{a.nome}</strong> <span className="text-tinta-suave">({a.empresaNome || 'empresa'})</span> — {a.marco}{' '}
+                    {a.tipo === 'vencido'
                       ? <span className="font-semibold text-perigo">venceu em {br(a.data)}: marque como efetivado ou encerrado</span>
                       : <>vence em {br(a.data)} ({a.dias === 0 ? 'hoje' : a.dias === 1 ? 'amanhã' : `em ${a.dias} dias`})</>}
                   </button>
@@ -539,6 +561,12 @@ export default function ContratosPage() {
                 </Botao>
               </span>
               <span className="mx-1 hidden h-6 w-px bg-borda sm:block" aria-hidden="true" />
+              <div role="radiogroup" aria-label="Formato do documento" className="flex items-center gap-3">
+                {([['docx', 'Word'], ['pdf', 'PDF']] as const).map(([v, r]) => (
+                  <Marcacao key={v} type="radio" name="formato" checked={formato === v}
+                    onChange={() => { setFormato(v); try { localStorage.setItem('contratos.formato', v); } catch {} }}>{r}</Marcacao>
+                ))}
+              </div>
               {([['contrato', 'Contrato'], ['vale', 'Declaração de VT'], ['encerramento', 'Aviso de término']] as const).map(([doc, r]) => (
                 <Botao key={doc} onClick={() => baixar(doc)} carregando={ocupado === doc} disabled={!!ocupado} icone={<IconeBaixar />}>
                   {ocupado === doc ? 'Gerando…' : r}

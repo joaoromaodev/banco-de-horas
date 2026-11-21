@@ -114,3 +114,16 @@ export async function excluirContrato(id: string, restaurar = false): Promise<vo
     .update({ excluido_em: restaurar ? null : new Date().toISOString() }).eq('id', id);
   if (error) traduzir(error);
 }
+
+/**
+ * Contratos em experiência de várias empresas de uma vez (faixa de alertas do
+ * topo). O chamador passa só as empresas que a sessão pode ver.
+ */
+export async function listarEmExperiencia(empresas: string[]): Promise<ContratoSalvo[]> {
+  if (!empresas.length) return [];
+  const { data, error } = await getDb().from(TABELA)
+    .select('id, empresa_id, situacao, dados, criado_por, criado_em, atualizado_em')
+    .in('empresa_id', empresas).eq('situacao', 'experiencia').is('excluido_em', null);
+  if (error) traduzir(error);
+  return (data as Linha[]).map(deLinha);
+}

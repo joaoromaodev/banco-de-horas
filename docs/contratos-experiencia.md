@@ -3,7 +3,7 @@
 > Documento de continuidade. Leia antes de mexer em `/contratos`. Mantenha-o
 > atualizado ao fim de cada etapa.
 
-Última atualização: **12/11/2026**
+Última atualização: **21/11/2026** (Sprint 3, Frente C)
 
 ## Por que existe
 
@@ -32,12 +32,52 @@ admite muita gente por experiência. Ela mandou três modelos do Word:
   geram alerta no topo quando o 1º período ou a prorrogação vence em ≤ 7 dias,
   e alerta vermelho quando já venceu (contrato vencido sem providência vira
   prazo indeterminado — o alerta só some quando ela marca efetivado/encerrado).
+  **Desde 21/11/2026 a faixa do topo é de todas as empresas** do usuário (ver
+  "Alertas consolidados").
 - Exclusão: confirmação + **desfazer** (exclusão lógica, `excluido_em`).
 - Pré-preenchimentos: razão social e horário vêm do cadastro da empresa
   (jornada e "trabalha sábado"); endereço da sede e cidade vêm do último
   contrato salvo da empresa, senão do cadastro fiscal (`empresa_fiscal`), senão
   do navegador; nome sugere os funcionários do
   cadastro do ponto e puxa o cargo para a função.
+
+## Alertas consolidados (Sprint 3 / Frente C)
+
+- Faixa no topo de `/contratos` com os contratos **em experiência** de **todas as
+  empresas que o usuário enxerga** cujo marco (fim do 1º período ou da prorrogação)
+  vence em ≤ 7 dias ou já passou. Cada linha mostra empregado, empresa, marco e
+  prazo; clicar troca para a empresa e abre o contrato.
+- Regra de urgência: função pura `alertasConsolidados` em `lib/contratos.ts`
+  (testes em `tests/contratos.test.ts`). Ordem: vencidos primeiro, do mais
+  atrasado ao menos; depois os que vencem, do mais próximo ao mais distante;
+  empate por nome. A faixa fica vermelha se houver algum vencido.
+- Dados: `GET /api/contratos/alertas` (`exigirGestor` + `empresasVisiveis`:
+  master vê tudo; contador, o escritório dele). Uma consulta só
+  (`listarEmExperiencia`). Sem a tabela (migração 0009 pendente) responde vazio.
+- A faixa recarrega depois de salvar, mudar situação, excluir e desfazer.
+
+## PDF direto (Sprint 3 / Frente C)
+
+- Ao lado dos botões de download há a escolha **Word | PDF** (lembrada no
+  navegador). `POST /api/contratos/documento` aceita `formato: 'pdf'` (padrão
+  `docx`); o ".zip da admissão" sai com o formato escolhido.
+- **Decisão:** PDF desenhado com **pdf-lib** (`lib/contratosPdf.ts`) a partir dos
+  mesmos campos de `camposDoDocumento`, e não convertido do .docx. Motivos: a
+  Vercel não tem LibreOffice; serviço externo de conversão custaria dinheiro e
+  mandaria CPF/CTPS para fora; pdf-lib já é dependência e roda em qualquer função.
+  Sem dependência nova, sem arquivo de fonte para versionar.
+- **Fonte:** Times (padrão do PDF, codificação WinAnsi), que cobre todo o
+  português — acentos, ç, aspas curvas, travessão. Não é "embutida" no arquivo: o
+  leitor usa a Times dele (todos têm). Caractere fora do WinAnsi vira `?` em vez
+  de derrubar a geração.
+- **Fidelidade:** reproduz o **texto, a ordem e as cláusulas** dos três modelos
+  (contrato + termo de prorrogação em página própria, declaração de VT com os
+  trajetos, aviso de término), mas **não o desenho pixel a pixel** — margens,
+  tabela do horário e blocos de assinatura são nossos. Por isso o **.docx continua
+  sendo o padrão** (é o que a contadora edita e imprime); o PDF é a alternativa
+  para mandar/arquivar sem abrir o Word.
+- **Manutenção:** se o texto de um modelo mudar (`preparar_modelos.py`), o PDF
+  **não muda sozinho** — atualize o texto correspondente em `lib/contratosPdf.ts`.
 
 ## Regras de data (lib/contratos.ts)
 
@@ -78,12 +118,35 @@ runtime é um replace de string com escape de XML.
   num checkout com `main` desatualizado — o remoto já ia até `0008`. Lição:
   **`git fetch` + `supabase migration list --remote` antes de numerar migração.**
   No CLI v3 o `db push` precisa de `--remote` (sem ele tenta o banco local).
-- ⬜ Validar com a Edilse o layout impresso dos três documentos.
+- ⬜ Validar com a Edilse o layout impresso dos três documentos (.docx e PDF).
+
+- ✅ Sprint 3 / Frente C (21/11/2026): alertas de todas as empresas no topo e
+  PDF direto. Sem migração.
+
+## Para o integrador (o que testar em produção)
+
+Sem migração e sem variável de ambiente nova. Nada disto foi exercitado contra o
+banco real (a máquina de desenvolvimento não tem `.env.local`): só typecheck,
+lint, Vitest e build.
+
+1. **Faixa de alertas:** entre como contador de um escritório com 2+ empresas e
+   contratos em experiência. Cadastre/edite um contrato com admissão que faça o
+   1º período vencer em ≤ 7 dias (e outro vencido) em empresas diferentes → ambos
+   aparecem no topo, vencido primeiro, faixa vermelha. Clique num de outra
+   empresa: troca a empresa e abre o contrato. Marque como efetivado → some da faixa.
+2. **Recorte:** um contador de outro escritório **não** pode ver esses contratos na
+   faixa; o master vê todos. Um usuário `cliente` continua sem alcançar a tela.
+3. **Sem tabela:** antes da migração 0009 a faixa some e a tela segue gerando documentos.
+4. **PDF:** escolha **PDF**, baixe os três documentos e o .zip. Confira acentuação
+   (nome com ç/ã/é), os campos preenchidos, a tabela de horário (dia de FOLGA),
+   o termo de prorrogação em página própria e as linhas de assinatura. Compare com
+   o .docx — **se a Edilse achar o layout diferente demais, o .docx segue como padrão.**
+5. **Impressão:** imprima o PDF em A4 e confira margens/quebra de página (o contrato
+   deve caber em 1 página + termo; texto muito longo no endereço pode empurrar a
+   assinatura para a página seguinte).
 
 ## Ideias para depois (não pedidas)
 
-- Alertas de vencimento de **todas** as empresas no topo (hoje é por empresa).
 - Aviso no Timesheet/menu quando houver contrato vencendo.
-- PDF direto (hoje sai `.docx`, que ela edita/imprime no Word).
 - Módulo próprio `dp` em vez de pegar carona no `ponto`, se algum contador
   quiser contratos sem a folha de ponto.

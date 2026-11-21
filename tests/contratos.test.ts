@@ -3,7 +3,7 @@ import {
   somarDias, diaSemanaIso, diasEntre, hojeBelem, isoValida, br, dataExtenso,
   vencimento1, vencimento2, retornoSugerido, horarioPadrao, minutosSemana,
   inteiroExtenso, reaisExtenso, lerValor, formatarValor, dadosVazios, normalizarDados,
-  validar, avisos, campos, camposDoDocumento, alertaDe, type DadosContrato,
+  validar, avisos, campos, camposDoDocumento, alertaDe, alertasConsolidados, type DadosContrato,
 } from '@/lib/contratos';
 
 afterEach(() => vi.useRealTimers());
@@ -263,5 +263,61 @@ describe('alertaDe', () => {
     expect(alertaDe(d, 'efetivado', '2026-12-16')).toBeNull();
     expect(alertaDe(d, 'encerrado', '2026-12-16')).toBeNull();
     expect(alertaDe(base({ admissao: '' }), 'experiencia', '2026-12-16')).toBeNull();
+  });
+});
+
+describe('alertasConsolidados (faixa do topo, todas as empresas)', () => {
+  // admissão + 45 dias − 1 = vencimento do 1º período; sem prorrogação para simplificar
+  const c = (id: string, empresa: string, nome: string, admissao: string, situacao: 'experiencia' | 'efetivado' | 'encerrado' = 'experiencia', prorr = 0) => ({
+    id, empresa, empresaNome: `Empresa ${empresa}`, situacao,
+    dados: base({ nome, admissao, diasPeriodo: 45, diasProrrogacao: prorr }),
+  });
+  const HOJE = '2026-11-21';
+  // vence1 = admissão + 44
+  const venceEm = (n: number) => somarDias(HOJE, n - 44); // admissão que faz o 1º período vencer em n dias
+
+  it('junta empresas diferentes e ordena: vencidos (mais atrasado primeiro), depois os que vencem (mais próximo primeiro)', () => {
+    const r = alertasConsolidados([
+      c('a', 'X', 'Ana', venceEm(5)),
+      c('b', 'Y', 'Bia', venceEm(-3)),
+      c('c', 'X', 'Caio', venceEm(0)),
+      c('d', 'Z', 'Davi', venceEm(-10)),
+      c('e', 'Y', 'Eva', venceEm(2)),
+    ], HOJE);
+    expect(r.map((x) => x.id)).toEqual(['d', 'b', 'c', 'e', 'a']);
+    expect(r.map((x) => x.tipo)).toEqual(['vencido', 'vencido', 'vence', 'vence', 'vence']);
+    expect(r[0]).toMatchObject({ empresa: 'Z', empresaNome: 'Empresa Z', nome: 'Davi', dias: -10 });
+  });
+
+  it('janela de 7 dias: dia 7 entra, dia 8 não', () => {
+    const r = alertasConsolidados([c('a', 'X', 'Ana', venceEm(7)), c('b', 'X', 'Bia', venceEm(8))], HOJE);
+    expect(r.map((x) => x.id)).toEqual(['a']);
+  });
+
+  it('só contratos em experiência: efetivado e encerrado não geram alerta, mesmo vencidos', () => {
+    const r = alertasConsolidados([
+      c('a', 'X', 'Ana', venceEm(-5), 'efetivado'),
+      c('b', 'X', 'Bia', venceEm(-5), 'encerrado'),
+      c('c', 'X', 'Caio', venceEm(-5)),
+    ], HOJE);
+    expect(r.map((x) => x.id)).toEqual(['c']);
+  });
+
+  it('com prorrogação, o marco passa a ser o fim dela depois que o 1º período vence', () => {
+    // 1º período venceu há 3 dias; prorrogação de 45 dias → vence em 42 dias (fora da janela)
+    expect(alertasConsolidados([c('a', 'X', 'Ana', venceEm(-3), 'experiencia', 45)], HOJE)).toEqual([]);
+    // prorrogação de 5 dias → vence em 2 dias
+    const r = alertasConsolidados([c('a', 'X', 'Ana', venceEm(-3), 'experiencia', 5)], HOJE);
+    expect(r[0]).toMatchObject({ marco: 'prorrogação', tipo: 'vence', dias: 2 });
+  });
+
+  it('desempate estável: mesmo prazo ordena por nome', () => {
+    const r = alertasConsolidados([c('b', 'X', 'Zeca', venceEm(3)), c('a', 'Y', 'Ana', venceEm(3))], HOJE);
+    expect(r.map((x) => x.nome)).toEqual(['Ana', 'Zeca']);
+  });
+
+  it('lista vazia e janela customizada', () => {
+    expect(alertasConsolidados([], HOJE)).toEqual([]);
+    expect(alertasConsolidados([c('a', 'X', 'Ana', venceEm(10))], HOJE, 10)).toHaveLength(1);
   });
 });
