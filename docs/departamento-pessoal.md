@@ -393,3 +393,55 @@ e aviso na ficha do empregado, filtrado pelo empregado).
 
 - Simulação de rescisão: só simulação; limites e pontos divergentes na seção própria.
   Próximo passo natural: INSS/IRRF e médias de horas extras tiradas do ponto.
+
+## Sprint 10 · Frente B — edição em lote ("Completar cadastro")
+
+Os 9 empregados da Vaz & Vouzela estão sem admissão e a contadora tinha de abrir a ficha de
+um em um. Na lista do `/dp`, o botão **Completar cadastro** (e o do aviso "Falta a data de
+admissão") abre duas formas de preencher tudo de uma vez. **Só preenche e atualiza, nunca
+apaga**: célula vazia = não mexer; valor igual ao do cadastro também não é mudança.
+
+| Peça | Arquivo |
+|---|---|
+| Regras puras (células, plano da linha, planilha, desfazer) | `lib/dpLote.ts` — `tests/dpLote.test.ts` |
+| Ler `.xlsx`/`.csv` e gerar o modelo (servidor) | `lib/dpLoteArquivo.ts` |
+| Gravar só as colunas pedidas | `atualizarCamposEmpregado` em `lib/dpServidor.ts` |
+| Rotas | `app/api/dp/lote/route.ts` (grade, prévia, aplicar, desfazer), `lote/modelo/route.ts` — `tests/dpLoteRotas.test.ts` |
+| Tela | `app/(app)/dp/CompletarCadastro.tsx` (a `page.tsx` só abre/fecha) |
+
+- **Colunas**: admissão, cargo, salário base, horas por semana, escala, banco de horas e
+  "banco desde". O resto da ficha (CPF, situação, nome…) **não** é tocado em lote.
+- **Grade**: uma linha por empregado (sem os desligados), com o que já está no cadastro; a
+  célula alterada fica destacada, com erro embaixo dela (data inválida, salário, horas 1–70,
+  escala, Sim/Não). Esvaziar uma célula e sair volta o valor do cadastro. "Salvar alterações"
+  fica desligado enquanto houver erro; pede confirmação e depois mostra **Desfazer**.
+- **Planilha**: modelo para baixar (`.xlsx` ou `.csv`, já com os empregados e valores atuais, e
+  uma aba "Como preencher"); ao enviar, mostra a **prévia** linha a linha ("Admissão: — →
+  10/03/2025"), o que não casou e o que tem erro; só então "Aplicar planilha". Casa pelo
+  **nome** (sem caixa/espaço duplo); **não cadastra** empregado novo, recusa nome repetido na
+  planilha e homônimo no cadastro. Colunas desconhecidas (CPF…) são ignoradas e listadas — o CPF
+  nunca é lido. Máx. 2 MB e 300 linhas. Aceita datas dd/mm/aaaa, ISO e datas do Excel.
+- **Validação**: por célula no navegador, e refeita **no servidor** ao gravar (o navegador manda
+  o que foi digitado, não "o que mudou"). A linha inteira também passa por `validarEmpregado`
+  (ex.: admissão depois da data de afastamento), então a regra é a mesma da ficha. Erro numa
+  linha a deixa de fora; as boas gravam; as falhas voltam numa mensagem.
+- **Desfazer**: o servidor devolve `antes`/`depois` de cada campo gravado; desfazer volta o campo
+  ao `antes` (inclusive vazio) **só se ainda estiver como foi gravado** — edição posterior vale
+  mais. O `antes` vindo do navegador passa pela mesma leitura das células.
+- **Acesso**: como o resto do DP (`exigirEmpresaPonto`, módulo `ponto`, só contabilidade);
+  empresa arquivada = consulta (409 ao gravar); ids de fora da empresa/escritório viram falha.
+  A grade traz salário (é o que se completa) mas **nunca CPF**.
+- Achado de passagem: `isoOk` (`lib/dp.ts`) lançava `RangeError` com mês 13/dia 32; agora devolve `false`.
+
+### Para o integrador (Sprint 10 · Frente B)
+
+- **Sem migração** para o lote. Arquivos novos acima; tocados: `lib/dp.ts` (`isoOk`),
+  `lib/dpServidor.ts` (+ `atualizarCamposEmpregado`), `app/(app)/dp/page.tsx` (botão, estado
+  `completando`, 3 linhas). **Não** mexe em `Ficha.tsx` nem na simulação de rescisão (Frente B
+  da outra sprint): o conflito esperado em `page.tsx` é só nos botões da seção "Empregados".
+- Testar em produção com **conta de teste** (nunca gravar nas empresas da Edilse): cadastrar 3
+  empregados; Completar cadastro → preencher admissão/salário em dois → Salvar → confirmar →
+  **Desfazer**; baixar o modelo, preencher no Excel (uma data errada, um nome que não existe),
+  enviar → a prévia aponta os dois problemas e não grava nada até "Aplicar planilha".
+  Só leitura na Vaz & Vouzela: abrir Completar cadastro, baixar o modelo (os 9, sem admissão),
+  **não** salvar.

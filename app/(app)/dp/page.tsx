@@ -18,6 +18,7 @@ import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import ConferenciaModulos from '../ConferenciaModulos';
 import { Ficha, TOM_SITUACAO } from './Ficha';
 import { FormEmpregado } from './FormEmpregado';
+import { CompletarCadastro } from './CompletarCadastro';
 
 interface EmpresaLista { id: string; nome: string; arquivadaEm?: string | null }
 interface DadosLista { empregados: Empregado[]; ferias: FeriasProgramada[]; faltas: Record<string, string[]>; aguardandoBanco?: boolean }
@@ -45,6 +46,8 @@ export default function DepartamentoPessoalPage() {
   const [carregando, setCarregando] = useState(true);
   const [aberto, setAberto] = useState<string | null>(null);
   const [cadastrando, setCadastrando] = useState(false);
+  // Edição em lote (grade e planilha) no lugar da lista.
+  const [completando, setCompletando] = useState(false);
   const [busca, setBusca] = useState('');
   const [mostrarDesligados, setMostrarDesligados] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -70,6 +73,7 @@ export default function DepartamentoPessoalPage() {
     setEmpresaSel(id);
     setAberto(empregado);
     setBusca('');
+    setCompletando(false);
     gravarUrl(id, empregado);
     if (id && !empresasRef.current.find((e) => e.id === id)?.arquivadaEm) { try { localStorage.setItem(CHAVE_EMPRESA, id); } catch {} }
     carregar(id);
@@ -161,6 +165,9 @@ export default function DepartamentoPessoalPage() {
           <Ficha key={aberto} id={aberto} hoje={hoje} onVoltar={() => abrir(null)} onMudou={() => {}} />
         ) : carregando ? <Carregando /> : !empresaSel ? (
           <EstadoVazio titulo="Nenhuma empresa" descricao="Cadastre uma empresa-cliente em Cadastro para começar." />
+        ) : dados && !dados.aguardandoBanco && completando ? (
+          <CompletarCadastro empresaId={empresaSel} empresaNome={empresa?.nome ?? ''} somenteLeitura={Boolean(empresa?.arquivadaEm)} hoje={hoje}
+            onVoltar={() => { setCompletando(false); carregar(empresaSel); }} onGravou={() => {}} />
         ) : dados && !dados.aguardandoBanco && (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -171,8 +178,9 @@ export default function DepartamentoPessoalPage() {
             </div>
 
             {semAdmissao > 0 && (
-              <Aviso tom="info" titulo="Falta a data de admissão">
-                {semAdmissao === 1 ? '1 empregado está' : `${semAdmissao} empregados estão`} sem data de admissão — sem ela não dá para calcular férias nem 13º. Abra a ficha e use “Editar dados”.
+              <Aviso tom="info" titulo="Falta a data de admissão"
+                acao={<Botao tamanho="sm" variante="tonal" onClick={() => setCompletando(true)}>Completar cadastro</Botao>}>
+                {semAdmissao === 1 ? '1 empregado está' : `${semAdmissao} empregados estão`} sem data de admissão — sem ela não dá para calcular férias nem 13º. Complete tudo de uma vez em “Completar cadastro” ou abra a ficha de cada um.
               </Aviso>
             )}
 
@@ -181,6 +189,7 @@ export default function DepartamentoPessoalPage() {
             <Secao titulo="Empregados"
               acoes={<div className="flex flex-wrap items-center gap-2">
                 <Entrada aria-label="Buscar empregado" placeholder="Buscar pelo nome" tamanho="sm" largura="w-48" value={busca} onChange={(e) => setBusca(e.target.value)} />
+                {linhas.length > 0 && <Botao tamanho="sm" onClick={() => setCompletando(true)}>Completar cadastro</Botao>}
                 {desligados > 0 && (
                   <Botao tamanho="sm" variante="fantasma" onClick={() => setMostrarDesligados((v) => !v)}>
                     {mostrarDesligados ? 'Ocultar desligados' : `Mostrar desligados (${desligados})`}

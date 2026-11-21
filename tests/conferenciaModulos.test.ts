@@ -65,7 +65,7 @@ describe('conferirModulos', () => {
     });
     const r = conferirModulos(f, EMP).achados.filter((a) => a.codigo === 'ponto_sem_vinculo');
     expect(r.map((a) => a.empregado).sort()).toEqual(['DUDA', 'ZEZE']);
-    expect(r.find((a) => a.empregado === 'ZEZE')!.href).toBe('/ponto');
+    expect(r.find((a) => a.empregado === 'ZEZE')!.href).toBe('/ponto?empresa=e1');
   });
 
   it('2) ativo sem admissão já apontado em (1) não repete em (2)', () => {
