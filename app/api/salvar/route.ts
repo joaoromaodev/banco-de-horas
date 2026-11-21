@@ -1,6 +1,6 @@
 // POST /api/salvar — grava a frequência revisada no Google Sheets.
 import { NextRequest } from 'next/server';
-import { exigirGestor } from '@/lib/acesso';
+import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { salvarFrequencia } from '@/lib/sheets';
 import { Frequencia } from '@/lib/tipos';
 
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
   if (!freq || !freq.empresa || !freq.funcionario || !freq.ano || !freq.mes) {
     return Response.json({ erro: 'Frequência incompleta (empresa, funcionário, mês e ano).' }, { status: 400 });
   }
+  if (!(await podeAcessarEmpresa(g.sessao, freq.empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
 
   try {
     const dias = await salvarFrequencia(freq);

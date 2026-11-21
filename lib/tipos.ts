@@ -68,9 +68,10 @@ export interface Empresa {
   jornadaSabadoMin?: number;
   ordem?: number | null;
   /**
-   * E-mail do contador (papel `usuario`) dono desta empresa. Cada contador só
-   * enxerga as suas; o `master` vê todas. Vazio = ainda sem dono (legado),
-   * visível a qualquer contabilidade até alguém a reivindicar ao salvar.
+   * E-mail do contador (papel `usuario`) responsável por esta empresa. Desde o
+   * multi-escritório é só informação — a visibilidade é por `escritorioId`.
    */
   contador?: string | null;
+  /** Escritório contábil dono da empresa (o inquilino). Ver lib/visibilidade.ts. */
+  escritorioId?: string | null;
 }

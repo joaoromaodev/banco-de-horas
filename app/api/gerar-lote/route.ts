@@ -2,7 +2,7 @@
 // Sheets) e devolve tudo num .zip.
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
-import { exigirGestor } from '@/lib/acesso';
+import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { gerarPlanilha } from '@/lib/planilha';
 import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios, lerJornadaEmpresa, lerEmpresa } from '@/lib/sheets';
 import { MESES } from '@/lib/calendario';
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   if (!empresa) {
     return Response.json({ erro: 'Informe a empresa.' }, { status: 400 });
   }
+  if (!(await podeAcessarEmpresa(g.sessao, empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
   if (!ano || !mes || mes < 1 || mes > 12) {
     return Response.json({ erro: 'Parâmetros ano/mes inválidos.' }, { status: 400 });
   }

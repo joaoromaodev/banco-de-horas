@@ -18,7 +18,11 @@ Módulos, com bancos diferentes:
   [`docs/contratos-experiencia.md`](docs/contratos-experiencia.md) (templates não
   podem ser editados no Word).
 
-Três papéis — `master`, `usuario` (contabilidade) e `cliente` (empresa). O `cliente`
+Multi-escritório: o inquilino é o **escritório contábil** (`escritorios`, migração
+`0010`); empresas e usuários têm `escritorio_id` e o recorte é por ele — leia
+[`docs/multi-escritorio.md`](docs/multi-escritorio.md). Três papéis — `master`
+(administra a plataforma, vê tudo), `usuario` (contabilidade; o admin do escritório
+gerencia a equipe) e `cliente` (empresa). O `cliente`
 segue **lista de permissão** em `proxy.ts`: o que não está em `CLIENTE_PODE` ele não
 alcança. Toda rota de API nova precisa chamar a guarda correspondente de
 `lib/acesso.ts`.

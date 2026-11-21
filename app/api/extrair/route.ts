@@ -1,7 +1,7 @@
 // POST /api/extrair — recebe a foto da folha (multipart) e devolve a
 // frequência estruturada + campos incertos, via Gemini.
 import { NextRequest } from 'next/server';
-import { exigirGestor } from '@/lib/acesso';
+import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { extrairFolha } from '@/lib/ocr';
 import { getGeminiApiKey, getGeminiModelo } from '@/lib/config';
 import { getGeminiKeyDaConfig } from '@/lib/sheets';
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
   const empresa = (form.get('empresa') as string) || undefined;
   const funcionario = (form.get('funcionario') as string) || undefined;
 
+  if (empresa && !(await podeAcessarEmpresa(g.sessao, empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
   if (!(file instanceof File)) {
     return Response.json({ erro: 'Arquivo de imagem não enviado.' }, { status: 400 });
   }

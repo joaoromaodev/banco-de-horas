@@ -1,8 +1,9 @@
 // Autenticação: hash de senha (PBKDF2) e sessão em cookie assinado (HMAC).
 // Usa Web Crypto — funciona tanto no runtime Node quanto no edge (proxy.ts).
 
-/** `master` administra o sistema; `usuario` é a contadora (vê todas as empresas);
- *  `cliente` é o administrativo da empresa-cliente (vê só a empresa dele). */
+/** `master` administra a plataforma (vê todos os escritórios); `usuario` é o
+ *  contador de um escritório (vê as empresas do escritório); `cliente` é o
+ *  administrativo da empresa-cliente (vê só a empresa dele). */
 export type Papel = 'master' | 'usuario' | 'cliente';
 
 /** Os dois módulos da plataforma. Cada contador é liberado por módulo. */
@@ -17,6 +18,11 @@ export interface Sessao {
   empresa?: string;
   /** Módulos liberados para esta sessão. Já resolvido no login (ver `resolverModulos`). */
   modulos?: Modulo[];
+  /** Escritório contábil (o inquilino). Ausente só no `master`. Sessões emitidas
+   *  antes do multi-escritório não têm o campo — lib/acesso.ts completa do banco. */
+  escritorioId?: string;
+  /** Administrador do escritório (só papel `usuario`): gerencia a equipe. */
+  adminEscritorio?: boolean;
   exp: number; // epoch ms
 }
 
@@ -43,9 +49,18 @@ export function temModulo(s: Sessao | null | undefined, m: Modulo): boolean {
   return (s.modulos ?? MODULOS).includes(m);
 }
 
+/** Tamanho mínimo de senha nova (cadastro self-service e convites da equipe). */
+export const SENHA_MIN = 8;
+
+/** Formato básico de e-mail — a confirmação de verdade é o login. */
+export function emailValido(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) && email.length <= 254;
+}
+
 const DURACAO_MS = 1000 * 60 * 60 * 12; // 12h
 
-function getSecret(): string {
+/** Segredo do servidor (sessão e fichas de desfazer). */
+export function getSecret(): string {
   return process.env.SESSION_SECRET || 'dev-secret-troque-em-producao';
 }
 

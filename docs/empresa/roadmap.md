@@ -10,9 +10,9 @@
 
 | Frente | Sessão | Branch | Status |
 |---|---|---|---|
-| A. Multi-escritório (inquilinos) + cadastro self-service com teste grátis | `multi-escritorio` | a definir | ⏳ |
-| B. Site público: landing, planos, termos de uso, privacidade (LGPD) | `site-publico` | `claude/site-publico-c4e042` | ✅ pronto p/ revisão — `/conheca`, `/planos`, `/termos`, `/privacidade` em `app/(site)/`; `/` sem sessão vai a `/conheca`. Pendências: depoimento da Edilce (TODO), textos legais (advogado), `/criar-conta` (Frente A) |
-| C. Qualidade: testes (Vitest) das regras puras + CI no GitHub Actions | `testes-ci` | `claude/testes-ci-eaaca5` | ✅ pronta p/ integração — ver [`docs/testes.md`](../testes.md) |
+| A. Multi-escritório (inquilinos) + cadastro self-service com teste grátis | `multi-escritorio` | `claude/multi-escritorio-1e4a33` | ✅ integrada — ver [`docs/multi-escritorio.md`](../multi-escritorio.md) |
+| B. Site público: landing, planos, termos de uso, privacidade (LGPD) | `site-publico` | `claude/site-publico-c4e042` | ✅ integrada. Pendências: depoimento da Edilse, dados da empresa nos termos, advogado |
+| C. Qualidade: testes (Vitest) das regras puras + CI no GitHub Actions | `testes-ci` | `claude/testes-ci-eaaca5` | ✅ integrada — ver [`docs/testes.md`](../testes.md) |
 
 Integração (dono): merge, migração em produção (com backup) e push após lint/build/testes. Mensagens à Edilce: o dono redige, o João envia.
 

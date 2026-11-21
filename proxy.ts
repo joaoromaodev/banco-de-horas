@@ -1,11 +1,16 @@
-// Gate de sessão: exige login (cookie assinado) para tudo, exceto /login e assets.
+// Gate de sessão: exige login (cookie assinado) para tudo, exceto /login, /criar-conta e assets.
 // Rotas de master (/configuracoes, /api/usuarios, /api/config) exigem role 'master'.
 // O papel 'cliente' (administrativo da empresa) segue lista de permissão: só
 // alcança o que estiver em CLIENTE_PODE — todo o resto é do gestor.
 import { NextRequest, NextResponse } from 'next/server';
 import { lerSessao, temModulo, COOKIE_SESSAO } from '@/lib/auth';
 
-const PUBLICO = ['/login', '/api/login', '/api/logout', '/conheca', '/planos', '/termos', '/privacidade'];
+// Site público + `/criar-conta` (cadastro self-service do escritório, teste grátis).
+const PUBLICO = [
+  '/login', '/api/login', '/api/logout',
+  '/conheca', '/planos', '/termos', '/privacidade',
+  '/criar-conta', '/api/criar-conta',
+];
 // `/api/usuarios` NÃO entra aqui de propósito: ela agora atende master e contador
 // e faz o recorte fino por papel/dono internamente (ver a rota). O `cliente` já é
 // barrado por não constar em CLIENTE_PODE.

@@ -7,6 +7,7 @@ import { Alternador, Botao, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, En
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
+import { SENHA_MIN } from '@/lib/auth';
 
 interface Administrador { email: string; nome: string; role: string; empresa: string | null; }
 
@@ -24,6 +25,7 @@ export default function Cadastro() {
   const [novo, setNovo] = useState({ nome: '', email: '', senha: '', empresa: '' });
   const [salvandoAdmin, setSalvandoAdmin] = useState(false);
   const [aExcluir, setAExcluir] = useState<Administrador | null>(null);
+  const [desfazer, setDesfazer] = useState<{ nome: string; ficha: string } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -85,12 +87,29 @@ export default function Cadastro() {
     finally { setSalvandoAdmin(false); }
   }
 
-  async function removerAdmin(email: string) {
+  async function removerAdmin(u: Administrador) {
     setMsg(null); setErro(null); setAExcluir(null);
     try {
-      const res = await fetch(`/api/usuarios?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
+      const res = await fetch(`/api/usuarios?email=${encodeURIComponent(u.email)}`, { method: 'DELETE' });
       const d = await res.json();
       if (!res.ok) throw new Error(d.erro);
+      setDesfazer({ nome: u.nome, ficha: d.desfazer });
+      carregarAdmins();
+    } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
+  }
+
+  async function desfazerRemocao() {
+    if (!desfazer) return;
+    setErro(null);
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restaurar: desfazer.ficha }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.erro);
+      setMsg(`${desfazer.nome} voltou a ter acesso.`);
+      setDesfazer(null);
       carregarAdmins();
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
@@ -110,6 +129,12 @@ export default function Cadastro() {
       <Toasts>
         {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
         {msg && <Toast onFechar={() => setMsg(null)}>{msg}</Toast>}
+        {desfazer && (
+          <Toast tom="info" onFechar={() => setDesfazer(null)}
+            acao={<Botao tamanho="sm" variante="tonal" onClick={desfazerRemocao}>Desfazer</Botao>}>
+            {desfazer.nome} foi removido.
+          </Toast>
+        )}
       </Toasts>
 
       <Conteudo largura="media">
@@ -118,8 +143,8 @@ export default function Cadastro() {
           descricao={<>
             A razão social aparece no cabeçalho da planilha e no Termo.
             {ehMaster
-              ? ' Como administrador, você vê as empresas de todos os contadores e define o responsável de cada uma.'
-              : ' Você vê e edita apenas as suas empresas.'}
+              ? ' Como administrador da plataforma, você vê as empresas de todos os escritórios e define o contador responsável de cada uma.'
+              : ' Você vê e edita as empresas do seu escritório.'}
           </>}>
           <div className={`${tb.moldura} shadow-none`}>
             <table className={tb.tabela}>
@@ -214,7 +239,7 @@ export default function Cadastro() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Entrada rotulo="Nome" value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} />
             <Entrada rotulo="E-mail" type="email" autoComplete="off" value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} />
-            <Entrada rotulo="Senha" dica="Mínimo de 4 caracteres." type="password" autoComplete="new-password" value={novo.senha}
+            <Entrada rotulo="Senha" dica={`Mínimo de ${SENHA_MIN} caracteres.`} type="password" autoComplete="new-password" value={novo.senha}
               onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
             <Selecao rotulo="Empresa" valor={novo.empresa} onChange={(v) => setNovo({ ...novo, empresa: v })}
               placeholder="Escolha a empresa…"
@@ -233,7 +258,7 @@ export default function Cadastro() {
           titulo="Remover administrador"
           mensagem={<>Deseja realmente remover <strong>{aExcluir.nome}</strong> ({aExcluir.email})? Ele perde o acesso ao sistema.</>}
           textoConfirmar="Remover"
-          onConfirmar={() => removerAdmin(aExcluir.email)}
+          onConfirmar={() => removerAdmin(aExcluir)}
           onCancelar={() => setAExcluir(null)}
         />
       )}

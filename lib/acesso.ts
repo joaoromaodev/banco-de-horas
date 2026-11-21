@@ -5,46 +5,73 @@
 // empresa?" —, aplicada dentro de cada rota. Defesa em profundidade: uma rota
 // nova que esqueça de chamar estas funções não vaza dados de outra empresa
 // porque o `cliente` já não alcança as rotas de gestão.
+//
+// Multi-escritório: o inquilino é o escritório contábil. As regras puras estão
+// em lib/visibilidade.ts; aqui elas ganham a sessão e o I/O.
 import { NextRequest } from 'next/server';
 import { COOKIE_SESSAO, lerSessao, Sessao } from './auth';
-import { lerEmpresa } from './sheets';
+import { buscarUsuario, lerEmpresa, lerEmpresas } from './cadastro';
+import { empresaVisivel } from './visibilidade';
 import { Empresa } from './tipos';
 
 export type Guarda =
   | { ok: true; sessao: Sessao }
   | { ok: false; resposta: Response };
 
-export async function sessaoDe(req: NextRequest): Promise<Sessao | null> {
-  return lerSessao(req.cookies.get(COOKIE_SESSAO)?.value);
+// Sessões emitidas antes do multi-escritório (cookie de até 12h) não carregam o
+// escritório. Em vez de derrubar quem já estava logado (a Edilce e o NÉLIO),
+// completamos do banco — com cache curto, porque uma tela dispara várias rotas.
+const cacheVinculo = new Map<string, { em: number; escritorioId?: string; admin: boolean }>();
+const TTL_VINCULO_MS = 60_000;
+
+async function completarEscritorio(s: Sessao): Promise<Sessao> {
+  if (s.role === 'master' || s.escritorioId) return s;
+  const chave = s.email.toLowerCase();
+  let v = cacheVinculo.get(chave);
+  if (!v || Date.now() - v.em > TTL_VINCULO_MS) {
+    try {
+      const u = await buscarUsuario(chave);
+      v = { em: Date.now(), escritorioId: u?.escritorioId ?? undefined, admin: Boolean(u?.adminEscritorio) };
+      cacheVinculo.set(chave, v);
+    } catch {
+      return s; // banco indisponível: segue sem escritório (não enxerga nada)
+    }
+  }
+  return v.escritorioId ? { ...s, escritorioId: v.escritorioId, adminEscritorio: v.admin } : s;
 }
 
-/** Administra o sistema e enxerga todas as empresas (master ou contadora). */
+export async function sessaoDe(req: NextRequest): Promise<Sessao | null> {
+  const s = await lerSessao(req.cookies.get(COOKIE_SESSAO)?.value);
+  return s ? completarEscritorio(s) : null;
+}
+
+/** Master ou contador — a "contabilidade" (cadastros, ponto, conferência). */
 export function ehGestor(s: Sessao | null | undefined): boolean {
   return s?.role === 'master' || s?.role === 'usuario';
 }
 
 /**
- * Visibilidade a partir do objeto empresa já carregado (sem I/O).
- *
- * - `master` vê todas.
- * - `usuario` (contador) vê só as suas — as que têm o e-mail dele como dono, ou
- *   as ainda sem dono (legado), que ele reivindica ao salvar o cadastro.
- * - `cliente` vê só a empresa vinculada à sessão.
+ * Visibilidade a partir do objeto empresa já carregado (sem I/O). Ver
+ * `empresaVisivel` em lib/visibilidade.ts: master vê todas; contador, as do
+ * escritório; cliente, só a vinculada (e do escritório dele).
  */
-export function empresaVisivelPara(s: Sessao, e: Pick<Empresa, 'id' | 'contador'>): boolean {
-  if (s.role === 'master') return true;
-  if (s.role === 'usuario') return !e.contador || e.contador === s.email.toLowerCase();
-  return Boolean(s.empresa) && s.empresa === e.id;
+export function empresaVisivelPara(s: Sessao, e: Pick<Empresa, 'id' | 'escritorioId'>): boolean {
+  return empresaVisivel(s, e);
+}
+
+/** As empresas que esta sessão enxerga. */
+export async function empresasVisiveis(s: Sessao): Promise<Empresa[]> {
+  return (await lerEmpresas()).filter((e) => empresaVisivelPara(s, e));
 }
 
 /**
- * Mesma decisão, mas só com o id da empresa. `master`/`cliente` resolvem sem
- * tocar no Sheets; o contador precisa consultar o dono (leitura cacheada).
+ * Mesma decisão, mas só com o id da empresa. O master resolve sem I/O; os
+ * demais consultam o escritório da empresa (leitura cacheada em lib/cadastro).
  */
 export async function podeAcessarEmpresa(s: Sessao, empresaId: string): Promise<boolean> {
   if (!empresaId?.trim()) return false;
   if (s.role === 'master') return true;
-  if (s.role === 'cliente') return s.empresa === empresaId;
+  if (s.role === 'cliente' && s.empresa !== empresaId) return false;
   const e = await lerEmpresa(empresaId);
   return e ? empresaVisivelPara(s, e) : false;
 }
@@ -60,7 +87,7 @@ export async function exigirSessao(req: NextRequest): Promise<Guarda> {
   return { ok: true, sessao };
 }
 
-/** Exige master ou contadora — usado nos cadastros e no módulo de ponto. */
+/** Exige master ou contador — usado nos cadastros e no módulo de ponto. */
 export async function exigirGestor(req: NextRequest): Promise<Guarda> {
   const sessao = await sessaoDe(req);
   if (!sessao) return negar('Não autenticado.', 401);
