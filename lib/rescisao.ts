@@ -2,8 +2,10 @@
 // "Simulação de rescisão" em docs/departamento-pessoal.md.
 //
 // Não é documento oficial e não substitui o TRCT: depende de médias, convenção coletiva,
-// estabilidades e do saldo real do FGTS, que o sistema não conhece. Valores BRUTOS, sem
-// INSS, IRRF nem pensão. Arredondamento: cada linha em centavos; os totais somam as linhas.
+// estabilidades e do saldo real do FGTS, que o sistema não conhece. Desde a Sprint 11 dá
+// também INSS, IRRF e o LÍQUIDO (tabelas em lib/tabelasTributos.ts) e tira as médias de HE e
+// adicional noturno do ponto (lib/mediasPonto.ts). Sem pensão alimentícia. Arredondamento:
+// cada linha em centavos; os totais somam as linhas.
 //
 // Regras revisadas com o subagente `contador` em 21/11/2026 (fontes ao lado de cada uma):
 //  - saldo de salário: (salário + adicionais fixos) ÷ 30 × dias do mês até o desligamento
@@ -42,10 +44,23 @@
 //    indenização são os 3,2% mensais (LC 150/2015 art. 22);
 //  - prazo: 10 dias corridos do término, excluído o dia do início (art. 477 §6º; OJ 162 SDI-1),
 //    antecipado para dia útil; atraso = multa de um salário base (art. 477 §8º);
-//  - descontos limitados a um mês de remuneração (art. 477 §5º).
+//  - descontos limitados a um mês de remuneração (art. 477 §5º) — INSS e IRRF fora do limite;
+//  - médias por verba (Sprint 11): aviso = 12 meses, 13º = meses do ano, férias = aquisitivo
+//    (art. 487 §3º; Decreto 57.155/65 art. 2º; art. 142 §5º) — ver lib/mediasPonto.ts;
+//  - INSS (Lei 8.212 art. 28; tabela pela competência do desligamento): saldo + banco de horas
+//    na tabela mensal; 13º (inclusive o do aviso) em separado (art. 28 §7º); aviso indenizado
+//    (STJ Tema 478), férias indenizadas + 1/3 (art. 28 §9º d) e art. 479 (§9º e 3) sem INSS.
+//    O desconto do aviso não cumprido NÃO reduz as bases (prática mais segura);
+//  - IRRF (tabela pela data do PAGAMENTO — regime de caixa, Lei 7.713 art. 7º): saldo + banco
+//    de horas − INSS − dependentes (ou desconto simplificado, se maior) − redução da Lei
+//    15.270/2025; 13º exclusivo na fonte, em separado (Lei 7.713 art. 26), sem simplificado
+//    por padrão (divergente); aviso indenizado e art. 479 isentos (Lei 7.713 art. 6º V);
+//    férias indenizadas isentas (Súmulas 125 e 386 STJ). A 1ª parcela do 13º não reduz a base.
 import { diasDeDireito, diasEntre, diaDaSemana, feriadosLegais, periodosAquisitivos, somarAnos, somarDias, type FeriasProgramada } from './ferias';
 import { avosDecimo, faltasPorMesDoAno } from './decimoTerceiro';
 import { br, isoOk, type Empregado } from './dp';
+import { mediaDoPeriodo, mesesDoAquisitivo, rotuloMes, variaveisDoMes, somarMes, ultimoMesDasMedias, type AjusteMes, type MediaPeriodo, type MesPonto } from './mediasPonto';
+import { calcularInss, calcularIrrf, tabelaInssEm, tabelaIrrfEm } from './tabelasTributos';
 
 // ------------------------------------------------------------------ tipos
 
@@ -101,8 +116,34 @@ export interface EntradaRescisao {
   salarioBase: number;
   /** Insalubridade, periculosidade, gratificação fixa: entram também no saldo. */
   adicionaisFixos?: number;
-  /** Média mensal de HE, comissões, adicional noturno…: aviso, 13º, férias e art. 479. */
+  /**
+   * Outras médias mensais informadas (comissões, gorjetas…): somam às médias do ponto em
+   * aviso, 13º, férias e art. 479. Sem ponto, é a única média.
+   */
   mediasVariaveis?: number;
+  /** Horas do ponto por mês (rota /api/dp/medias): médias de HE e noturno por verba. */
+  ponto?: MesPonto[] | null;
+  /** Ajustes da contadora por mês (AAAA-MM): ignorar ou trocar as horas. */
+  ajustesPonto?: Record<string, AjusteMes>;
+  /** O mês do desligamento entra nas médias mesmo incompleto. */
+  incluirMesDesligamento?: boolean;
+  /** Dependentes para o IRRF. */
+  dependentesIr?: number;
+  /** Data do pagamento (escolhe a tabela do IRRF). Padrão: o prazo do art. 477 §6º. */
+  dataPagamento?: string | null;
+  /** Desconto simplificado também no IRRF do 13º (divergente; padrão: não). */
+  simplificado13?: boolean;
+  /** Redução da Lei 15.270 no IRRF do 13º (orientação da Receita; padrão: sim). */
+  reducao13?: boolean;
+  /**
+   * Outros rendimentos tributáveis pagos no MESMO mês do pagamento da rescisão (ex.: salário
+   * do mês anterior pago no 5º dia útil): o IRRF é pelo regime de caixa e soma tudo.
+   */
+  outrosRendimentosMes?: number;
+  /** INSS descontado desses outros rendimentos (dedução do IRRF). */
+  outrosInssMes?: number;
+  /** IRRF já retido sobre esses outros rendimentos (abate do IRRF da rescisão). */
+  irrfJaRetidoMes?: number;
   /** Saldo do FGTS para fins rescisórios (extrato). Sem ele, a multa não é estimada. */
   saldoFgts?: number | null;
   /** Depósito do mês anterior ainda não recolhido (vence dia 20 — FGTS Digital). */
@@ -136,7 +177,7 @@ export interface EntradaRescisao {
   afastamentoTipo?: Empregado['afastamentoTipo'];
 }
 
-export type GrupoLinha = 'provento' | 'desconto' | 'informativo';
+export type GrupoLinha = 'provento' | 'desconto' | 'tributo' | 'informativo';
 
 export interface LinhaRescisao {
   id: string;
@@ -172,14 +213,44 @@ export interface FgtsRescisao {
   memoria: string;
 }
 
+export interface MediasRescisao {
+  /** Médias do ponto por verba (null = sem ponto). */
+  aviso: MediaPeriodo | null;
+  decimo: MediaPeriodo | null;
+  /** Por período aquisitivo (início). */
+  ferias: { inicio: string; media: MediaPeriodo }[];
+  /** Outras médias informadas (somam a cada verba). */
+  informadas: number;
+  /** Último mês considerado (AAAA-MM). */
+  ultimoMes: string;
+}
+
+export interface TributosRescisao {
+  inss: number;
+  inss13: number;
+  irrf: number;
+  irrf13: number;
+  baseMensal: number;
+  base13: number;
+  tabelaInss: string;
+  tabelaIrrf: string;
+  dataPagamento: string;
+}
+
 export interface ResultadoRescisao {
   erros: string[];
   alertas: AlertaRescisao[];
   linhas: LinhaRescisao[];
   totalProventos: number;
   totalDescontos: number;
-  /** Proventos − descontos considerados. Bruto: sem INSS, IRRF nem pensão. */
+  /** Proventos − descontos considerados, antes de INSS e IRRF. */
   totalBruto: number;
+  /** INSS + IRRF (mensal e 13º). */
+  totalTributos: number;
+  /** Bruto − INSS − IRRF. Sem pensão alimentícia. */
+  totalLiquido: number;
+  tributos: TributosRescisao | null;
+  medias: MediasRescisao | null;
   fgts: FgtsRescisao | null;
   anosCompletos: number;
   aviso: { dias: number; trabalhados: number; indenizados: number; projetados: number; comunicacao: string | null };
@@ -273,7 +344,8 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   const alertas: AlertaRescisao[] = [];
   const linhas: LinhaRescisao[] = [];
   const vazio: ResultadoRescisao = {
-    erros, alertas, linhas, totalProventos: 0, totalDescontos: 0, totalBruto: 0, fgts: null, anosCompletos: 0,
+    erros, alertas, linhas, totalProventos: 0, totalDescontos: 0, totalBruto: 0, totalTributos: 0, totalLiquido: 0,
+    tributos: null, medias: null, fgts: null, anosCompletos: 0,
     aviso: { dias: 0, trabalhados: 0, indenizados: 0, projetados: 0, comunicacao: null },
     projecao: en.desligamento, avos13: { ate: 0, projecao: 0 }, ferias: [], prazoPagamento: null, multa477: 0,
   };
@@ -302,20 +374,41 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   if (erros.length) return vazio;
 
   const adicionais = pos(en.adicionaisFixos);
-  const medias = pos(en.mediasVariaveis);
+  const informadas = pos(en.mediasVariaveis);
   const remuneracao = salario + adicionais;       // saldo, banco de horas, limite do §5º
-  const remunCompleta = remuneracao + medias;      // aviso, 13º, férias, art. 479
   const faltas = (en.faltas ?? []).filter(isoOk);
+  const divisor = en.horasSemanais && en.horasSemanais > 0 ? Math.round(en.horasSemanais * 5) : 220;
+
+  // ---- médias do ponto, por verba (lib/mediasPonto.ts)
+  const ultimoMes = ultimoMesDasMedias(desligamento, en.incluirMesDesligamento);
+  const comPonto = Array.isArray(en.ponto);
+  const media = (de: string, ate: string) => mediaDoPeriodo(en.ponto ?? [], {
+    de, ate, admissao, desligamento, valorHora: remuneracao / divisor, ajustes: en.ajustesPonto,
+  });
+  const mediaAviso = comPonto ? media(somarMes(ultimoMes, -11), ultimoMes) : null;
+  const mediaDecimo = comPonto ? media(`${desligamento.slice(0, 4)}-01`, ultimoMes) : null;
+  const mediasFerias: MediasRescisao['ferias'] = [];
+  /** Média das férias do período aquisitivo (art. 142 §5º): ponto do período + informadas. */
+  const mediaFerias = (p: { inicio: string; fim: string }) => {
+    if (!comPonto) return informadas;
+    const meses = mesesDoAquisitivo(p.inicio, p.fim);
+    const m = media(meses.de, meses.ate < ultimoMes ? meses.ate : ultimoMes);
+    mediasFerias.push({ inicio: p.inicio, media: m });
+    return informadas + m.valor;
+  };
+  const medAviso = informadas + (mediaAviso?.valor ?? 0);
+  const medDecimo = informadas + (mediaDecimo?.valor ?? 0);
   const metade = tipo === 'acordo' || tipo === 'culpa_reciproca';
   const justa = tipo === 'justa_causa';
   const add = (l: Omit<LinhaRescisao, 'valor'> & { valor: number }) => {
     const valor = centavos(l.valor);
     if (valor > 0) linhas.push({ ...l, valor });
   };
-  const baseTxt = (comMedias: boolean) => {
+  /** Texto da remuneração usada; `med` = média da verba (ponto + informadas). */
+  const baseTxt = (med = 0) => {
     const p = [reais(salario)];
     if (adicionais) p.push(`${reais(adicionais)} de adicionais`);
-    if (comMedias && medias) p.push(`${reais(medias)} de médias`);
+    if (med) p.push(`${reais(centavos(med))} de médias`);
     return p.length > 1 ? `(${p.join(' + ')})` : p[0];
   };
 
@@ -325,9 +418,21 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   const diasSaldo = Math.max(0, diasMes - faltasMes);
   add({
     id: 'saldo', grupo: 'provento', descricao: `Saldo de salário (${diasSaldo} dia${diasSaldo === 1 ? '' : 's'})`,
-    memoria: `${baseTxt(false)} ÷ 30 × ${diasSaldo}${faltasMes ? ` (${diasMes} dias − ${faltasMes} falta${faltasMes > 1 ? 's' : ''})` : ''}`,
+    memoria: `${baseTxt()} ÷ 30 × ${diasSaldo}${faltasMes ? ` (${diasMes} dias − ${faltasMes} falta${faltasMes > 1 ? 's' : ''})` : ''}`,
     valor: (remuneracao / 30) * diasSaldo, fonte: 'CLT art. 462; mês comercial de 30 dias',
   });
+  // ---- horas extras e noturno do próprio mês do desligamento (verba do mês, não média)
+  if (comPonto) {
+    const mesD = desligamento.slice(0, 7);
+    const hm = variaveisDoMes(en.ponto ?? [], mesD, remuneracao / divisor, en.ajustesPonto?.[mesD]);
+    add({
+      id: 'he_mes', grupo: 'provento', descricao: `Horas extras e adicional noturno de ${rotuloMes(mesD)} (ponto até ${br(desligamento)})`,
+      memoria: hm.memoria, valor: hm.valor, fonte: 'CF art. 7º XVI; CLT arts. 59 e 73; Súmula 172 TST',
+    });
+    if (!hm.temPonto && !hm.ajustado) {
+      alertas.push({ nivel: 'aviso', texto: `Sem ponto lançado em ${rotuloMes(mesD)}: as horas extras do mês do desligamento, se houver, não entraram (são verba do mês, com INSS, IRRF e FGTS). Lance o ponto ou ajuste as horas do mês no painel das médias.` });
+    }
+  }
   if (faltasMes) alertas.push({ nivel: 'info', texto: `${faltasMes} falta(s) no mês descontadas do saldo. A perda do repouso semanal (Lei 605/49 art. 6º) não foi calculada.` });
 
   // ---- aviso prévio
@@ -350,10 +455,10 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
         : `Aviso prévio indenizado (${num(indenizados)} dias)`;
       add({
         id: 'aviso', grupo: 'provento', descricao: desc,
-        memoria: `${baseTxt(true)} ÷ 30 × ${num(indenizados)}`
+        memoria: `${baseTxt(medAviso)} ÷ 30 × ${num(indenizados)}`
           + ` — ${diasAviso} dias de aviso (30 + 3 × ${Math.min(anos, 20)} ano${anos === 1 ? '' : 's'} completo${anos === 1 ? '' : 's'})`
           + `${trabalhados ? `, ${trabalhados} trabalhados` : ''}${metade ? ', pela metade' : ''}`,
-        valor: (remunCompleta / 30) * indenizados,
+        valor: ((remuneracao + medAviso) / 30) * indenizados,
         fonte: `CLT art. 487 §1º e §5º; Lei 12.506/2011${tipo === 'acordo' ? '; CLT art. 484-A I a' : tipo === 'culpa_reciproca' ? '; Súmula 14 TST' : ''}`,
       });
     }
@@ -383,16 +488,16 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   // ---- art. 479 / 480 (experiência antecipada)
   if ((tipo === 'experiencia_antecipada_empregador' || tipo === 'experiencia_antecipada_empregado') && fimExp) {
     const faltavam = diasEntre(desligamento, fimExp);
-    const valor = (remunCompleta / 30) * faltavam / 2;
+    const valor = ((remuneracao + medAviso) / 30) * faltavam / 2;
     if (tipo === 'experiencia_antecipada_empregador') {
       add({
         id: 'art479', grupo: 'provento', descricao: `Indenização do art. 479 (metade de ${faltavam} dias)`,
-        memoria: `${baseTxt(true)} ÷ 30 × ${faltavam} dias até ${br(fimExp)} ÷ 2`, valor, fonte: 'CLT art. 479; sem FGTS sobre ela (Lei 8.036 art. 15 §6º)',
+        memoria: `${baseTxt(medAviso)} ÷ 30 × ${faltavam} dias até ${br(fimExp)} ÷ 2`, valor, fonte: 'CLT art. 479; sem FGTS sobre ela (Lei 8.036 art. 15 §6º)',
       });
     } else {
       add({
         id: 'art480', grupo: 'informativo', descricao: 'Indenização ao empregador (art. 480) — teto, só se houver prejuízo',
-        memoria: `Até ${baseTxt(true)} ÷ 30 × ${faltavam} dias até ${br(fimExp)} ÷ 2. Não entra no total.`, valor, fonte: 'CLT art. 480 §1º',
+        memoria: `Até ${baseTxt(medAviso)} ÷ 30 × ${faltavam} dias até ${br(fimExp)} ÷ 2. Não entra no total.`, valor, fonte: 'CLT art. 480 §1º',
       });
     }
     alertas.push({ nivel: 'info', texto: 'Se o contrato tiver cláusula assecuratória do direito recíproco de rescisão (CLT art. 481; Súmula 163 TST), valem as regras do aviso prévio: use “Dispensa sem justa causa” ou “Pedido de demissão”. Para aprendiz, os arts. 479 e 480 não se aplicam (art. 433 §2º).' });
@@ -406,11 +511,11 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   const avosAte = justa ? 0 : avos13(admissao, desligamento, desligamento, faltas);
   const avosTotal = justa ? 0 : avos13(admissao, desligamento, projecao, faltas);
   const avosProj = Math.max(0, avosTotal - avosAte);
-  const v13 = (n: number) => (remunCompleta / 12) * n * fator13;
+  const v13 = (n: number) => ((remuneracao + medDecimo) / 12) * n * fator13;
   const meio13 = fator13 < 1 ? ' × 1/2' : '';
-  add({ id: '13', grupo: 'provento', descricao: `13º salário proporcional (${avosAte}/12)`, memoria: `${baseTxt(true)} ÷ 12 × ${avosAte}${meio13}`, valor: v13(avosAte),
+  add({ id: '13', grupo: 'provento', descricao: `13º salário proporcional (${avosAte}/12)`, memoria: `${baseTxt(medDecimo)} ÷ 12 × ${avosAte}${meio13}`, valor: v13(avosAte),
     fonte: `Lei 4.090/62 art. 1º §2º e art. 3º${tipo === 'pedido_demissao' ? '; Súmula 157 TST' : ''}${fator13 < 1 ? '; Súmula 14 TST' : ''}` });
-  add({ id: '13_aviso', grupo: 'provento', descricao: `13º salário sobre o aviso indenizado (${avosProj}/12)`, memoria: `${baseTxt(true)} ÷ 12 × ${avosProj}${meio13} — projeção até ${br(projecao)}`,
+  add({ id: '13_aviso', grupo: 'provento', descricao: `13º salário sobre o aviso indenizado (${avosProj}/12)`, memoria: `${baseTxt(medDecimo)} ÷ 12 × ${avosProj}${meio13} — projeção até ${br(projecao)}`,
     valor: v13(avosProj), fonte: 'CLT art. 487 §1º; Lei 4.090/62' });
   const adiantado = pos(en.decimoAdiantado);
   if (adiantado) {
@@ -424,7 +529,6 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   const periodosR: PeriodoFeriasRescisao[] = [];
   let valorVencidas = 0, valorProp = 0;
   const memVencidas: string[] = [];
-  const remDia = remunCompleta / 30;
   for (const p of periodosAquisitivos(base, projecao)) {
     if (p.fim <= projecao) {
       const direito = diasDeDireito(faltas.filter((d) => d >= p.inicio && d <= p.fim).length);
@@ -435,12 +539,13 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
       const quitado = quitados.has(p.inicio);
       periodosR.push({ inicio: p.inicio, fim: p.fim, concessivoFim: p.concessivoFim, direito, gozados, devidos, dobro, quitado });
       if (!devidos || quitado) continue;
-      const v = remDia * devidos * (dobro ? 2 : 1);
+      const medP = mediaFerias(p);
+      const v = ((remuneracao + medP) / 30) * devidos * (dobro ? 2 : 1);
       valorVencidas += v;
       add({
         id: `ferias_${p.inicio}`, grupo: 'provento',
         descricao: `Férias vencidas${dobro ? ' em dobro' : ''} — ${br(p.inicio)} a ${br(p.fim)} (${devidos} dias)`,
-        memoria: `${baseTxt(true)} ÷ 30 × ${devidos}${dobro ? ' × 2' : ''}${gozados ? ` (direito ${direito} − ${gozados} gozados/vendidos)` : direito < 30 ? ` (direito ${direito}, art. 130)` : ''}`,
+        memoria: `${baseTxt(medP)} ÷ 30 × ${devidos}${dobro ? ' × 2' : ''}${gozados ? ` (direito ${direito} − ${gozados} gozados/vendidos)` : direito < 30 ? ` (direito ${direito}, art. 130)` : ''}`,
         valor: v, fonte: dobro ? 'CLT arts. 137 e 146' : 'CLT art. 146',
       });
       memVencidas.push(reais(centavos(v)));
@@ -454,11 +559,12 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
       const avos = avosFerias(p.inicio, projecao);
       const direito = diasDeDireito(faltas.filter((d) => d >= p.inicio && d <= projecao).length);
       const fator = tipo === 'culpa_reciproca' ? 0.5 : 1;
-      const v = remunCompleta * (avos / 12) * (direito / 30) * fator;
+      const medP = mediaFerias(p);
+      const v = (remuneracao + medP) * (avos / 12) * (direito / 30) * fator;
       valorProp += v;
       add({
         id: 'ferias_prop', grupo: 'provento', descricao: `Férias proporcionais (${avos}/12) — aquisitivo desde ${br(p.inicio)}`,
-        memoria: `${baseTxt(true)} ÷ 12 × ${avos}${direito < 30 ? ` × ${direito}/30 (art. 130)` : ''}${fator < 1 ? ' × 1/2' : ''} — até ${br(projecao)}`,
+        memoria: `${baseTxt(medP)} ÷ 12 × ${avos}${direito < 30 ? ` × ${direito}/30 (art. 130)` : ''}${fator < 1 ? ' × 1/2' : ''} — até ${br(projecao)}`,
         valor: v, fonte: `CLT arts. 146 par. único e 147${tipo === 'pedido_demissao' ? '; Súmula 261 TST' : ''}${fator < 1 ? '; Súmula 14 TST' : ''}`,
       });
     }
@@ -470,11 +576,10 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
 
   // ---- banco de horas
   const bh = pos(en.bancoHorasPositivo);
-  const divisor = en.horasSemanais && en.horasSemanais > 0 ? Math.round(en.horasSemanais * 5) : 220;
   if (bh) {
     add({
       id: 'banco_horas', grupo: 'provento', descricao: `Banco de horas — saldo positivo (${num(bh)} h)`,
-      memoria: `${baseTxt(false)} ÷ ${divisor} × 1,5 × ${num(bh)} h (adicional de 50%; a convenção pode prever mais)`,
+      memoria: `${baseTxt()} ÷ ${divisor} × 1,5 × ${num(bh)} h (adicional de 50%; a convenção pode prever mais)`,
       valor: (remuneracao / divisor) * 1.5 * bh, fonte: 'CLT art. 59 §3º; CF art. 7º XVI',
     });
   }
@@ -497,8 +602,8 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
 
   // ---- FGTS
   const val = (id: string) => linhas.find((l) => l.id === id)?.valor ?? 0;
-  const base13 = Math.max(0, val('13') + val('13_aviso') - (justa ? 0 : adiantado));
-  const baseFgts = centavos(val('saldo') + val('aviso') + base13 + val('banco_horas'));
+  const baseFgts13 = Math.max(0, val('13') + val('13_aviso') - (justa ? 0 : adiantado));
+  const baseFgts = centavos(val('saldo') + val('he_mes') + val('aviso') + baseFgts13 + val('banco_horas'));
   const deposito = centavos(baseFgts * 0.08);
   const percentual = en.domestico ? 0 : MULTA_FGTS[tipo] ?? 0;
   const saldoInf = typeof en.saldoFgts === 'number' && Number.isFinite(en.saldoFgts) && en.saldoFgts >= 0 ? centavos(en.saldoFgts) : null;
@@ -521,6 +626,75 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   const prazo = prazoPagamento(desligamento, en.feriados ?? []);
   const multa477 = centavos(salario);
 
+  // ---- INSS e IRRF (lib/tabelasTributos.ts)
+  // Bases: o que é salário (saldo + banco de horas) na tabela mensal; o 13º inteiro (inclusive
+  // o do aviso e a 1ª parcela já paga) em separado. Aviso indenizado, férias indenizadas + 1/3
+  // e art. 479 ficam fora das duas. Descontos (aviso não cumprido, adiantamentos) não reduzem.
+  const baseMensal = centavos(val('saldo') + val('he_mes') + val('banco_horas'));
+  const base13 = centavos(val('13') + val('13_aviso'));
+  const { tabela: tInss, foraDaLista: inssFora } = tabelaInssEm(desligamento);
+  const pagamento = en.dataPagamento && isoOk(en.dataPagamento) ? en.dataPagamento : prazo;
+  const { tabela: tIrrf, foraDaLista: irrfFora } = tabelaIrrfEm(pagamento);
+  const dependentes = Math.max(0, Math.floor(pos(en.dependentesIr)));
+  const inssM = calcularInss(baseMensal, tInss);
+  const inss13 = calcularInss(base13, tInss);
+  // IRRF do mês: regime de caixa — soma os outros rendimentos pagos no mesmo mês e abate o já retido.
+  const outrosRend = centavos(pos(en.outrosRendimentosMes));
+  const outrosInss = centavos(pos(en.outrosInssMes));
+  const jaRetido = centavos(pos(en.irrfJaRetidoMes));
+  const irrfTotalMes = calcularIrrf({ rendimentos: baseMensal + outrosRend, inss: inssM.valor + outrosInss, dependentes, permitirSimplificado: true }, tIrrf);
+  const irrfM = { ...irrfTotalMes, valor: Math.max(0, centavos(irrfTotalMes.valor - jaRetido)) };
+  const irrf13 = calcularIrrf({
+    rendimentos: base13, inss: inss13.valor, dependentes, permitirSimplificado: Boolean(en.simplificado13), aplicarReducao: en.reducao13 !== false,
+  }, tIrrf);
+  const anoInss = tInss.vigenciaDesde.slice(0, 4);
+  const anoIrrf = tIrrf.vigenciaDesde.slice(0, 4);
+  /** Linha de tributo: aparece sempre que há base, mesmo com valor zero (mostra a isenção). */
+  const tributo = (base: number, l: Omit<LinhaRescisao, 'grupo'>) => {
+    if (base > 0) linhas.push({ ...l, grupo: 'tributo', valor: centavos(l.valor) });
+  };
+  tributo(baseMensal, {
+    id: 'inss', descricao: 'INSS sobre saldo de salário e banco de horas',
+    memoria: `${reais(baseMensal)}: ${inssM.memoria} (tabela ${anoInss}; aviso indenizado e férias indenizadas não entram)`,
+    valor: inssM.valor, fonte: `Lei 8.212/91 arts. 20 e 28 I e §9º d; STJ Tema 478; ${tInss.fonte}`,
+  });
+  tributo(base13, {
+    id: 'inss_13', descricao: 'INSS sobre o 13º salário (em separado)',
+    memoria: `${reais(base13)}${adiantado && !justa ? ' (13º inteiro, inclusive a 1ª parcela já paga)' : ''}: ${inss13.memoria} (tabela ${anoInss})`,
+    valor: inss13.valor, fonte: `Lei 8.212/91 art. 28 §7º; Decreto 3.048/99 art. 214 §6º; ${tInss.fonte}`,
+  });
+  tributo(baseMensal, {
+    id: 'irrf', descricao: 'IRRF sobre saldo de salário e banco de horas',
+    memoria: `${outrosRend ? `Rescisão ${reais(baseMensal)} + outros pagos no mês ${reais(outrosRend)}${outrosInss ? ` (INSS deles ${reais(outrosInss)})` : ''}. ` : ''}`
+      + `${irrfM.memoria}${jaRetido ? `; − ${reais(jaRetido)} já retidos no mês` : ''}`
+      + ` (tabela ${anoIrrf}, pagamento em ${br(pagamento)}; aviso indenizado, férias indenizadas e art. 479 isentos)`,
+    valor: irrfM.valor, fonte: `Lei 7.713/88 arts. 6º V e 7º; Lei 9.250/95 art. 4º; Súmulas 125 e 386 STJ; ${tIrrf.fonte}`,
+  });
+  tributo(base13, {
+    id: 'irrf_13', descricao: 'IRRF sobre o 13º salário (exclusivo na fonte)',
+    memoria: `${irrf13.memoria} (tabela ${anoIrrf}${en.simplificado13 ? '; desconto simplificado aplicado a pedido' : ''})`,
+    valor: irrf13.valor, fonte: `Lei 7.713/88 art. 26; Lei 8.134/90 art. 16; ${tIrrf.fonte}`,
+  });
+  const totalTributos = centavos(inssM.valor + inss13.valor + irrfM.valor + irrf13.valor);
+  const totalLiquido = centavos(totalBruto - totalTributos);
+  const tributos: TributosRescisao = {
+    inss: inssM.valor, inss13: inss13.valor, irrf: irrfM.valor, irrf13: irrf13.valor, baseMensal, base13,
+    tabelaInss: `${anoInss} — ${tInss.fonte}`, tabelaIrrf: `${anoIrrf} — ${tIrrf.fonte}`, dataPagamento: pagamento,
+  };
+  if (inssFora || irrfFora) {
+    alertas.push({ nivel: 'perigo', texto: `Não há tabela de ${inssFora ? 'INSS' : 'IRRF'} cadastrada para ${(inssFora ? desligamento : pagamento).slice(0, 4)}: a simulação usou a de ${inssFora ? anoInss : anoIrrf}. Atualize lib/tabelasTributos.ts.` });
+  }
+  if (pagamento.slice(0, 4) !== desligamento.slice(0, 4)) {
+    alertas.push({ nivel: 'aviso', texto: `O pagamento (${br(pagamento)}) cai em outro ano: o IRRF usa a tabela da data do pagamento (regime de caixa) e o INSS a da competência do desligamento.` });
+  }
+  if (baseMensal > 0 && !outrosRend) {
+    alertas.push({ nivel: 'aviso', texto: 'O IRRF é pelo regime de caixa: se no mês do pagamento da rescisão o empregado receber outro valor tributável (ex.: o salário do mês anterior pago no 5º dia útil), informe em “Outros rendimentos pagos no mês” — a base sobe e a redução da Lei 15.270 pode deixar de valer.' });
+  }
+  if (base13 > 0) {
+    alertas.push({ nivel: 'info', texto: `IRRF do 13º: ${en.simplificado13 ? 'com' : 'sem'} desconto simplificado e ${en.reducao13 === false ? 'sem' : 'com'} a redução da Lei 15.270/2025. As duas aplicações no 13º ainda pedem confirmação da contadora na instrução da Receita — retenção exclusiva errada não se acerta na declaração.` });
+  }
+  if (tipo === 'falecimento') alertas.push({ nivel: 'info', texto: 'No falecimento, confira a retenção de IRRF sobre as verbas pagas aos dependentes ou sucessores com a contadora.' });
+
   // ---- alertas gerais
   const dispensaPeloEmpregador = tipo === 'sem_justa_causa' || tipo === 'experiencia_antecipada_empregador' || tipo === 'experiencia_termino' || tipo === 'acordo';
   if (dispensaPeloEmpregador) {
@@ -539,11 +713,23 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
   if (comunicacao && (en.ferias ?? []).some((f) => f.inicio <= projecao && somarDias(f.inicio, f.dias - 1) > comunicacao!)) {
     alertas.push({ nivel: 'aviso', texto: 'Há férias programadas dentro do período do aviso: aviso e férias não podem coincidir. Ajuste as datas.' });
   }
-  if (!medias && !justa) alertas.push({ nivel: 'info', texto: 'Sem médias informadas: horas extras habituais, comissões e adicional noturno integram aviso, 13º e férias (CLT art. 487 §5º; Súmulas 45, 60 e 347 TST).' });
+  if (!informadas && !comPonto && !justa) alertas.push({ nivel: 'info', texto: 'Sem médias informadas: horas extras habituais, comissões e adicional noturno integram aviso, 13º e férias (CLT art. 487 §5º; Súmulas 45, 60 e 347 TST).' });
+  if (comPonto && !justa) {
+    const todos = [mediaAviso, mediaDecimo, ...mediasFerias.map((f) => f.media)].flatMap((m) => m?.meses ?? []);
+    const semPonto = [...new Set(todos.filter((m) => m.considerado && !m.temPonto && !m.ajustado).map((m) => m.mes))].sort();
+    if (semPonto.length) {
+      alertas.push({ nivel: 'aviso', texto: `${semPonto.length} mês(es) sem ponto lançado entram nas médias com zero (o divisor é o de meses trabalhados). Se o empregado fez horas nesses meses, ajuste as horas; se o mês não deve contar, marque para ignorar.` });
+    }
+    if ((mediaAviso?.horas.noturno ?? 0) > 0) {
+      alertas.push({ nivel: 'info', texto: 'Hora extra feita no período noturno não leva o adicional de 20% sobre a hora extra (OJ 97 SDI-1; Súmula 60 II TST): a média sai um pouco menor. Noturno rural é 25%.' });
+    }
+    alertas.push({ nivel: 'info', texto: 'Médias do ponto com os percentuais mínimos (HE 50% e 100%, noturno 20%) e reflexo no DSR mês a mês (Súmula 172 TST). Se a convenção coletiva prevê percentuais maiores, ajuste em “outras médias”.' });
+  }
   if (en.temBancoHoras && !bh) alertas.push({ nivel: 'info', texto: 'Empregado com acordo de banco de horas: informe o saldo positivo para pagá-lo como horas extras (CLT art. 59 §3º). Saldo negativo só se desconta se o acordo previr.' });
 
   return {
-    erros, alertas, linhas, totalProventos, totalDescontos, totalBruto, fgts,
+    erros, alertas, linhas, totalProventos, totalDescontos, totalBruto, totalTributos, totalLiquido, tributos,
+    medias: { aviso: mediaAviso, decimo: mediaDecimo, ferias: mediasFerias, informadas, ultimoMes }, fgts,
     anosCompletos: anos,
     aviso: { dias: diasAviso, trabalhados, indenizados, projetados, comunicacao },
     projecao, avos13: { ate: avosAte, projecao: avosProj }, ferias: periodosR,
@@ -552,4 +738,4 @@ export function simularRescisao(en: EntradaRescisao): ResultadoRescisao {
 }
 
 /** Rótulos e o aviso fixo da simulação (tela e PDF). */
-export const AVISO_SIMULACAO = 'Simulação — não substitui o TRCT; confira convenção e médias. Valores brutos, sem INSS, IRRF nem pensão.';
+export const AVISO_SIMULACAO = 'Simulação — não substitui o TRCT; confira convenção, médias, INSS e IRRF. Sem pensão alimentícia.';

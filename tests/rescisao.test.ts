@@ -5,6 +5,7 @@ import {
   somarMeses, type EntradaRescisao, type ResultadoRescisao,
 } from '@/lib/rescisao';
 import { gerarPdfRescisao } from '@/lib/rescisaoPdf';
+import { mesesEntre, type MesPonto } from '@/lib/mediasPonto';
 
 // Exemplo conferido pelo `contador` (21/11/2026): admissão 10/03/2023, desligamento
 // 20/11/2026, sem justa causa, aviso indenizado, R$ 2.000,00, períodos anteriores gozados.
@@ -415,5 +416,142 @@ describe('PDF da simulação', () => {
     const entrada = base({ tipo: 'experiencia_antecipada_empregado', admissao: '2026-09-01', fimExperiencia: '2026-11-29', desligamento: '2026-10-30', ferias: [] });
     const bytes = await gerarPdfRescisao({ empresa: { nome: 'Teste' }, empregado: { nome: 'Fulano' }, entrada, resultado: simularRescisao(entrada), data: '2026-11-21' });
     expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThanOrEqual(1);
+  });
+  it('com médias do ponto, tributos e líquido', async () => {
+    const entrada = base({ salarioBase: 6000, horasSemanais: 44, ponto: pontoFixo(), dependentesIr: 1 });
+    const bytes = await gerarPdfRescisao({ empresa: { nome: 'Teste' }, empregado: { nome: 'Fulano' }, entrada, resultado: simularRescisao(entrada), data: '2026-11-21' });
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ------------------------------------------------------------------ Sprint 11: INSS, IRRF e médias do ponto
+
+/** Todo mês até outubro/26: 10 h de HE 50%, 25 dias úteis e 5 de DSR (DSR = 2 h). Novembro sem ponto. */
+function pontoFixo(ate = '2026-10'): MesPonto[] {
+  return mesesEntre('2025-01', ate).map((mes) => ({
+    mes, temPonto: true, he50Min: 600, he100Min: 0, noturnoMin: 0, diasNaoCalculados: 0, diasUteis: 25, diasDsr: 5,
+  }));
+}
+const centavosT = (x: number) => Math.round(x * 100) / 100;
+
+describe('INSS, IRRF e líquido — exemplo do contador (R$ 2.000,00)', () => {
+  const r = simularRescisao(base());
+  it('INSS do saldo 1.333,33 × 7,5% = 100,00; do 13º (1.833,33 + 166,67 = 2.000,00) = 155,69', () => {
+    expect(v(r, 'inss')).toBe(100);
+    expect(v(r, 'inss_13')).toBe(155.69);
+    expect(r.tributos?.baseMensal).toBe(1333.33);
+    expect(r.tributos?.base13).toBe(2000);
+  });
+  it('IRRF zero (faixa isenta), mas a linha aparece com a memória', () => {
+    expect(tem(r, 'irrf')).toBe(true);
+    expect(v(r, 'irrf')).toBe(0);
+    expect(v(r, 'irrf_13')).toBe(0);
+  });
+  it('líquido = 10.822,23 − 255,69 = 10.566,54; o bruto não muda', () => {
+    expect(r.totalBruto).toBe(10822.23);
+    expect(r.totalTributos).toBe(255.69);
+    expect(r.totalLiquido).toBe(10566.54);
+  });
+  it('aviso indenizado e férias indenizadas não entram em nenhuma base', () => {
+    expect(centavosT(r.tributos!.baseMensal + r.tributos!.base13)).toBe(3333.33);
+  });
+});
+
+describe('exemplo completo com médias do ponto (conferido pelo contador)', () => {
+  // R$ 6.000,00, 44 h (divisor 220 → hora R$ 27,2727), 1 dependente; 10 h de HE 50% por mês.
+  // Média = (10 + 2 de DSR) × 1,5 × 27,2727 = 490,91 em todas as verbas.
+  const en = base({ salarioBase: 6000, horasSemanais: 44, ponto: pontoFixo(), dependentesIr: 1 });
+  const r = simularRescisao(en);
+  it('médias por verba: aviso 12 meses, 13º jan–out, férias por aquisitivo (12 e 8 meses)', () => {
+    expect(r.medias?.ultimoMes).toBe('2026-10');
+    expect(r.medias?.aviso?.nMeses).toBe(12);
+    expect(r.medias?.aviso?.valor).toBe(490.91);
+    expect(r.medias?.decimo?.nMeses).toBe(10);
+    expect(r.medias?.ferias.map((f) => [f.inicio, f.media.nMeses, f.media.valor])).toEqual([
+      ['2025-03-10', 12, 490.91], ['2026-03-10', 8, 490.91],
+    ]);
+  });
+  it('verbas com a média: aviso 6.490,91 ÷ 30 × 39 = 8.438,18; 13º 11/12 = 5.950,00 e 1/12 = 540,91', () => {
+    expect(v(r, 'saldo')).toBe(4000);
+    expect(v(r, 'aviso')).toBe(8438.18);
+    expect(v(r, '13')).toBe(5950);
+    expect(v(r, '13_aviso')).toBe(540.91);
+    expect(v(r, 'ferias_2025-03-10')).toBe(6490.91);
+    expect(v(r, 'ferias_prop')).toBe(5409.09);
+    expect(r.totalBruto).toBe(34795.76);
+  });
+  it('INSS 368,60 + 710,24; IRRF do mês zerado pela redução; IRRF do 13º 628,82 − 114,39 = 514,43', () => {
+    expect(v(r, 'inss')).toBe(368.6);
+    expect(v(r, 'inss_13')).toBe(710.24);
+    expect(v(r, 'irrf')).toBe(0);
+    expect(v(r, 'irrf_13')).toBe(514.43);
+    expect(r.totalTributos).toBe(1593.27);
+    expect(r.totalLiquido).toBe(33202.49);
+  });
+  it('sem a redução no 13º: 628,82', () => {
+    expect(v(simularRescisao({ ...en, reducao13: false }), 'irrf_13')).toBe(628.82);
+  });
+  it('ponto vazio: média zero e alerta de meses sem ponto', () => {
+    const sem = simularRescisao({ ...en, ponto: [] });
+    expect(sem.medias?.aviso?.valor).toBe(0);
+    expect(alerta(sem, 'sem ponto lançado')).toBe(true);
+  });
+  it('sem ponto no mês do desligamento: avisa que as HE do mês não entraram', () => {
+    expect(tem(r, 'he_mes')).toBe(false);
+    expect(alerta(r, 'Sem ponto lançado em nov/26')).toBe(true);
+  });
+  it('HE do próprio mês (parecer do contador): verba do mês com INSS, IRRF e FGTS', () => {
+    const r2 = simularRescisao({ ...en, ponto: pontoFixo('2026-11') });
+    // 10 h × 1,5 × 27,2727 × (1 + 5 ÷ 25) = 490,91
+    expect(v(r2, 'he_mes')).toBe(490.91);
+    expect(r2.totalBruto).toBe(35286.67);
+    // INSS sobre 4.490,91: 121,575 + 115,3656 + 174,1716 + 136,64 × 14% (19,1296) = 430,24
+    expect(v(r2, 'inss')).toBe(430.24);
+    // IRRF: 4.490,91 − (430,24 + 189,59) = 3.871,08 × 22,5% − 675,49 = 195,50 → redução (≤ 5.000) → 0
+    expect(v(r2, 'irrf')).toBe(0);
+    expect(r2.fgts?.base).toBe(centavosT(18929.09 + 490.91));
+    expect(r2.totalLiquido).toBe(33631.76);
+  });
+  it('outros rendimentos pagos no mês somam ao IRRF (regime de caixa) e tiram a redução', () => {
+    // Salário de outubro (6.490,91, INSS 710,24, IRRF já retido 514,43) pago no mesmo mês:
+    // 4.000 + 6.490,91 = 10.490,91 − (368,60 + 710,24 + 189,59) = 9.222,48 × 27,5% − 908,73
+    // = 1.627,45 (sem redução: acima de 7.350) − 514,43 já retidos = 1.113,02
+    const r2 = simularRescisao({ ...en, outrosRendimentosMes: 6490.91, outrosInssMes: 710.24, irrfJaRetidoMes: 514.43 });
+    expect(v(r2, 'irrf')).toBe(1113.02);
+    expect(alerta(r, 'regime de caixa')).toBe(true);
+    expect(alerta(r2, 'Outros rendimentos pagos no mês')).toBe(false);
+  });
+  it('outras médias informadas somam às do ponto: (6.000 + 490,91 + 100) ÷ 30 × 39 = 8.568,18', () => {
+    expect(v(simularRescisao({ ...en, mediasVariaveis: 100 }), 'aviso')).toBe(8568.18);
+  });
+});
+
+describe('bases dos tributos por tipo de rescisão', () => {
+  it('pedido de demissão sem cumprir o aviso: o desconto não reduz a base do INSS', () => {
+    const r = simularRescisao(base({ tipo: 'pedido_demissao', aviso: 'nao_cumprido' }));
+    expect(v(r, 'aviso_desconto')).toBe(2000);
+    expect(r.tributos?.baseMensal).toBe(1333.33);
+    expect(v(r, 'inss')).toBe(100);
+  });
+  it('justa causa: sem 13º, sem linha de INSS do 13º', () => {
+    const r = simularRescisao(base({ tipo: 'justa_causa', aviso: 'nenhum', decimoAdiantado: 500 }));
+    expect(tem(r, 'inss_13')).toBe(false);
+    expect(r.tributos?.base13).toBe(0);
+  });
+  it('a 1ª parcela do 13º já paga não reduz a base (só o líquido)', () => {
+    const r = simularRescisao(base({ decimoAdiantado: 900 }));
+    expect(r.tributos?.base13).toBe(2000);
+    expect(r.totalLiquido).toBe(centavosT(10822.23 - 900 - 255.69));
+  });
+  it('art. 479 fica fora das bases', () => {
+    const r = simularRescisao(base({ tipo: 'experiencia_antecipada_empregador', aviso: 'nenhum', admissao: '2026-09-01', fimExperiencia: '2026-11-29', desligamento: '2026-10-30', ferias: [] }));
+    expect(v(r, 'art479')).toBeGreaterThan(0);
+    expect(r.tributos?.baseMensal).toBe(v(r, 'saldo'));
+  });
+  it('pagamento no ano seguinte: IRRF pela data do pagamento e alerta de tabela não cadastrada', () => {
+    const r = simularRescisao(base({ dataPagamento: '2027-01-05' }));
+    expect(r.tributos?.dataPagamento).toBe('2027-01-05');
+    expect(alerta(r, 'cai em outro ano')).toBe(true);
+    expect(alerta(r, 'Não há tabela de IRRF cadastrada para 2027')).toBe(true);
   });
 });

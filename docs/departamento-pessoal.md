@@ -21,7 +21,7 @@ Branch: `claude/departamento-pessoal-1a4640`. Migração: **`0021_departamento_p
 | Aviso e recibo de férias (PDF) | `lib/feriasPdf.ts` (usa o `Escritor` de `lib/contratosPdf.ts`) — `tests/feriasPdf.test.ts` |
 | Rotas | `app/api/dp/route.ts` (lista, cria, edita), `empregado/` (ficha), `ferias/` (programar, excluir, desfazer), `documento/` (PDF), `comum.ts` |
 | Tela | `app/(app)/dp/page.tsx` (lista), `Ficha.tsx`, `FormEmpregado.tsx`, `ProgramarFerias.tsx` |
-| **Simulação de rescisão** (Sprint 9) | `lib/rescisao.ts`, `lib/rescisaoPdf.ts` — `tests/rescisao.test.ts`; tela `SimularRescisao.tsx` (ver seção própria) |
+| **Simulação de rescisão** (Sprint 9; INSS, IRRF, líquido e médias do ponto na Sprint 11) | `lib/rescisao.ts`, `lib/rescisaoPdf.ts`, `lib/tabelasTributos.ts`, `lib/mediasPonto.ts` — `tests/rescisao.test.ts`, `tests/tributos.test.ts`, `tests/mediasPonto.test.ts`; tela `SimularRescisao.tsx` + `MediasPonto.tsx`; rota `app/api/dp/medias` (ver seções próprias) |
 | Acesso | `proxy.ts` (`/dp`, `/api/dp` em `ROTAS_PONTO`) — `tests/dpAcesso.test.ts`; isolamento das rotas em `tests/dpRotas.test.ts` |
 
 ## Decisões
@@ -122,7 +122,8 @@ Critérios revisados com o subagente **`contador`** em 21/11/2026.
 > o valor real depende de médias, convenção coletiva, estabilidades, aviso proporcional e
 > do saldo do FGTS, que o sistema não conhece — um erro vira dívida trabalhista do cliente.
 > Tela e PDF dizem "Simulação — não substitui o TRCT; confira convenção e médias".
-> **Valores brutos, sem INSS, IRRF nem pensão.** Nada é gravado (sem migração), a situação
+> **Desde a Sprint 11 (seção "Rescisão completa" abaixo) dá INSS, IRRF, o líquido e as médias
+> do ponto; sem pensão alimentícia.** Nada é gravado (sem migração), a situação
 > do empregado não muda e o PDF é gerado no navegador.
 
 Branch: `claude/simulacao-rescisao`. Regras revisadas com o subagente **`contador`** em
@@ -132,7 +133,7 @@ Branch: `claude/simulacao-rescisao`. Regras revisadas com o subagente **`contado
 |---|---|
 | Regras (puro) | `lib/rescisao.ts` — `simularRescisao(entrada)`; fontes legais no cabeçalho e em cada linha (`fonte`) |
 | PDF da simulação (marca d'água "SIMULAÇÃO", aviso no topo e no rodapé de cada página) | `lib/rescisaoPdf.ts` (usa o `Escritor` de `lib/contratosPdf.ts`) |
-| Testes (54) | `tests/rescisao.test.ts` |
+| Testes (73) | `tests/rescisao.test.ts` (+ `tests/tributos.test.ts`, `tests/mediasPonto.test.ts`) |
 | Tela | `app/(app)/dp/SimularRescisao.tsx`, aberto pelo botão **Simular rescisão** da ficha (`Ficha.tsx`) |
 | Dados | os da ficha (`/api/dp/empregado`, que passou a devolver também o CNPJ da empresa) |
 
@@ -193,8 +194,9 @@ rescisão 8% × R$ 5.933,33 = R$ 474,67; pagar até 30/11/2026.
 
 ### Limites (de propósito)
 
-- Sem INSS, IRRF, pensão, vale-transporte e contribuições: valores **brutos**.
-- Médias e adicionais são **informados**, não calculados do ponto ou da folha.
+- Sem pensão alimentícia, vale-transporte e contribuições (INSS e IRRF entraram na Sprint 11).
+- Adicionais fixos e "outras médias" (comissões…) são **informados**; HE e noturno vêm do ponto
+  (Sprint 11).
 - Saldo do FGTS é **informado** (o sistema não conhece o extrato).
 - Não aplica convenção coletiva (aviso maior, adicional de HE acima de 50%, indenizações).
 - Não calcula art. 133 (perda de férias por afastamento/licença), reajuste pela data-base,
@@ -216,6 +218,129 @@ rescisão 8% × R$ 5.933,33 = R$ 474,67; pagar até 30/11/2026.
   aviso no acordo e na culpa recíproca (metade × integral), data de corte da dobra das
   férias (desligamento × projeção) e se o aviso trabalhado pode ser exigido integral.
 - Não verificado no navegador (sem banco local além do de produção); regras e PDF cobertos
+  por testes, PDF conferido renderizado.
+
+## Rescisão completa (Sprint 11 · Frente B)
+
+> A simulação passou a dar **INSS, IRRF e o líquido**, e tira as **médias de horas extras e
+> adicional noturno da Folha de Ponto** do empregado (por id), por verba, mostrando de onde
+> veio cada média e deixando a contadora ajustar ou ignorar meses. Continua **simulação**
+> (PDF com marca d'água "SIMULAÇÃO"). **Sem migração**; uma rota nova, só leitura.
+
+Branch: `claude/rescisao-completa`. Regras revisadas com o subagente **`contador`** em
+21/11/2026, em duas rodadas (desenho antes de codar e o exemplo completo abaixo, número a número).
+
+| Peça | Arquivo |
+|---|---|
+| Tabelas de INSS e IRRF (**único lugar** com os números; ano de vigência e fonte legal) | `lib/tabelasTributos.ts` — `tests/tributos.test.ts` |
+| Médias do ponto (puro) | `lib/mediasPonto.ts` — `tests/mediasPonto.test.ts` |
+| Rescisão (bases, linhas de tributo, líquido, HE do mês) | `lib/rescisao.ts` — `tests/rescisao.test.ts` |
+| Horas do ponto por mês (só leitura) | `GET /api/dp/medias?id=&ate=` (`app/api/dp/medias/route.ts`, guarda `exigirEmpregado`) + `lerPontoDoEmpregado` em `lib/dpServidor.ts` — isolamento em `tests/dpRotas.test.ts` |
+| Tela | `SimularRescisao.tsx` (campos de IR) + `MediasPonto.tsx` (painel das médias) |
+| PDF | `lib/rescisaoPdf.ts`: seção "INSS e IRRF", "LÍQUIDO ESTIMADO" e a origem das médias |
+
+### Tabelas (2026)
+
+- **INSS** (Portaria Interministerial MPS/MF 13/2026): até 1.621,00 7,5%; até 2.902,84 9%; até
+  4.354,27 12%; até 8.475,55 14% — progressivo por faixa, total arredondado no fim. 2025 também
+  cadastrada (Portaria 6/2025).
+- **IRRF** (Lei 15.191/2025): até 2.428,80 isento; 7,5% − 182,16; 15% − 394,16; 22,5% − 675,49;
+  27,5% − 908,73; dependente 189,59; desconto simplificado 607,20 (usado quando maior que INSS +
+  dependentes). **Redução da Lei 15.270/2025**: rendimento tributável bruto até 5.000,00 → até
+  312,89 (zera); até 7.350,00 → 978,62 − 0,133145 × rendimento; limitada ao imposto.
+- **Atualizar**: acrescente um item ao fim de `TABELAS_INSS`/`TABELAS_IRRF` com `vigenciaDesde`
+  e `fonte`, sem apagar os antigos. Data num ano sem tabela → alerta **perigo** na simulação.
+
+### Incidências
+
+| Verba | INSS | IRRF |
+|---|---|---|
+| Saldo de salário, HE do mês do desligamento, banco de horas | tabela mensal (competência do desligamento) | tabela mensal (data do **pagamento**; padrão = prazo do art. 477) |
+| 13º proporcional + 13º do aviso (inteiro; a 1ª parcela já paga não reduz a base, só o líquido) | em separado (Lei 8.212 art. 28 §7º) | exclusivo, em separado (Lei 7.713 art. 26); **sem** simplificado e **com** a redução da Lei 15.270 por padrão — as duas são opções na tela, com alerta |
+| Aviso indenizado (inclusive o acréscimo da Lei 12.506 no trabalhado) | não (STJ Tema 478) | não (Lei 7.713 art. 6º V) |
+| Férias vencidas, em dobro e proporcionais + 1/3 | não (art. 28 §9º d) | não (Súmulas 125 e 386 STJ) |
+| Art. 479 | não (art. 28 §9º e 3) | não (Lei 7.713 art. 6º V) |
+| Desconto do aviso não cumprido, adiantamentos | **não reduzem** as bases (prática mais segura) | idem |
+
+IRRF do mês pelo **regime de caixa**: campos "Outros rendimentos pagos no mês", "INSS desses
+rendimentos" e "IRRF já retido sobre eles" (ex.: salário do mês anterior pago no 5º dia útil).
+Vazio → alerta. Limite do art. 477 §5º vale só para os descontos, não para INSS/IRRF.
+
+### Médias do ponto
+
+- Horas por mês pela régua do Resumo para a folha (`resumirFolha`): HE 50% **a pagar** (as que
+  foram para o banco de horas ficam fora), HE 100% (domingo/feriado), noturno em hora computada.
+- Valor = horas × (salário + adicionais fixos) ÷ divisor (horas semanais × 5; padrão 220) ×
+  1,5 / 2,0 / 0,2, **com DSR mês a mês** (horas ÷ dias úteis × domingos e feriados — Súmula 172;
+  IRR 10169-57.2013.5.05.0024). Valor-hora atual (Súmula 347).
+- **Por verba**: aviso = últimos 12 meses (art. 487 §3º); 13º = meses do ano do desligamento
+  (Decreto 57.155/65 art. 2º); férias = cada período aquisitivo (art. 142 §5º; mês de início conta
+  com 15 dias ou mais dentro do período, o do fim se terminar no dia 15 ou depois).
+- **Divisor = meses trabalhados** (15 dias ou mais de contrato), não meses com ponto: mês sem
+  ponto entra com zero e é sinalizado. O mês do desligamento incompleto fica fora (opção de incluir).
+- A contadora vê a tabela dos meses (HE 50%, HE 100%, noturno, DSR, situação) e pode **trocar as
+  horas** (vira "Ajustado") ou **desmarcar** o mês; pode também desligar o ponto e usar só "Outras
+  médias por mês". As médias de cada verba aparecem com a memória (meses, horas, valor-hora).
+- HE e noturno **do próprio mês do desligamento** viram a linha "Horas extras e adicional noturno
+  de mmm/aa" (verba do mês: INSS, IRRF e FGTS). Sem ponto no mês → alerta.
+- Fora (alerta): HE noturna com adicional sobre adicional (OJ 97), percentuais de convenção acima
+  do mínimo, noturno rural 25%.
+
+### Exemplo conferido pelo `contador` (21/11/2026)
+
+Admissão 10/03/2023, dispensa sem justa causa em 20/11/2026, aviso indenizado, salário
+R$ 6.000,00, 44 h (hora R$ 27,2727), 1 dependente, aquisitivo 10/03/2025–09/03/2026 sem gozo;
+ponto com 10 h de HE 50% por mês até outubro (25 dias úteis, 5 de repouso → DSR 2 h) → média
+**R$ 490,91** em todas as verbas (aviso nov/25–out/26; 13º jan–out/26; férias mar/25–fev/26 e
+mar–out/26).
+
+| Linha | Valor |
+|---|---|
+| Saldo 20 dias (6.000 ÷ 30 × 20) | 4.000,00 |
+| Aviso 39 dias (6.490,91 ÷ 30 × 39) | 8.438,18 |
+| 13º 11/12 + 1/12 da projeção | 5.950,00 + 540,91 |
+| Férias vencidas + 1/3 | 6.490,91 + 2.163,64 |
+| Férias proporcionais 10/12 + 1/3 | 5.409,09 + 1.803,03 |
+| **Total bruto** | **34.795,76** |
+| INSS sobre 4.000,00 | 368,60 |
+| INSS sobre o 13º 6.490,91 | 710,24 |
+| IRRF do mês: 4.000 − 607,20 (simplificado) = 3.392,80 → 114,76 − redução | 0,00 |
+| IRRF do 13º: 6.490,91 − (710,24 + 189,59) = 5.591,08 → 628,82 − redução 114,39 | 514,43 |
+| **Líquido** | **33.202,49** |
+| FGTS da rescisão (fora): 8% × 18.929,09 | 1.514,33 |
+
+Parecer: **"os números estão certos"**. Pedidos do `contador` atendidos antes de fechar: campo de
+outros rendimentos pagos no mês (regime de caixa — no exemplo, se o salário de outubro for pago em
+novembro, o IRRF do mês vai a R$ 1.113,02 depois de abater o já retido; teste próprio), HE do mês
+do desligamento como verba do mês (teste próprio) e aviso de que o líquido não inclui a multa do
+FGTS quando o saldo não foi informado.
+
+**A contadora do escritório deve confirmar** (o `contador` deixou em aberto): redução da Lei 15.270
+no 13º (no exemplo, R$ 114,39) e 13º sem desconto simplificado; mês sem ponto como zero no divisor;
+o critério dos 15 dias nas pontas do aquisitivo; data-base e piso da categoria; como o salário do
+mês anterior é pago na prática.
+
+### Para o integrador
+
+- **Sem migração.** Rota nova **`GET /api/dp/medias`** — só leitura, só horas (nunca R$, CPF ou
+  salário), guarda `exigirEmpregado` (mesma da ficha: gestor do escritório da empresa; o cliente
+  não chega a `/api/dp` pelo `proxy.ts`). Testes de isolamento em `tests/dpRotas.test.ts`
+  (B → 403, cliente → 403, sem sessão → 401). Lê até 48 meses de `ponto_frequencias` por
+  `empregado_id` (e pelo nome nas linhas antigas sem id). Se o ponto falhar, a tela segue só com
+  "Outras médias" e mostra o aviso.
+- `ResultadoRescisao` ganhou `totalTributos`, `totalLiquido`, `tributos` e `medias`; `GrupoLinha`
+  ganhou `'tributo'`. `totalBruto` mantém o significado (antes de INSS e IRRF). O campo
+  "Médias de variáveis" virou **"Outras médias por mês"** (soma às do ponto).
+- `AVISO_SIMULACAO` mudou (tela, PDF e rodapé): "confira convenção, médias, INSS e IRRF. Sem
+  pensão alimentícia."
+- Conferir em produção (**conta e escritório de teste**, nunca nas empresas da Edilse): ficha de
+  um empregado com ponto lançado → **Simular rescisão**; o painel "Médias…" lista os meses com
+  horas e DSR; trocar as horas de um mês (selo "Ajustado") e desmarcar outro → médias e verbas
+  mudam; desligar "Usar as horas do ponto" → some a média; preencher dependentes e "Outros
+  rendimentos pagos no mês" → IRRF muda; **Baixar PDF** → seção INSS e IRRF, "LÍQUIDO ESTIMADO" e
+  as médias com os meses; temas claro/escuro e 375 px (a tabela das médias rola na moldura).
+- Todo janeiro: atualizar `lib/tabelasTributos.ts` (INSS e, se mudar, IRRF) e rodar `npm test`.
+- Não verificado no navegador (sem banco local além do de produção); regras, rota e PDF cobertos
   por testes, PDF conferido renderizado.
 
 ## Para a frente B (resumo do ponto para a folha)

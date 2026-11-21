@@ -3,7 +3,9 @@
 // sob demanda): nada é gravado nem enviado ao servidor.
 //
 // Não é TRCT: cada página leva a marca d'água "SIMULAÇÃO" e o aviso no topo e no rodapé.
+// Desde a Sprint 11: INSS, IRRF, líquido e a origem das médias do ponto (meses e horas).
 import { degrees, rgb } from 'pdf-lib';
+import { rotuloMes, type MediaPeriodo } from './mediasPonto';
 import { Escritor, LARGURA, MARGEM, A4 } from './contratosPdf';
 import { br, cpfFormatado } from './dp';
 import { AVISO_SIMULACAO, reais, rotuloTipo, ROTULO_AVISO, type EntradaRescisao, type LinhaRescisao, type ResultadoRescisao } from './rescisao';
@@ -38,7 +40,7 @@ function marcaDagua(e: Escritor) {
 
 function linhaValor(e: Escritor, l: LinhaRescisao) {
   const tam = 10;
-  const sinal = l.grupo === 'desconto' ? '- ' : '';
+  const sinal = l.grupo === 'desconto' || l.grupo === 'tributo' ? '- ' : '';
   const valor = l.grupo === 'informativo' ? `(${reais(l.valor)})` : `${sinal}${reais(l.valor)}`;
   const largValor = 96;
   const desc = e.quebrar(e.fontes.reg, tam, menos(l.descricao), LARGURA - largValor - 8);
@@ -90,7 +92,8 @@ export async function gerarPdfRescisao(d: DadosPdfRescisao): Promise<Uint8Array>
 
   const rem = [`salário base ${reais(en.salarioBase)}`];
   if (en.adicionaisFixos) rem.push(`adicionais fixos ${reais(en.adicionaisFixos)}`);
-  if (en.mediasVariaveis) rem.push(`médias ${reais(en.mediasVariaveis)}`);
+  if (en.mediasVariaveis) rem.push(`outras médias ${reais(en.mediasVariaveis)}`);
+  if (r.medias?.aviso) rem.push('médias do ponto por verba (abaixo)');
   const aviso = r.aviso.dias
     ? `${ROTULO_AVISO[en.aviso].toLowerCase()} — ${r.aviso.dias} dias${r.aviso.trabalhados ? `, ${r.aviso.trabalhados} trabalhados` : ''}${r.aviso.indenizados ? `, ${String(r.aviso.indenizados).replace('.', ',')} indenizados` : ''}`
     : 'não se aplica';
@@ -116,7 +119,31 @@ export async function gerarPdfRescisao(d: DadosPdfRescisao): Promise<Uint8Array>
     total(e, 'Total de descontos considerado', `- ${reais(r.totalDescontos)}`);
   }
   e.espaco(4);
-  total(e, 'TOTAL BRUTO ESTIMADO (sem INSS e IRRF)', reais(r.totalBruto));
+  total(e, 'Total bruto (antes de INSS e IRRF)', reais(r.totalBruto));
+  const trib = r.linhas.filter((x) => x.grupo === 'tributo');
+  if (trib.length) {
+    e.espaco(8);
+    e.par('INSS e IRRF', { negrito: true, depois: 2 });
+    for (const l of trib) linhaValor(e, l);
+    total(e, 'Total de INSS e IRRF', `- ${reais(r.totalTributos)}`);
+  }
+  e.espaco(4);
+  total(e, 'LÍQUIDO ESTIMADO (sem pensão alimentícia)', reais(r.totalLiquido));
+
+  if (r.medias && (r.medias.aviso || r.medias.decimo || r.medias.ferias.length)) {
+    e.espaco(8);
+    e.par('Médias de horas extras e adicional noturno (Folha de Ponto)', { negrito: true, depois: 2 });
+    const item = (titulo: string, m: MediaPeriodo | null) => {
+      if (!m) return;
+      const ajustados = m.meses.filter((x) => x.ajustado).map((x) => rotuloMes(x.mes));
+      const fora = m.meses.filter((x) => !x.considerado).map((x) => rotuloMes(x.mes));
+      e.par(menos(`• ${titulo}: ${reais(m.valor)} — ${m.memoria}.${ajustados.length ? ` Horas ajustadas pela contadora: ${ajustados.join(', ')}.` : ''}${fora.length ? ` Fora da média: ${fora.join(', ')}.` : ''}`), { tam: 9.5, depois: 2 });
+    };
+    item('Aviso (últimos 12 meses)', r.medias.aviso);
+    item(`13º (meses de ${en.desligamento.slice(0, 4)})`, r.medias.decimo);
+    for (const f of r.medias.ferias) item(`Férias do aquisitivo desde ${br(f.inicio)}`, f.media);
+    e.par('HE 50% (dia útil e sábado de folga), 100% (domingo e feriado) e noturno 20% sobre a hora computada, com reflexo no DSR mês a mês; valor-hora atual (Súmula 347 TST). Mês sem ponto entra com zero.', { tam: 8.5, depois: 2 });
+  }
 
   const info = r.linhas.filter((x) => x.grupo === 'informativo');
   if (info.length) {
