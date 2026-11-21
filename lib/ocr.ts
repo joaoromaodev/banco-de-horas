@@ -94,7 +94,11 @@ export async function extrairFolha(opts: {
   const texto = res.text;
   if (!texto) throw new Error('Gemini não retornou conteúdo.');
 
-  let parsed: any;
+  interface DiaBruto {
+    dia?: unknown; incerto?: unknown; marcador?: unknown;
+    entradaManha?: unknown; saidaAlmoco?: unknown; retornoAlmoco?: unknown; saidaTarde?: unknown;
+  }
+  let parsed: { dias?: DiaBruto[]; funcionario?: string };
   try {
     parsed = JSON.parse(texto);
   } catch {
@@ -102,9 +106,9 @@ export async function extrairFolha(opts: {
   }
 
   const incertos: CampoIncerto[] = [];
-  const dias: DiaFreq[] = (parsed.dias ?? []).map((d: any) => {
+  const dias: DiaFreq[] = (parsed.dias ?? []).map((d: DiaBruto) => {
     if (Array.isArray(d.incerto)) {
-      for (const campo of d.incerto) incertos.push({ dia: d.dia, campo });
+      for (const campo of d.incerto) incertos.push({ dia: Number(d.dia), campo });
     }
     const marcador = normalizarMarcador(d.marcador);
     return {
@@ -128,13 +132,13 @@ export async function extrairFolha(opts: {
   return { frequencia, incertos };
 }
 
-function limparHora(v: any): string | null {
+function limparHora(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
   return s === '' ? null : s;
 }
 
-function normalizarMarcador(v: any): Marcador | null {
+function normalizarMarcador(v: unknown): Marcador | null {
   if (!v) return null;
   const s = String(v).trim().toUpperCase();
   if (['B', 'H', 'BH', 'B/H', 'BANCO'].includes(s)) return 'BANCO DE HORAS';

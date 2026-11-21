@@ -17,7 +17,7 @@ export interface Alerta {
   msg: string;
 }
 
-const ORDEM: { campo: Exclude<CampoDia, 'geral'>; get: (d: any) => string | null | undefined }[] = [
+const ORDEM: { campo: Exclude<CampoDia, 'geral'>; get: (d: Partial<Frequencia['dias'][number]> | undefined) => string | null | undefined }[] = [
   { campo: 'entradaManha', get: (d) => d?.entradaManha },
   { campo: 'saidaAlmoco', get: (d) => d?.saidaAlmoco },
   { campo: 'retornoAlmoco', get: (d) => d?.retornoAlmoco },

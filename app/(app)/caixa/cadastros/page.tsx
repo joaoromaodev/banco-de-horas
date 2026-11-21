@@ -37,14 +37,6 @@ export default function CaixaCadastros() {
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d && d.role === 'cliente') { router.replace('/caixa'); return; }
-      carregarEmpresas();
-    }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   async function carregarEmpresas() {
     setErro(null);
     try {
@@ -56,6 +48,14 @@ export default function CaixaCadastros() {
       if (!empresaSel && lista.length) setEmpresaSel(lista[0].id);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
+
+  useEffect(() => {
+    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d && d.role === 'cliente') { router.replace('/caixa'); return; }
+      carregarEmpresas();
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function carregarFiscal(empresa: string) {
     if (!empresa) { setFiscal(FISCAL_VAZIO); return; }

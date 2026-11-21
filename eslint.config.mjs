@@ -6,6 +6,11 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // Override default ignores of eslint-config-next.
+  {
+    // Regra nova do React Compiler. As telas antigas carregam dados num efeito
+    // (padrão anterior a ela); fica como aviso até a refatoração das telas.
+    rules: { "react-hooks/set-state-in-effect": "warn" },
+  },
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",

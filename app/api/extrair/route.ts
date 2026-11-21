@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       modelo: getGeminiModelo(),
     });
     return Response.json(resultado);
-  } catch (e: any) {
-    return Response.json({ erro: e?.message ?? 'Falha na extração.' }, { status: 502 });
+  } catch (e) {
+    return Response.json({ erro: e instanceof Error ? e.message : 'Falha na extração.' }, { status: 502 });
   }
 }
