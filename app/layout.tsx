@@ -4,6 +4,7 @@ import "./globals.css";
 import { BRAND } from "@/lib/brand";
 import { Dicas } from "@/components/retorno";
 import { SCRIPT_TEMA } from "@/components/tema";
+import { Medicao } from "@/components/medicao";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body className="min-h-full bg-fundo text-tinta">
         {children}
         <Dicas />
+        <Medicao />
       </body>
     </html>
   );

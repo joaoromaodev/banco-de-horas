@@ -9,6 +9,7 @@ import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
 import { SENHA_MIN } from '@/lib/auth';
+import { MedicaoApp } from './Medicao';
 
 type Papel = 'master' | 'usuario' | 'cliente';
 type Modulo = 'ponto' | 'caixa';
@@ -183,6 +184,8 @@ export default function Configuracoes() {
         )}
 
         <OQueEstaDesligado />
+
+        <MedicaoApp />
 
         {/* Leitura por IA */}
         <Secao titulo="Leitura das folhas por IA"
