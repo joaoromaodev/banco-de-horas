@@ -69,7 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // só se o módulo estiver habilitado — um contador só-caixa não vê a folha.
   const temModulo = (m: Modulo) => me?.role === 'master' || (me?.modulos ?? []).includes(m);
   const grupos: Grupo[] = me?.role === 'cliente'
-    ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }] }]
+    ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }, { href: '/documentos', label: 'Documentos', icon: 'folha' }] }]
     : [
         // Folha de Ponto é um módulo só: um item na barra, e Timesheet / Folhas em
         // branco viram abas dentro dele (ver AbasPonto), como o Livro Caixa faz.
@@ -83,6 +83,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ...(temModulo('caixa')
           ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }] } as Grupo]
           : []),
+        { itens: [{ href: '/documentos', label: 'Documentos', icon: 'folha' }] },
         { itens: [
           // Agenda de obrigações: da contabilidade, independe de módulo (ver docs/agenda.md).
           { href: '/agenda', label: 'Agenda', icon: 'agenda' },

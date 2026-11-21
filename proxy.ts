@@ -19,7 +19,7 @@ const PUBLICO = [
 const SOMENTE_MASTER = ['/configuracoes', '/api/config'];
 /** Único caminho do papel `cliente`. Negar por padrão: o que não está aqui, ele não vê.
  *  `/api/empresas` entra porque devolve só a empresa da própria sessão (ver lib/acesso). */
-const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas'];
+const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias'];
 /** Para onde o cliente é mandado quando tenta alcançar área de gestão. */
 const HOME_CLIENTE = '/caixa';
 
