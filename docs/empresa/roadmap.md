@@ -34,7 +34,7 @@ aplicação em produção: 0011 → 0012 → 0013 → 0014 → 0015.
 
 | Frente | Sessão | Modelo | Status |
 |---|---|---|---|
-| A. Agenda de obrigações por empresa (recorrência, dia útil, marcar feita) + aviso por e-mail (cron) | `agenda` | Opus alto | ⏳ branch `claude/agenda-obrigacoes-*` — doc `docs/agenda.md` |
+| A. Agenda de obrigações por empresa (recorrência, dia útil, marcar feita) + aviso por e-mail (cron) | `agenda` | Opus alto | ✅ branch `claude/agenda-obrigacoes-e01a60` pronta (migração 0014 **não aplicada**; mexe 1 linha em `proxy.ts` e no menu do layout; precisa de `CRON_SECRET` e, para enviar, `RESEND_API_KEY`) — doc [`docs/agenda.md`](../agenda.md) |
 | B. Portal do cliente: envio de documentos (Storage privado) e pendências pedidas pelo contador | `documentos` | Opus alto | ⏳ branch `claude/portal-documentos-*` — doc `docs/documentos.md` |
 | C. Contratos: alertas de todas as empresas no topo + PDF direto | `contratos` | Sonnet médio | ⏳ branch `claude/contratos-alertas-pdf-*` |
 | D. Painel inicial do contador ("o que precisa de atenção hoje") | — | Sonnet médio | ⏸ depois da A e do ponto (a `/` hoje é a Folha de Ponto) |

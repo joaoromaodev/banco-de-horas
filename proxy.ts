@@ -10,6 +10,8 @@ const PUBLICO = [
   '/login', '/api/login', '/api/logout',
   '/conheca', '/planos', '/termos', '/privacidade',
   '/criar-conta', '/api/criar-conta',
+  // Cron da Vercel: sem cookie; cada rota exige `Authorization: Bearer CRON_SECRET`.
+  '/api/cron',
 ];
 // `/api/usuarios` NÃO entra aqui de propósito: ela agora atende master e contador
 // e faz o recorte fino por papel/dono internamente (ver a rota). O `cliente` já é
