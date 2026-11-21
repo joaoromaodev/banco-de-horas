@@ -21,7 +21,7 @@ interface Fiscal {
 const FISCAL_VAZIO: Fiscal = {
   endereco: '', numeroEndereco: '', municipio: '', estado: '',
   inscricaoEstadual: '', inscricaoMunicipal: '', registroJunta: '', registroNumero: '',
-  prefeitura: '', cidadeTermo: '', contabilista: 'Edilse Goes da Costa', crc: '01619/0-3',
+  prefeitura: '', cidadeTermo: '', contabilista: '', crc: '',
 };
 
 /**

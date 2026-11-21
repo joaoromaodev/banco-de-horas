@@ -9,8 +9,13 @@
 --    de chamadas por escritório (lancamento_id nulo até o lançamento existir).
 -- 2. Índice dos lançamentos por exercício e data — é de onde a sugestão aprende
 --    (lê os mais recentes primeiro).
+-- 3. Responsável técnico (contabilista + CRC) POR ESCRITÓRIO: é o padrão do Termo
+--    de Abertura das empresas que não têm o seu. Antes o padrão era o nome da Edilse
+--    fixo no código e no default de `empresa_fiscal` — vazava para todo escritório.
 --
--- ADITIVA: só tabela e índices novos; nada é apagado nem reescrito. O código
+-- ADITIVA: só tabela, colunas e índices novos; nada é apagado nem reescrito. A
+-- única escrita em dado é preencher o responsável do escritório da Edilse (id fixo
+-- da 0010) com o dela, se ainda vazio — as empresas dela seguem iguais. O código
 -- funciona sem ela (registro e IA ficam desligados, a sugestão local e a revisão
 -- seguem), então a ordem publicar/aplicar não quebra nada — mas aplique antes
 -- para ligar a IA e a medição.
@@ -56,3 +61,17 @@ create index if not exists caixa_sugestoes_empresa_idx
 -- (o índice antigo começa por `mes` e não serve à ordem por data entre meses).
 create index if not exists lancamentos_exercicio_data_idx
   on lancamentos (exercicio_id, data desc);
+
+-- ---------------------------------------------------------------- responsável técnico
+alter table escritorios add column if not exists contabilista_nome text;
+alter table escritorios add column if not exists contabilista_crc  text;
+
+-- O escritório da Edilse continua com o dela como padrão (só se ainda vazio).
+update escritorios
+   set contabilista_nome = 'Edilse Goes da Costa', contabilista_crc = '01619/0-3'
+ where id = '00000000-0000-4000-8000-000000000001' and contabilista_nome is null;
+
+-- Sem nome de pessoa como default de coluna. As linhas existentes NÃO mudam (um
+-- default só vale para inserts futuros); o código já grava '' quando em branco.
+alter table empresa_fiscal alter column contabilista drop default;
+alter table empresa_fiscal alter column crc          drop default;

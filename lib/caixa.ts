@@ -61,34 +61,61 @@ export interface DadosFiscais {
   registroNumero: string | null;
   prefeitura: string | null;
   cidadeTermo: string | null;
+  /** '' = em branco (o termo sai com o espaço para preencher). */
   contabilista: string;
   crc: string;
 }
 
-const FISCAL_PADRAO: DadosFiscais = {
+const FISCAL_VAZIO: DadosFiscais = {
   endereco: null, numeroEndereco: null, municipio: null, estado: null,
   inscricaoEstadual: null, inscricaoMunicipal: null, registroJunta: null,
   registroNumero: null, prefeitura: null, cidadeTermo: null,
-  contabilista: 'Edilse Goes da Costa', crc: '01619/0-3',
+  contabilista: '', crc: '',
 };
 
-/** Fiscal da empresa; devolve os padrões (contabilista/CRC da Edilse) se ainda não houver linha. */
+/**
+ * Contabilista/CRC padrão de uma empresa sem o seu preenchido: o responsável
+ * técnico DO ESCRITÓRIO dela (`escritorios.contabilista_nome/_crc`, migração 0017)
+ * ou em branco. Nunca um nome fixo no código — antes era o da Edilse para
+ * qualquer escritório (vazamento de um escritório no produto dos outros).
+ */
+export function padraoContabilista(
+  escritorio: { contabilista_nome?: string | null; contabilista_crc?: string | null } | null | undefined,
+): { contabilista: string; crc: string } {
+  return {
+    contabilista: String(escritorio?.contabilista_nome ?? '').trim(),
+    crc: String(escritorio?.contabilista_crc ?? '').trim(),
+  };
+}
+
+/** O padrão do escritório dono da empresa. Sem a 0017 (coluna ausente) ou sem escritório: em branco. */
+async function padraoDaEmpresa(empresaId: string): Promise<{ contabilista: string; crc: string }> {
+  const emp = await lerEmpresa(empresaId);
+  if (!emp?.escritorioId) return padraoContabilista(null);
+  const { data, error } = await getDb()
+    .from('escritorios').select('contabilista_nome, contabilista_crc').eq('id', emp.escritorioId).maybeSingle();
+  return padraoContabilista(error ? null : data);
+}
+
+/** Fiscal da empresa; contabilista/CRC em branco caem no padrão do escritório dela. */
 export async function lerFiscal(empresaId: string): Promise<DadosFiscais> {
   const db = getDb();
-  const { data, error } = await db
-    .from('empresa_fiscal')
-    .select('endereco, numero_endereco, municipio, estado, inscricao_estadual, inscricao_municipal, registro_junta, registro_numero, prefeitura, cidade_termo, contabilista, crc')
-    .eq('empresa_id', empresaId).maybeSingle();
+  const [{ data, error }, padrao] = await Promise.all([
+    db.from('empresa_fiscal')
+      .select('endereco, numero_endereco, municipio, estado, inscricao_estadual, inscricao_municipal, registro_junta, registro_numero, prefeitura, cidade_termo, contabilista, crc')
+      .eq('empresa_id', empresaId).maybeSingle(),
+    padraoDaEmpresa(empresaId),
+  ]);
   if (error) throw new ErroCaixa(`empresa_fiscal: ${error.message}`, 502);
-  if (!data) return { ...FISCAL_PADRAO };
+  if (!data) return { ...FISCAL_VAZIO, ...padrao };
   return {
     endereco: data.endereco, numeroEndereco: data.numero_endereco,
     municipio: data.municipio, estado: data.estado,
     inscricaoEstadual: data.inscricao_estadual, inscricaoMunicipal: data.inscricao_municipal,
     registroJunta: data.registro_junta, registroNumero: data.registro_numero,
     prefeitura: data.prefeitura, cidadeTermo: data.cidade_termo,
-    contabilista: data.contabilista ?? FISCAL_PADRAO.contabilista,
-    crc: data.crc ?? FISCAL_PADRAO.crc,
+    contabilista: String(data.contabilista ?? '').trim() || padrao.contabilista,
+    crc: String(data.crc ?? '').trim() || padrao.crc,
   };
 }
 
@@ -106,8 +133,10 @@ export async function salvarFiscal(empresaId: string, d: DadosFiscais, por: stri
     inscricao_estadual: limpo(d.inscricaoEstadual), inscricao_municipal: limpo(d.inscricaoMunicipal),
     registro_junta: limpo(d.registroJunta), registro_numero: limpo(d.registroNumero),
     prefeitura: limpo(d.prefeitura), cidade_termo: limpo(d.cidadeTermo),
-    contabilista: limpo(d.contabilista) ?? FISCAL_PADRAO.contabilista,
-    crc: limpo(d.crc) ?? FISCAL_PADRAO.crc,
+    // em branco fica em branco ('' — a coluna é not null desde a 0003): a leitura
+    // cai no padrão do escritório
+    contabilista: limpo(d.contabilista) ?? '',
+    crc: limpo(d.crc) ?? '',
     atualizado_por: por, atualizado_em: new Date().toISOString(),
   }, { onConflict: 'empresa_id' });
   if (error) throw new ErroCaixa(`empresa_fiscal: ${error.message}`, 502);

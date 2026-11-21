@@ -746,6 +746,24 @@ inicial de 2026 ainda é zero, pendência 1) e **setembro e outubro sem lançame
   enviado). Então `CAIXA_IA_SUGESTAO=ligada`. Mesmo ligada, empresa que identifica
   pagador (o NÉLIO) não usa IA. A IA usa `GEMINI_API_KEY` e `GEMINI_MODELO`.
 - **A 0017 depende da `0012`** (a unique `empresas (id, escritorio_id)` da FK composta).
+- **Contabilista/CRC padrão deixou de ser o da Edilse.** Antes `lib/caixa.ts`
+  (`FISCAL_PADRAO`), `app/api/caixa/fiscal/route.ts`, a tela `caixa/cadastros` e o
+  default da coluna (0003) punham "Edilse Goes da Costa / 01619/0-3" em qualquer empresa
+  de qualquer escritório. Agora o padrão é o **responsável técnico do escritório**
+  (`escritorios.contabilista_nome`/`contabilista_crc`, novas na 0017) ou **em branco**
+  (o termo sai com o espaço para preencher). `padraoContabilista` em `lib/caixa.ts`;
+  teste em `tests/contabilistaPadrao.test.ts` (escritório novo recebe em branco, e
+  nenhum `.ts/.tsx` de `app/`/`lib/` traz o nome ou o CRC dela).
+  - A 0017 preenche o responsável **só do escritório da Edilse** (id fixo da 0010), se
+    vazio, e tira o default das colunas de `empresa_fiscal`. **Nenhuma linha de
+    `empresa_fiscal` é alterada** — as empresas dela com o contabilista salvo seguem iguais.
+  - Ordem: o código funciona antes da 0017 (sem a coluna, o padrão fica em branco;
+    em branco grava `''`, compatível com o `not null` da 0003). Até aplicar a 0017, uma
+    empresa da Edilse **sem** cadastro fiscal mostraria o contabilista em branco.
+  - Ainda **não há tela** para o escritório editar o seu responsável técnico (hoje só por
+    SQL do master). Próximo passo natural: campo nas Configurações do escritório.
+  - Testar: empresa de um escritório de teste sem cadastro fiscal → "Dados fiscais" vem
+    com contabilista e CRC em branco; uma empresa da Edilse continua com o nome dela.
 - **Painel (fechamento mensal):** para mostrar "pedem atenção" por empresa, chame
   `revisarExercicio(empresaId, ano)` de `lib/caixaInteligente.ts` — `resumo` traz
   `{ alto, medio, baixo, lancamentos }` e `gerais` os alertas do exercício (mês sem
