@@ -147,14 +147,14 @@ Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/d
 | A. Sino do cliente: folha devolvida, pedido da contabilidade, Demonstrativo pronto | `claude/avisos-cliente` | ✅ publicada, sem migração. Avisos montados do que já existe (não gravados); "lido" do cliente separado. Escudo: pode publicar. E-mail ao cliente só com `RESEND_API_KEY` + `AVISOS_CLIENTE_EMAIL=ligado` + `APP_URL` — **desligado**, decisão futura |
 | B. Foto girada antes da IA, limite do cliente só com leituras dele, gráfico do Demonstrativo no celular | `claude/acabamentos-ia` | ✅ publicada, sem migração (teste logado em produção passou: 3 avisos, links, "lido", isolamento, foto com EXIF 6 lida certa; contagens iguais). `lib/fotoParaIa.ts` (sharp) põe a foto em pé e tira o EXIF também na folha de ponto (que subia crua); subcota do cliente só com leituras dele, corrida fechada; gráfico do Demonstrativo a 12 px |
 
-## Sprint 14 — Confiabilidade (🔄 em andamento)
+## Sprint 14 — Confiabilidade (✅ concluída e publicada em 21/11/2026)
 
 | Frente | Branch | Status |
 |---|---|---|
-| A. Nada falha calado (pedidos mensais sem depender do cron, `error.tsx`, erros visíveis, painel do que está desligado) | `claude/nada-falha-calado` | 🔄 subagente |
-| B. Testes de guarda em todas as rotas e de rota nos fluxos críticos | `claude/testes-rotas` | 🔄 subagente |
+| A. Nada falha calado (pedidos mensais sem depender do cron, `error.tsx`, erros visíveis, painel do que está desligado) | `claude/nada-falha-calado` | ✅ publicada; 0030 aplicada (backup `backup-antes-0030-2026-11-21.json`). Pedidos do mês abertos na 1ª visita a `/painel`/`/inicio` (idempotente pelo índice da 0018); limpeza de fotos oportunista (50/dia); `error.tsx`; `FalhaCarregamento` em 17 telas; "O que está desligado" em `/configuracoes` |
+| B. Testes de guarda em todas as rotas e de rota nos fluxos críticos | `claude/testes-rotas` | ✅ publicada. 68 rotas / 119 handlers, todas com guarda; CI quebra rota nova sem guarda; fluxos do caixa e da folha do cliente testados com guardas reais. Pendente: `GET /api/envio-ponto` dá 403 em empresa arquivada (guarda de `documentos/comum` usa só ativas) |
 
-Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal.
+Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal; lint subiu de 32 para 45 avisos (`set-state-in-effect`) — limpar.
 
 ## Próximas frentes (backlog priorizado)
 
