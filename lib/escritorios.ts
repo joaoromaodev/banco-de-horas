@@ -17,6 +17,11 @@ export interface Escritorio {
   testeAte: string | null;
   situacao: SituacaoEscritorio;
   criadoEm: string | null;
+  /** Responsável técnico — padrão do Termo de Abertura (0017). */
+  contabilistaNome: string;
+  contabilistaCrc: string;
+  /** Dia (1–28) sugerido como prazo dos pedidos mensais novos (0019). */
+  prazoPedidosPadrao: number;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -29,6 +34,10 @@ function linhaParaEscritorio(r: any): Escritorio {
     testeAte: r.teste_ate ?? null,
     situacao: (['teste', 'ativo', 'suspenso'].includes(r.situacao) ? r.situacao : 'teste') as SituacaoEscritorio,
     criadoEm: r.criado_em ?? null,
+    contabilistaNome: String(r.contabilista_nome ?? '').trim(),
+    contabilistaCrc: String(r.contabilista_crc ?? '').trim(),
+    // sem a 0019 a coluna não existe: vale o padrão de sempre
+    prazoPedidosPadrao: Number.isInteger(r.prazo_pedidos_padrao) ? Number(r.prazo_pedidos_padrao) : 10,
   };
 }
 

@@ -120,17 +120,17 @@ export async function exigirEmpresa(req: NextRequest, empresaId: string): Promis
 }
 
 /** Exige o administrador do escritório (contador com `adminEscritorio`) — cobrança e equipe. */
-export async function exigirAdminEscritorio(req: NextRequest): Promise<Guarda> {
+export async function exigirAdminEscritorio(req: NextRequest, oQue = 'cuida da assinatura'): Promise<Guarda> {
   const sessao = await sessaoDe(req);
   if (!sessao) return negar('Não autenticado.', 401);
   if (sessao.role !== 'usuario' || !sessao.escritorioId) return negar('Acesso restrito ao escritório.', 403);
-  if (!sessao.adminEscritorio) return negar('Só o administrador do escritório cuida da assinatura.', 403);
+  if (!sessao.adminEscritorio) return negar(`Só o administrador do escritório ${oQue}.`, 403);
   // O cookie vale 12 h: confere no banco se ainda é admin DESTE escritório
   // (quem perdeu o papel não cancela nem troca o plano nesse intervalo).
   try {
     const u = await buscarUsuario(sessao.email.toLowerCase());
     if (!u || u.role !== 'usuario' || !u.adminEscritorio || u.escritorioId !== sessao.escritorioId) {
-      return negar('Só o administrador do escritório cuida da assinatura.', 403);
+      return negar(`Só o administrador do escritório ${oQue}.`, 403);
     }
   } catch {
     return negar('Não foi possível conferir o acesso agora.', 503);
