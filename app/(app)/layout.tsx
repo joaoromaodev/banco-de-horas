@@ -5,13 +5,17 @@ import { usePathname, useRouter } from 'next/navigation';
 import { IconeExcluir, IconeMenu, IconePainel } from './icones';
 import { BRAND } from '@/lib/brand';
 import { BotaoTema } from '@/components/tema';
-import { avisoTeste, SituacaoEscritorio } from '@/lib/visibilidade';
+import { SituacaoEscritorio } from '@/lib/visibilidade';
+import { botaoCls } from '@/components/ui';
+import { dataBR, type Situacao } from '@/lib/cobranca';
 
 type Modulo = 'ponto' | 'caixa';
 interface EscritorioMe { id: string; nome: string; plano: string; situacao: SituacaoEscritorio; testeAte: string | null; }
 interface Me {
   nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; modulos: Modulo[];
   adminEscritorio?: boolean; escritorio?: EscritorioMe | null;
+  /** Situação de cobrança do escritório (null para o master ou se a leitura falhar). */
+  cobranca?: Situacao | null;
 }
 interface Item { href: string; label: string; icon: string; ativoEm?: string[]; }
 interface Grupo { titulo?: string; itens: Item[]; }
@@ -31,6 +35,7 @@ function Icon({ name }: { name: string }) {
   if (name === 'equipe') return <svg {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
   if (name === 'cadastros') return <svg {...props}><path d="M16 21v-2a4 4 0 0 0-8 0v2" /><circle cx="12" cy="7" r="4" /></svg>;
   if (name === 'config') return <svg {...props}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
+  if (name === 'assinatura') return <svg {...props}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" /></svg>;
   if (name === 'logout') return <svg {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>;
   return null;
 }
@@ -86,6 +91,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           { href: '/cadastros', label: 'Cadastro', icon: 'cadastros' },
           // O administrador do escritório convida os outros contadores.
           ...(me?.role === 'usuario' && me.adminEscritorio ? [{ href: '/equipe', label: 'Equipe', icon: 'equipe' }] : []),
+          // Plano e pagamento do escritório (o admin age; os demais contadores só veem).
+          ...(me?.role === 'usuario' ? [{ href: '/assinatura', label: 'Assinatura', icon: 'assinatura' }] : []),
           ...(me?.role === 'master' ? [{ href: '/configuracoes', label: 'Configurações', icon: 'config' }] : []),
         ] },
       ];
@@ -96,10 +103,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  // Fim do teste grátis: aviso discreto, sem bloquear nada (o bloqueio vem com a
-  // cobrança, na Sprint 2). Só o escritório em `teste` recebe — o cliente final
-  // da contabilidade não precisa saber do plano do escritório.
-  const teste = me?.role === 'usuario' ? avisoTeste(me.escritorio) : null;
+  // Faixa da cobrança (regras em lib/cobranca.ts): somente leitura para todos
+  // do escritório, inclusive o cliente; os avisos de prazo (teste acabando,
+  // carência, cancelada) só para a contabilidade.
+  const faixa = faixaCobranca(me);
 
   const iniciais = (me?.nome ?? '?').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
 
@@ -199,15 +206,58 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main id="conteudo" className="min-w-0 flex-1 pt-14 lg:pt-0">
-        {teste && (
-          <div role="status" className="border-b border-aviso-borda bg-aviso-suave px-4 py-2 text-[13px] text-aviso sm:px-6">
-            {teste.acabou
-              ? 'O período de teste grátis do seu escritório terminou. Por enquanto tudo continua liberado — em breve você poderá assinar um plano.'
-              : `Faltam ${teste.dias} ${teste.dias === 1 ? 'dia' : 'dias'} do teste grátis do seu escritório.`}
+        {faixa && (
+          <div role="status"
+            className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-[13px] sm:px-6 ${
+              faixa.tom === 'perigo' ? 'border-perigo-borda bg-perigo-suave text-perigo' : 'border-aviso-borda bg-aviso-suave text-aviso'
+            }`}>
+            <span className="min-w-0 flex-1">{faixa.texto}</span>
+            {faixa.acao && pathname !== '/assinatura' && (
+              <a href="/assinatura" className={botaoCls({ variante: 'primaria', tamanho: 'sm' })}>{faixa.acao}</a>
+            )}
           </div>
         )}
         {children}
       </main>
     </div>
   );
+}
+
+/** Texto, tom e botão da faixa de cobrança no topo — ou nada. */
+function faixaCobranca(me: Me | null): { texto: string; tom: 'aviso' | 'perigo'; acao?: string } | null {
+  const c = me?.cobranca;
+  if (!me || !c || me.role === 'master') return null;
+  const admin = me.role === 'usuario' && Boolean(me.adminEscritorio);
+  if (c.somenteLeitura) {
+    if (me.role === 'cliente') {
+      return { tom: 'perigo', texto: 'Por enquanto dá para consultar e exportar, mas não para lançar ou alterar: a assinatura da contabilidade que atende sua empresa está pendente.' };
+    }
+    const porque = {
+      teste_vencido: 'O teste grátis terminou.',
+      inadimplente: 'Há uma cobrança da assinatura em aberto.',
+      cancelada: 'A assinatura foi cancelada.',
+      aguardando_pagamento: 'O pagamento da assinatura ainda não foi confirmado.',
+      suspenso: 'O acesso do escritório está suspenso.',
+    }[c.motivo];
+    return {
+      tom: 'perigo',
+      texto: `${porque} A conta está em modo somente leitura: tudo continua visível e exportável, mas nada pode ser gravado.${admin ? '' : ' Peça ao administrador do escritório para regularizar.'}`,
+      acao: admin ? (c.motivo === 'inadimplente' ? 'Regularizar' : 'Assinar') : undefined,
+    };
+  }
+  if (me.role !== 'usuario') return null;
+  const dias = (n?: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`;
+  if (c.motivo === 'teste' && (c.dias ?? 99) <= 3) {
+    return { tom: 'aviso', texto: `Faltam ${dias(c.dias)} do teste grátis do seu escritório. Assine para continuar lançando depois.`, acao: admin ? 'Assinar' : undefined };
+  }
+  if (c.motivo === 'cobranca_desligada') {
+    return { tom: 'aviso', texto: 'O período de teste grátis do seu escritório terminou. Por enquanto tudo continua liberado — em breve você poderá assinar um plano.' };
+  }
+  if (c.motivo === 'carencia') {
+    return { tom: 'aviso', texto: `Há uma cobrança da assinatura em aberto. Regularize até ${dataBR(c.ate)} para a conta não entrar em modo somente leitura.`, acao: admin ? 'Ver cobrança' : undefined };
+  }
+  if (c.motivo === 'cancelada_vigente' && (c.dias ?? 99) <= 7) {
+    return { tom: 'aviso', texto: `A assinatura foi cancelada. O acesso completo vai até ${dataBR(c.ate)}; depois, a conta fica em somente leitura.`, acao: admin ? 'Assinar de novo' : undefined };
+  }
+  return null;
 }

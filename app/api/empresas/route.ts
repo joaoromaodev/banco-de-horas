@@ -6,6 +6,8 @@ import { NextRequest } from 'next/server';
 import { empresasVisiveis, exigirGestor, exigirSessao } from '@/lib/acesso';
 import { lerEmpresas, salvarEmpresas } from '@/lib/cadastro';
 import { Empresa } from '@/lib/tipos';
+import { cabeNoPlano, limiteEmpresas, NOME_PLANO, PLANOS, planoMinimoPara } from '@/lib/cobranca';
+import { planoDoEscritorio } from '@/lib/cobrancaServidor';
 
 export const runtime = 'nodejs';
 
@@ -51,6 +53,20 @@ export async function POST(req: NextRequest) {
       return atual && atual.escritorioId !== escritorioId;
     });
     if (alheia) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
+
+    // Limite de empresas do plano: só barra quando a lista CRESCE além do limite
+    // (quem já passou dele, ex.: desceu de plano, continua editando as que tem).
+    const atuais = todas.filter((e) => e.escritorioId === escritorioId).length;
+    const depois = enviadas.filter((e) => e.nome?.trim()).length;
+    const plano = await planoDoEscritorio(escritorioId);
+    if (plano && !cabeNoPlano(plano, atuais, depois)) {
+      const lim = limiteEmpresas(plano);
+      const sugerido = PLANOS[planoMinimoPara(depois)].nome;
+      return Response.json({
+        erro: `O plano ${NOME_PLANO[plano]} comporta até ${lim} empresas-clientes. Para cadastrar mais, suba para o ${sugerido} em Assinatura.`,
+        codigo: 'limite_plano', limite: lim,
+      }, { status: 402 });
+    }
 
     // O responsável (`contador`) é preservado; empresa nova ganha quem a cadastrou.
     const email = g.sessao.email.toLowerCase();
