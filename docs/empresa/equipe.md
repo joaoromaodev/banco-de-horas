@@ -36,7 +36,8 @@ cobrança, designer) — não com o João. Ao João só vai o que é fato que s�
 3. **Push/deploy e migração em produção são do dono** (autorizado pelo João em
    21/11/2026), feitos na integração: só depois de lint, build e testes passarem,
    e migração só com `migration list --remote`, backup dos dados afetados e plano
-   de reversão. Sessões de frente não fazem push nem aplicam migração.
+   de reversão. Sessões de frente não fazem push nem aplicam migração; terminam com commit e `git push origin HEAD` na própria
+   branch (para a outra máquina enxergar).
 4. **Mensagem para a Edilse ou clientes: nunca enviar.** O dono escreve o texto
    pronto e entrega ao João, que envia.
 5. Migração nova: `git fetch` + `npx supabase migration list --remote` antes de

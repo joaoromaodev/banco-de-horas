@@ -22,17 +22,22 @@ Migrações numeradas de antemão para não colidir: A `0011`, B `0012`, C `0013
 
 | Frente | Sessão | Modelo | Status |
 |---|---|---|---|
-| A. Cobrança: assinatura (gateway escolhido por consultor), webhook, conta somente leitura ao fim do teste | `cobranca` | Opus alto | ⏳ |
-| B. Folha de Ponto do Sheets para o Postgres, por escritório + chave Gemini da plataforma + cota de OCR por plano | `ponto-postgres` | Opus alto | ⏳ |
+| A. Cobrança: assinatura (gateway escolhido por consultor), webhook, conta somente leitura ao fim do teste | `cobranca` | Opus alto | ⏳ no computador de casa (`claude/cobranca-118569`, sem commits em 21/11 12:50). Se seguir vazia até 22/11 ~12h, o dono refaz |
+| B. Folha de Ponto do Sheets para o Postgres, por escritório + chave Gemini da plataforma + cota de OCR por plano | `ponto-postgres` | Opus alto | ⏳ no computador de casa (`claude/ponto-postgres-8196ff`, sem commits em 21/11 12:50). Mesmo prazo de 24 h |
 | C. Catálogo do Livro Caixa por escritório (base global + extensões) | `catalogo-caixa` | Sonnet médio | ✅ branch `claude/catalogo-caixa-859f94` pronta; integra depois da 0011 e 0012 (ordem das migrações) |
 | D. Modo escuro e polimento visual (tokens, contraste, telas novas) | `modo-escuro` | Sonnet médio | ✅ branch `claude/modo-escuro-cc7676` (tokens escuros AA, seletor claro/escuro/auto, telas e gráficos varridos; integrada e publicada em 21/11/2026) |
 
-## Sprint 3 — Portal do Cliente e Agenda
+## Sprint 3 — Portal do Cliente e Agenda (iniciada 21/11/2026)
 
-- Portal do cliente unificado (caixa + envio de documentos + pendências).
-- Agenda de obrigações por cliente com aviso por e-mail.
-- Contratos: alertas de todas as empresas no topo, PDF direto.
-- Painel inicial do contador: o que precisa de atenção hoje.
+Migrações reservadas: A `0014`, B `0015`. Próximo número livre: `0016`. Ordem de
+aplicação em produção: 0011 → 0012 → 0013 → 0014 → 0015.
+
+| Frente | Sessão | Modelo | Status |
+|---|---|---|---|
+| A. Agenda de obrigações por empresa (recorrência, dia útil, marcar feita) + aviso por e-mail (cron) | `agenda` | Opus alto | ⏳ branch `claude/agenda-obrigacoes-*` — doc `docs/agenda.md` |
+| B. Portal do cliente: envio de documentos (Storage privado) e pendências pedidas pelo contador | `documentos` | Opus alto | ⏳ branch `claude/portal-documentos-*` — doc `docs/documentos.md` |
+| C. Contratos: alertas de todas as empresas no topo + PDF direto | `contratos` | Sonnet médio | ⏳ branch `claude/contratos-alertas-pdf-*` |
+| D. Painel inicial do contador ("o que precisa de atenção hoje") | — | Sonnet médio | ⏸ depois da A e do ponto (a `/` hoje é a Folha de Ponto) |
 
 ## Achados da integração
 

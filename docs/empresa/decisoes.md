@@ -2,6 +2,18 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Abertura da Sprint 3 (segunda máquina)
+
+- Sprint 3 aberta com a Sprint 2 ainda pendente, em frentes que não tocam nos
+  arquivos da cobrança e do ponto: agenda (0014), documentos do cliente (0015) e
+  contratos (sem migração). O painel do contador espera, porque a `/` é do ponto.
+- Documentos do cliente ficam em bucket **privado** do Storage, com download só por
+  URL assinada gerada depois da guarda de acesso.
+- E-mail de aviso atrás de `lib/email.ts`: sem chave do provedor, não envia e só
+  registra (não trava a publicação).
+- Sessões de frente passam a dar push da própria branch (nunca em `main`), para o
+  trabalho aparecer no outro computador.
+
 ## 21/11/2026 — Integração da Sprint 1
 
 - Migração 0010 com **backfill em falha fechada** (contador sem empresa ganha
