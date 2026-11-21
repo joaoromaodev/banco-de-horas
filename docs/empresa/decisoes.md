@@ -2,6 +2,13 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Cobrança e ponto reassumidos no notebook
+
+- O João pediu para tocar tudo nesta máquina, sem tarefa agendada nem espera do
+  prazo de 24 h: cobrança (0011) e ponto (0012) foram reabertos aqui em sessões
+  Opus. As branches antigas do computador de casa estavam vazias; se aparecer algo
+  nelas, as sessões novas aproveitam. **Não rodar as frentes de novo em casa.**
+
 ## 21/11/2026 — Abertura da Sprint 3 (segunda máquina)
 
 - Sprint 3 aberta com a Sprint 2 ainda pendente, em frentes que não tocam nos
