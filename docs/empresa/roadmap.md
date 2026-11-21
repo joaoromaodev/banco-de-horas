@@ -6,7 +6,7 @@
 
 Última atualização: **21/11/2026**
 
-## Sprint 1 — Fundação SaaS (iniciada 21/11/2026)
+## Sprint 1 — Fundação SaaS (✅ concluída e publicada em 21/11/2026)
 
 | Frente | Sessão | Branch | Status |
 |---|---|---|---|

@@ -23,9 +23,19 @@
 | Empresas | `POST /api/empresas` grava só no escritório da sessão e remove só dentro dele. Id enviado que pertence a outro escritório → 403 (antes um upsert podia "roubar" a empresa). O master grava preservando o escritório de cada uma; empresa nova sem escritório ele não cria. |
 | Folha de Ponto | Continua no Google Sheets (migra na Sprint 2). As rotas de ponto agora checam `podeAcessarEmpresa` (`/api/folha`, `/folha-lote`, `/gerar`, `/gerar-lote`, `/salvar`, `/extrair`, `/funcionarios`); `GET /api/funcionarios` sem empresa filtra pelas empresas visíveis. **Feriados são globais** (a lista de Belém): ler é livre, gravar só master e o escritório fundador. |
 
-## Migração pendente — `supabase/migrations/0010_escritorios.sql`
+## Migração `supabase/migrations/0010_escritorios.sql`
 
-**Não aplicada no remoto.** O que faz: cria `escritorios`, adiciona
+**Aplicada em produção em 21/11/2026**, com backup prévio de `usuarios` e `empresas`.
+Antes de aplicar, o dono mudou o backfill para **falha fechada**: só entram no
+escritório da Edilse os clientes e os contadores donos de alguma empresa. Havia uma
+contadora (Bianca Ramos) sem nenhuma empresa — pela versão original ela passaria a
+ver todas as da Edilse; ficou com um escritório próprio, em teste. Se ela for da
+equipe da Edilse, mova por SQL (`update usuarios set escritorio_id = '00000000-0000-4000-8000-000000000001', admin_escritorio = false where ...`).
+Resultado conferido: 3 empresas e o login da Adriana (Vaz & Vouzela) no escritório
+da Edilse; ela é admin. Teste em produção pelo dev local: conta nova não vê nada e
+leva 403 ao tentar ler ou sobrescrever a empresa do NÉLIO (conta de teste apagada depois).
+
+Texto original da seção, para referência: O que faz: cria `escritorios`, adiciona
 `escritorio_id` (anulável) em `usuarios` e `empresas` e `admin_escritorio` em
 `usuarios`, cria o escritório da Edilce com id fixo
 `00000000-0000-4000-8000-000000000001` (`ESCRITORIO_FUNDADOR_ID`, plano

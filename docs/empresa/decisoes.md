@@ -2,6 +2,13 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Integração da Sprint 1
+
+- Migração 0010 com **backfill em falha fechada** (contador sem empresa ganha
+  escritório próprio, não herda as empresas da Edilse). Ver `docs/multi-escritorio.md`.
+- `turbopack.root` fixado no `next.config.ts`: um `package-lock.json` solto na
+  pasta do usuário fazia o dev quebrar o proxy.
+
 ## 21/11/2026 — Revisão do dono sobre a Frente B
 
 Aceitas todas as decisões abaixo. Ajustes:
