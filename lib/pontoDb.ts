@@ -144,6 +144,49 @@ export async function lerFrequenciasDoMes(escritorioId: string, empresaId: strin
   return [...porFunc.values()];
 }
 
+/** Dias do mês anterior que a revisão usa (interjornada no dia 1 e 7º dia seguido). */
+export const DIAS_ANTERIORES_REVISAO = 7;
+
+/**
+ * Para a revisão do mês (lib/revisaoPonto.ts), numa só consulta: as frequências do
+ * mês e os últimos `DIAS_ANTERIORES_REVISAO` dias do mês anterior, por funcionário.
+ */
+export async function lerFrequenciasParaRevisao(escritorioId: string, empresaId: string, ano: number, mes: number): Promise<{
+  doMes: Frequencia[];
+  anteriores: Map<string, DiaFreq[]>;
+}> {
+  const db = getDb();
+  const ant = mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
+  // dia ≥ 22: os últimos 7 dias até de fevereiro (22–28); nos meses longos vêm alguns a mais.
+  const desde = 29 - DIAS_ANTERIORES_REVISAO;
+  const filtro = `and(ano.eq.${ano},mes.eq.${mes}),and(ano.eq.${ant.ano},mes.eq.${ant.mes},dia.gte.${desde})`;
+  const data = await lerTudo<any>((de, ate) => db.from('ponto_frequencias')
+    .select('funcionario, ano, mes, dia, entrada_manha, saida_almoco, retorno_almoco, saida_tarde, marcador')
+    .eq('escritorio_id', escritorioId).eq('empresa_id', empresaId).or(filtro)
+    .order('funcionario').order('ano').order('mes').order('dia').range(de, ate), { falhar });
+  const porFunc = new Map<string, Frequencia>();
+  const anteriores = new Map<string, DiaFreq[]>();
+  for (const r of data) {
+    const nome = String(r.funcionario);
+    const dia: DiaFreq = {
+      dia: Number(r.dia),
+      entradaManha: r.entrada_manha ?? null,
+      saidaAlmoco: r.saida_almoco ?? null,
+      retornoAlmoco: r.retorno_almoco ?? null,
+      saidaTarde: r.saida_tarde ?? null,
+      marcador: marcadorValido(r.marcador),
+    };
+    if (Number(r.ano) === ano && Number(r.mes) === mes) {
+      if (!porFunc.has(nome)) porFunc.set(nome, { empresa: empresaId, funcionario: nome, ano, mes, dias: [] });
+      porFunc.get(nome)!.dias.push(dia);
+    } else {
+      if (!anteriores.has(nome)) anteriores.set(nome, []);
+      anteriores.get(nome)!.push(dia);
+    }
+  }
+  return { doMes: [...porFunc.values()], anteriores };
+}
+
 /** Dias que vão para o banco: só os que têm horário ou marcador, dia válido, sem repetir. */
 export function diasParaGravar(dias: DiaFreq[]): DiaFreq[] {
   const porDia = new Map<number, DiaFreq>();
