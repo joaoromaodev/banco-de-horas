@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     ]);
     return Response.json({
       empregado: e, ferias, faltas: faltas.get(e.id) ?? [], mesesComPonto: meses, funcionario, feriados,
-      empresa: { id: g.empresa.id, nome: g.empresa.nome, jornadaUtilMin: g.empresa.jornadaUtilMin ?? null, jornadaSabadoMin: g.empresa.jornadaSabadoMin ?? null, trabalhaSabado: g.empresa.trabalhaSabado },
+      empresa: { id: g.empresa.id, nome: g.empresa.nome, cnpj: g.empresa.cnpj ?? null, jornadaUtilMin: g.empresa.jornadaUtilMin ?? null, jornadaSabadoMin: g.empresa.jornadaSabadoMin ?? null, trabalhaSabado: g.empresa.trabalhaSabado },
     });
   } catch (e) { return respostaErroDp(e, 'Falha ao carregar a ficha.'); }
 }
