@@ -74,4 +74,8 @@ export interface Empresa {
   contador?: string | null;
   /** Escritório contábil dono da empresa (o inquilino). Ver lib/visibilidade.ts. */
   escritorioId?: string | null;
+  /** Arquivada (migração 0016): fora das listas, dados preservados. Ver lib/arquivamento.ts. */
+  arquivadaEm?: string | null;
+  arquivadaPor?: string | null;
+  arquivadaMotivo?: string | null;
 }

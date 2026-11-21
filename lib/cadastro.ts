@@ -13,6 +13,7 @@ import { Empresa } from './tipos';
 import { Papel, Modulo, MODULOS } from './auth';
 import { Jornada, JORNADA_PADRAO } from './calendario';
 import { ESCRITORIO_FUNDADOR_ID } from './escritorios';
+import { soAtivas } from './arquivamento';
 
 // Id/empresa das linhas legadas (antes do multiempresa). A importação do ponto
 // (lib/pontoImportacao.ts) resolve esse vínculo antigo para a empresa atual.
@@ -64,10 +65,18 @@ function linhaParaEmpresa(r: any): Empresa {
     ordem: r.ordem ?? null,
     contador: r.contador ? String(r.contador).trim().toLowerCase() : null,
     escritorioId: r.escritorio_id ? String(r.escritorio_id) : null,
+    arquivadaEm: r.arquivada_em ? String(r.arquivada_em) : null,
+    arquivadaPor: r.arquivada_por ? String(r.arquivada_por) : null,
+    arquivadaMotivo: r.arquivada_motivo ? String(r.arquivada_motivo) : null,
   };
 }
 
-export async function lerEmpresas(): Promise<Empresa[]> {
+/**
+ * Todas as empresas, **inclusive as arquivadas**. Só para quem precisa saber que
+ * o id existe (checar dono antes de um upsert, reativar). Telas, painel, agenda e
+ * cron usam `lerEmpresas`, que as esconde.
+ */
+export async function lerEmpresasComArquivadas(): Promise<Empresa[]> {
   if (cacheEmpresas && Date.now() - cacheEmpresas.em < TTL_EMPRESAS_MS) return cacheEmpresas.lista;
   const db = getDb();
   const { data, error } = await db.from('empresas').select('*').order('ordem', { ascending: true });
@@ -77,22 +86,25 @@ export async function lerEmpresas(): Promise<Empresa[]> {
   return lista;
 }
 
+/** As empresas ativas (arquivadas ficam de fora de toda lista e guarda). */
+export async function lerEmpresas(): Promise<Empresa[]> {
+  return soAtivas(await lerEmpresasComArquivadas());
+}
+
 export async function lerEmpresa(id: string): Promise<Empresa | null> {
   return (await lerEmpresas()).find((e) => e.id === id) ?? null;
 }
 
 /**
  * Para onde vai um salvamento do cadastro de empresas:
- * - `{ escritorioId }` — o conjunto daquele escritório: as enviadas são gravadas
- *   nele e as que sumiram da lista são removidas **só dentro dele**;
+ * - `{ escritorioId }` — as enviadas são gravadas naquele escritório;
  * - `'plataforma'` — o master: grava como veio (cada empresa mantém o
- *   `escritorioId` que trouxer) e remove o que sumiu, globalmente.
+ *   `escritorioId` que trouxer).
  */
 export type EscopoEmpresas = { escritorioId: string } | 'plataforma';
 
 /**
- * Substitui o conjunto de empresas do escopo: faz upsert das enviadas e remove as
- * que sumiram da lista. Ids são imutáveis — mantém o existente e gera um novo
+ * Faz upsert das empresas enviadas (não remove nenhuma). Ids são imutáveis — mantém o existente e gera um novo
  * (uuid) para empresas sem id. Quem chama garante que nenhum id enviado é de
  * outro escritório (ver /api/empresas).
  */
@@ -117,27 +129,28 @@ export async function salvarEmpresas(lista: Empresa[], escopo: EscopoEmpresas): 
       escritorio_id: escritorio ?? e.escritorioId ?? null,
     }));
 
-  const manter = new Set(linhas.map((e) => e.id));
-  // remove o que não veio na lista (equivale ao "reescrever tudo" do Sheets),
-  // restrito ao escritório quando o escopo é um escritório
-  let consulta = db.from('empresas').select('id');
-  if (escritorio) consulta = consulta.eq('escritorio_id', escritorio);
-  const { data: existentes, error: eLer } = await consulta;
-  if (eLer) throw new Error(eLer.message);
-  const remover = (existentes ?? []).map((r: any) => String(r.id)).filter((id) => !manter.has(id));
-
+  // Nunca apaga: o que sumiu da lista NÃO é removido (excluir virou arquivar, ver
+  // `arquivarEmpresa`). Colunas de arquivamento ficam fora do upsert, então
+  // salvar não reativa nem arquiva nada.
   if (linhas.length) {
     const { error } = await db.from('empresas').upsert(linhas, { onConflict: 'id' });
     if (error) throw new Error(error.message);
   }
-  if (remover.length) {
-    let del = db.from('empresas').delete().in('id', remover);
-    if (escritorio) del = del.eq('escritorio_id', escritorio);
-    const { error } = await del;
-    if (error) throw new Error(error.message);
-  }
   cacheEmpresas = null; // cadastro mudou: força releitura
   return linhas.length;
+}
+
+/** Arquiva (`arquivada: true`) ou reativa uma empresa. Dados dela ficam intactos. */
+export async function definirArquivamento(
+  id: string, arquivada: boolean, por: string, motivo: string | null,
+): Promise<void> {
+  const { error } = await getDb().from('empresas').update(
+    arquivada
+      ? { arquivada_em: new Date().toISOString(), arquivada_por: por.toLowerCase(), arquivada_motivo: motivo }
+      : { arquivada_em: null, arquivada_por: null, arquivada_motivo: null },
+  ).eq('id', id);
+  if (error) throw new Error(error.message);
+  cacheEmpresas = null;
 }
 
 /** Jornada de uma empresa (por id; inclui "trabalha aos sábados"). */

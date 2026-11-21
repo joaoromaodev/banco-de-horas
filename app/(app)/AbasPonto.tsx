@@ -6,7 +6,7 @@ import { Abas } from '@/components/ui';
 export function AbasPonto({ ativa }: { ativa: 'timesheet' | 'folhas' | 'cadastros' }) {
   return (
     <Abas rotulo="Folha de Ponto" itens={[
-      { rotulo: 'Timesheet', href: '/', ativa: ativa === 'timesheet' },
+      { rotulo: 'Timesheet', href: '/ponto', ativa: ativa === 'timesheet' },
       { rotulo: 'Folhas em branco', href: '/folhas', ativa: ativa === 'folhas' },
       { rotulo: 'Cadastros', href: '/ponto-cadastros', ativa: ativa === 'cadastros' },
     ]} />

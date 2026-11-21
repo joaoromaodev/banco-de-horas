@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { lerSessao, temModulo, COOKIE_SESSAO } from '@/lib/auth';
 import { escritaBarrada } from '@/lib/cobranca';
 import { barreiraSomenteLeitura } from '@/lib/acesso';
+import { HOME_CLIENTE, HOME_CONTADOR, inicioDoPapel, ROTA_PONTO } from '@/lib/inicio';
 
 // Site público + `/criar-conta` (cadastro self-service do escritório, teste grátis).
 const PUBLICO = [
@@ -24,13 +25,11 @@ const SOMENTE_MASTER = ['/configuracoes', '/api/config'];
 /** Único caminho do papel `cliente`. Negar por padrão: o que não está aqui, ele não vê.
  *  `/api/empresas` entra porque devolve só a empresa da própria sessão (ver lib/acesso). */
 const CLIENTE_PODE = ['/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias'];
-/** Para onde o cliente é mandado quando tenta alcançar área de gestão. */
-const HOME_CLIENTE = '/caixa';
 
-/** Rotas do módulo Folha de Ponto (timesheet + folhas em branco). `/` é o
- *  timesheet: casa só na raiz exata, não vira prefixo de tudo. */
+/** Rotas do módulo Folha de Ponto (timesheet em `/ponto` + folhas em branco).
+ *  `/` NÃO é mais do ponto: é só um redirecionamento por papel (ver lib/inicio). */
 const ROTAS_PONTO = [
-  '/', '/folhas', '/ponto-cadastros',
+  ROTA_PONTO, '/folhas', '/ponto-cadastros',
   '/api/salvar', '/api/extrair', '/api/gerar', '/api/gerar-lote',
   '/api/folha', '/api/folha-lote', '/api/funcionarios', '/api/feriados',
   // Contrato de experiência: departamento pessoal, da mesma contadora do ponto.
@@ -57,13 +56,22 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Raiz: sem tela própria — cada papel cai no seu início (contador/master → /painel,
+  // cliente → /caixa). Links e favoritos antigos de `/` continuam funcionando.
+  if (pathname === '/') {
+    const url = req.nextUrl.clone();
+    url.pathname = inicioDoPapel(sessao.role);
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
   const casaCom = (lista: string[]) =>
     lista.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   if (casaCom(SOMENTE_MASTER) && sessao.role !== 'master') {
     if (ehApi) return NextResponse.json({ erro: 'Acesso restrito ao administrador.' }, { status: 403 });
     const url = req.nextUrl.clone();
-    url.pathname = sessao.role === 'cliente' ? HOME_CLIENTE : '/';
+    url.pathname = inicioDoPapel(sessao.role);
     return NextResponse.redirect(url);
   }
 
@@ -84,7 +92,7 @@ export async function proxy(req: NextRequest) {
     if (semPonto || semCaixa) {
       if (ehApi) return NextResponse.json({ erro: 'Módulo não habilitado.' }, { status: 403 });
       const url = req.nextUrl.clone();
-      url.pathname = temModulo(sessao, 'caixa') ? '/caixa' : '/';
+      url.pathname = temModulo(sessao, 'caixa') ? '/caixa' : HOME_CONTADOR;
       return NextResponse.redirect(url);
     }
   }

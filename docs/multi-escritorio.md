@@ -67,6 +67,34 @@ código **novo** depende dela. Por isso a ordem importa.
    escritorio_id set not null;` (de propósito fora da 0010, para não quebrar o
    código antigo no intervalo).
 
+## Excluir empresa = arquivar (Sprint 4, migração `0016`)
+
+Problema: excluir empresa com dados dava erro cru do Postgres (ponto, FK `restrict`),
+**apagava em cascata a agenda** e deixava órfãos caixa, contratos, documentos e
+pendências (sem FK). Decisão (com o subagente `contador`): **a tela nunca apaga** —
+**arquiva**. Contabilidade tem dever de guarda (fiscal 5 anos; trabalhista, mais).
+
+- `empresas.arquivada_em/_por/_motivo` (migração `0016_empresas_arquivamento.sql`, aditiva).
+- `lerEmpresas()`/`lerEmpresa()` **escondem** arquivadas → somem de listas, seletores,
+  painel, agenda, cron e das guardas (`podeAcessarEmpresa`: 403, exceto master).
+  `lerEmpresasComArquivadas()` só para checar dono/reativar.
+- `salvarEmpresas` **não remove mais nada**; arquivar/reativar é `PATCH /api/empresas`
+  `{ id, acao: 'arquivar'|'reativar' }` (contador: só do escritório; outro escritório = 404).
+- Reativar volta a contar no limite do plano (`podeReativar`, 402); só ativas contam.
+- Login do `cliente` de empresa arquivada é barrado ("fale com a sua contabilidade");
+  o usuário não é apagado. Sessão já aberta perde acesso nas rotas (guardas).
+- Tela Cadastro: confirmação "Arquivar" + toast **Desfazer**; seção "Empresas arquivadas" com Reativar.
+- Exclusão definitiva: **só por SQL do master**, após o prazo de guarda.
+
+### Para o integrador (arquivamento)
+- Aplicar `0016` **antes** de publicar o código (sem a coluna, `lerEmpresas` falha).
+- Testar em produção sem alterar dados reais: abrir Cadastro (nenhuma arquivada,
+  seção não aparece); `GET /api/empresas?arquivadas=1` → `[]`. Teste de ponta a ponta
+  de arquivar/reativar só com empresa de teste de um escritório de teste.
+- Pendências: leitura/exportação de empresa arquivada hoje exige reativar (a
+  contadora pediu leitura; fica para depois); prazo de guarda a confirmar (5/10 anos);
+  CNPJ duplicado não é validado ainda; script de exclusão definitiva não existe.
+
 ## Como foi testado
 
 - `npm run build` passa. `npm run lint`: os únicos erros são dívida anterior

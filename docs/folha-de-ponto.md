@@ -148,6 +148,19 @@ dela — sem a 0012 o ponto mostra "aguardando o banco" e a leitura por IA não 
 - Se for testar a leitura por IA, use uma folha de teste e confirme que a contagem
   sobe 1; uma leitura que falha não conta.
 
+## Rota da Timesheet: `/ponto` (Sprint 4)
+
+A Timesheet saiu de `/` e vive em **`/ponto`** (`app/(app)/ponto/page.tsx`). `/` virou
+só um redirecionamento por papel (contador/master → `/painel`, cliente → `/caixa`;
+ver `docs/painel.md`). No `proxy.ts`, `ROTAS_PONTO` troca `'/'` por `'/ponto'` — o
+gate de módulo vale igual: contador só-caixa vai ao `/caixa`, sem módulo algum ao
+`/painel`. Menu e aba "Timesheet" apontam para `/ponto`.
+
+### Para o integrador (rota)
+- Sem migração. Testar: contador com ponto abre `/ponto`; `/` cai em `/painel`;
+  só-caixa em `/ponto` cai em `/caixa`; cliente em `/ponto` cai em `/caixa`.
+- Qualquer link externo/manual para a Timesheet deve usar `/ponto`.
+
 ## Como foi testado
 
 - `npm run typecheck`, `npm run lint` (0 erros), `npm test` (233 testes, 34 novos) e
