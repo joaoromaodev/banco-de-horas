@@ -94,11 +94,10 @@ código **novo** depende dela. Por isso a ordem importa.
 
 ## Pendências e armadilhas
 
-- **Catálogo do Livro Caixa é global.** `plano_contas` e `historicos_padrao` são
-  compartilhados por todos os escritórios: um contador de outro escritório que
-  cria conta/analítica "nova" a põe no catálogo que a Edilce também vê. Não vaza
-  dado de empresa, mas polui. Próximo passo: catálogo base + extensões por
-  escritório.
+- ~~Catálogo do Livro Caixa é global.~~ Resolvido na migração `0013` (Sprint 2,
+  Frente C): `escritorio_id` anulável em `plano_contas` e `historicos_padrao` —
+  nulo = base da plataforma, preenchido = extensão do escritório. Ver
+  [`livro-caixa.md`](livro-caixa.md), "Catálogo por escritório (0013)".
 - **Feriados globais** até a Folha de Ponto ir para o Postgres (Sprint 2).
 - **Chave do Gemini** ainda é da instalação (Configurações do master).
 - **Rate-limit por instância** (memória). Se o cadastro virar alvo, mover para

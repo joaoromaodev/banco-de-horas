@@ -7,11 +7,12 @@
 import { NextRequest } from 'next/server';
 import { ehGestor, exigirEmpresa, exigirSessao, podeAcessarEmpresa } from '@/lib/acesso';
 import {
-  empresaDoLancamento, ErroCaixa, garantirExercicio, HISTORICO_RETIRADA_CHEQUE,
+  empresaDoLancamento, ErroCaixa, exigirCatalogoVisivel, garantirExercicio, HISTORICO_RETIRADA_CHEQUE,
   lancamentosDoMes, mesesConfirmados, saldoTransportado, validarLancamento,
   vincularConta, vincularHistorico,
 } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
+import { visaoDoCatalogo } from '@/lib/visibilidadeCatalogo';
 
 export const runtime = 'nodejs';
 
@@ -83,6 +84,8 @@ export async function POST(req: NextRequest) {
     const ano = anoDe(body.ano);
     const ex = await garantirExercicio(empresa, ano);
     const l = validarLancamento(body, ano);
+    // A conta e a analítica têm que ser do catálogo base ou do escritório de quem lança.
+    await exigirCatalogoVisivel(visaoDoCatalogo(g.sessao), l.contaId, l.historicoId);
     const autor = g.sessao.email;
 
     // Pagamento em cheque: o dinheiro sai da conta corrente (entra no caixa) e
@@ -163,6 +166,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const l = validarLancamento(body, dono.ano);
+    await exigirCatalogoVisivel(visaoDoCatalogo(g.sessao), l.contaId, l.historicoId);
     const { error } = await db.from('lancamentos').update({
       data: l.data, historico: l.historico, complemento: l.complemento, conta_id: l.contaId,
       entrada: l.entrada, saida: l.saida, juros: l.juros, multa: l.multa,

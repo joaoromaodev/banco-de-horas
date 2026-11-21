@@ -7,6 +7,7 @@
 import { NextRequest } from 'next/server';
 import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
 import { criarAnalitica, ErroCaixa } from '@/lib/caixa';
+import { donoDaCriacao } from '@/lib/visibilidadeCatalogo';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +31,10 @@ export async function POST(req: NextRequest) {
     // A natureza da analítica sai da titular, então a titular é obrigatória ao criar.
     if (!contaId) throw new ErroCaixa('Escolha a conta titular antes de criar a analítica.');
 
-    const analitica = await criarAnalitica(empresa, texto, contaId);
+    // Pertence ao escritório da sessão; o master cria no catálogo base.
+    const dono = donoDaCriacao(g.sessao);
+    if (dono === undefined) throw new ErroCaixa('Seu usuário não está vinculado a um escritório.', 403);
+    const analitica = await criarAnalitica(empresa, texto, contaId, dono);
     return Response.json({ ok: true, historico: analitica });
   } catch (e) {
     return falha(e);

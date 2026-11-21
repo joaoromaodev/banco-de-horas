@@ -535,6 +535,75 @@ salário" que pareciam categorias erradas). Excluídos os 11 lançamentos + 4 ex
   Atendimento já existia) e **todas vinculadas a `empresa_historicos` do NÉLIO** —
   aparecem no topo do seletor "Analíticas desta empresa".
 
+### ✅ Catálogo por escritório (0013) — 21/11/2026 (Sprint 2, Frente C)
+
+Até aqui `plano_contas` e `historicos_padrao` eram globais: um contador de outro
+escritório que criasse conta/analítica "nova" a punha no catálogo que a Edilse
+também vê. Agora o catálogo tem **duas camadas**, pela coluna `escritorio_id`
+(anulável) nas duas tabelas:
+
+| `escritorio_id` | Significado | Quem vê |
+|---|---|---|
+| nulo | **catálogo base** da plataforma (as 119 contas de `lib/planoContasPadrao.ts`) | todos |
+| preenchido | **extensão** daquele escritório | só ele (e o `master`) |
+
+- **Regra pura:** `lib/visibilidadeCatalogo.ts` (`visaoDoCatalogo`, `itemVisivel`,
+  `filtrarCatalogo`, `donoDaCriacao`, `proximoCodigo`), testada em
+  `tests/visibilidadeCatalogo.test.ts`. Sem escritório na sessão = só o base (falha fechada).
+- **Leitura:** `contasDaEmpresa`/`historicosDaEmpresa` (`lib/caixa.ts`) recebem a
+  visão da sessão; o filtro vai na consulta e é reaplicado em JS. O `master` vê tudo.
+  `montarLivro` (PDF/.xlsx) resolve código/nome sem recorte, só para lançamentos que já existem.
+- **Criação** (só a contadora, como antes): `POST /api/caixa/contas` e `/historicos`
+  gravam com o escritório da sessão; o `master` cria no **base**. Contador sem
+  escritório recebe 403. O código `N.GG.CC` novo é o próximo livre entre o **base +
+  as do próprio escritório** (para o master, entre todas).
+- **Lançar** (`POST/PATCH /api/caixa/lancamentos`) agora **recusa** `contaId`/`historicoId`
+  que não sejam do base nem do escritório de quem lança (`exigirCatalogoVisivel`) —
+  antes um id de outro escritório entrava.
+- **Unicidade do código:** deixou de ser global. É única **no base** e **dentro de cada
+  escritório**; dois escritórios podem ter o mesmo código próprio. Um trigger impede que
+  conta de escritório reuse código do base. (Se um dia o `seed` incluir no base um código
+  que um escritório já usa, o escritório passa a ver dois — renomeie a dele antes.)
+- **Seed (`POST /api/caixa/seed`)** só toca o base: insere/atualiza as contas padrão
+  (sem `onConflict`, porque o índice único do código agora é parcial) e recria só os
+  históricos de `escritorio_id` nulo. Analíticas e contas de escritório ficam intactas.
+  ⚠️ Rodar o seed hoje **recria as 24 analíticas padrão no base** (o banco tem 0 delas
+  desde a limpeza de 11/09) — todo escritório passaria a vê-las. Só rode se for isso que se quer.
+- **Lançamentos não mudam:** a migração não faz `update` em `lancamentos`; eles seguem
+  por `conta_id` (que não muda) e a analítica é texto solto.
+
+**O que a migração move** (conferido em **21/11/2026**, só leitura, no banco de produção
+`zxjeibkttmacpuukvyzo`: 123 contas = 119 padrão + 4 à mão; 6 analíticas, todas à mão) —
+tudo para o escritório da Edilse `00000000-0000-4000-8000-000000000001`:
+
+| Conta titular (criada à mão) | Lançamentos |
+|---|---|
+| 1.02.05 Receita de Atendimento | sim |
+| 2.03.14 TELEFONE | não |
+| 2.03.15 Condomínio | sim |
+| 2.11.04 Material de Consumo | sim |
+
+| Analítica (criada à mão) | Titular |
+|---|---|
+| Pago conta de luz | 2.02.02 |
+| Recebido Atendimento | 1.02.05 |
+| Prótese | 2.06.02 |
+| Pago aluguel do escritório | 2.03.15 |
+| Pago material de expediente | 2.02.06 |
+| Pago material de consumo | 2.11.04 |
+
+As outras 119 contas ficam no base. As analíticas de titular base (2.02.02, 2.06.02,
+2.02.06) viram extensão da Edilse sob uma conta base — correto: a analítica é dela.
+Os vínculos `empresa_contas`/`empresa_historicos` não mudam.
+
+**Estado:** migração `0013` **escrita, não aplicada** (o dono aplica: `npx supabase
+migration list` antes, depois `db push`). Ordem: aplicar a 0013 e então publicar o
+código — o código novo filtra por `escritorio_id` e falha sem a coluna; o código antigo
+roda bem com a coluna nova. Depois de aplicar, conferir que a Edilse continua vendo as
+6 analíticas do NÉLIO e que um contador de outro escritório não as vê.
+**Sem teste end-to-end** contra o banco (a migração não foi aplicada): typecheck, lint
+(0 erros), 202 testes e build passam; o recorte de visibilidade está coberto pelos testes da regra pura.
+
 ## Estado do banco
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e
@@ -602,7 +671,8 @@ de ideia.
   Desde a migração `0010` a visibilidade é por **escritório**, não por `contador`:
   o contador vê as empresas do escritório dele; empresa sem escritório só o master
   vê. Ver [`multi-escritorio.md`](multi-escritorio.md). O catálogo do caixa
-  (`plano_contas`, `historicos_padrao`) continua global entre escritórios.
+  (`plano_contas`, `historicos_padrao`) é base + extensão por escritório desde a
+  migração `0013` (ver "Catálogo por escritório (0013)").
 
 - **As variáveis do Supabase só entraram na Vercel em 23/07/2026** —
   `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`, em Production e Preview.
