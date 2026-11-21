@@ -34,6 +34,16 @@ Migrações numeradas de antemão para não colidir: A `0011`, B `0012`, C `0013
 - Contratos: alertas de todas as empresas no topo, PDF direto.
 - Painel inicial do contador: o que precisa de atenção hoje.
 
+## Achados da integração
+
+- **Sheets nega acesso com as credenciais locais** ("The caller does not have
+  permission" em `/api/funcionarios` no dev, 21/11/2026). A produção usa
+  `GOOGLE_SERVICE_ACCOUNT_JSON` da Vercel. Repassado à frente `ponto-postgres`; a
+  importação real depende disso.
+- Acesso conferido em 21/11/2026 com sessões locais da Edilse e da Adriana, só com
+  leituras: Edilse vê as 3 empresas, o caixa e o resumo do NÉLIO, a equipe e os
+  contratos; Adriana vê só a Vaz & Vouzela e leva 403 no NÉLIO e no ponto.
+
 ## Backlog da Edilse (pedidos e pendências)
 
 - [ ] Validar texto legal dos termos do Livro Caixa (variante PF é nossa).
