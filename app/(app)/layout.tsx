@@ -81,7 +81,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // gestor, Folha de Ponto (Timesheet + Folhas em branco) e Livro Caixa aparecem
   // só se o módulo estiver habilitado — um contador só-caixa não vê a folha.
   const temModulo = (m: Modulo) => me?.role === 'master' || (me?.modulos ?? []).includes(m);
-  const grupos: Grupo[] = me?.role === 'cliente'
+  // Sem sessão carregada, menu vazio: montar o da contadora fazia o cliente ver por um
+  // instante itens que não alcança (achado do teste logado da Sprint 12).
+  const grupos: Grupo[] = !me ? [] : me.role === 'cliente'
     ? [{ itens: [{ href: '/inicio', label: 'Início', icon: 'painel' }, { href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }, { href: '/documentos', label: 'Documentos', icon: 'folha' }, { href: '/enviar-ponto', label: 'Folha de ponto', icon: 'timesheet' }] }]
     : [
         // Painel: o que precisa de atenção hoje (só da contabilidade; ver docs/painel.md).

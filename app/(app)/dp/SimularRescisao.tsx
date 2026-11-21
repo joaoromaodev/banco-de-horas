@@ -77,7 +77,7 @@ export function SimularRescisao({ empregado: e, empresa, ferias, faltas, feriado
   const [ajustes, setAjustes] = useState<Record<string, AjusteMes>>({});
   const [ponto, setPonto] = useState<{ ate: string; meses: MesPonto[] | null; erro: string | null } | null>(null);
 
-  // Horas do ponto (só leitura) para as médias: relê quando a data muda de mês.
+  // Horas do ponto (só leitura) para as médias: relê a cada data de desligamento alterada.
   const mesDeslig = isoOk(desligamento) ? desligamento : '';
   useEffect(() => {
     if (!mesDeslig || !usarPonto) return;
