@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualidade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      # O build não precisa de segredo nenhum: getDb(), Sheets e Gemini leem as
+      # variáveis só em tempo de requisição. Os valores abaixo são falsos, apenas
+      # para o caso de alguma rota passar a ler env no import — nunca ponha
+      # credenciais reais aqui.
+      - run: npm run build
+        env:
+          SESSION_SECRET: ci-segredo-falso-so-para-o-build
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          SUPABASE_SECRET_KEY: ci-chave-falsa
+          GEMINI_API_KEY: ci-chave-falsa
+          GOOGLE_SHEETS_ID: ci-planilha-falsa
+          MASTER_EMAIL: ci@example.com
+          MASTER_PASSWORD: ci-senha-falsa
