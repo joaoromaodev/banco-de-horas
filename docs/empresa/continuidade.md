@@ -121,11 +121,9 @@ CLI do Supabase recusa aplicar uma migração de número menor que a última apl
 então não aplique a 0013 antes das outras duas. Na Sprint 3: 0014 (agenda) e
 0015 (documentos), sempre depois da 0013.
 
-## 6. Tarefa agendada
+## 6. Máquina de trabalho
 
-No computador de casa existe a tarefa `clickcontas-revisao-semanal` (segundas, 9h),
-que faz a revisão, integra, publica e abre a próxima sprint. Ela só roda com o app do
-Claude aberto **naquele** computador. Em outra máquina/conta, recrie pedindo ao
-Claude: "crie uma tarefa agendada semanal com o prompt da seção 2 de
-`docs/empresa/continuidade.md`". Não rode as duas ao mesmo tempo sobre a mesma
-branch.
+Desde 21/11/2026 o projeto é tocado **só no notebook** (o computador de casa ficou
+sem orçamento; o João pediu para esquecê-lo). Não há tarefa agendada: a antiga
+`clickcontas-revisao-semanal` do computador de casa não deve ser reativada sem
+combinar, para não rodar duas integrações sobre a mesma branch.
