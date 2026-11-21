@@ -36,7 +36,7 @@ migração nova: o painel só **lê**.
 | Ordem dos blocos | Quem tem atrasado vem primeiro, depois quem tem algo a ver, depois os vazios e por fim os indisponíveis. |
 | Links | Cada item leva à tela de origem (`/agenda`, `/documentos`, `/contratos`, `/caixa`). Ainda não abre já na empresa certa: `/documentos` guarda a empresa no navegador e as outras telas não aceitam filtro por URL — ver pendências. |
 | Visual | Só tokens do design system; claro/escuro; grade de 1 coluna no celular (375 px) e 2 no desktop; sem `<select>`/`alert`. Único botão é "Atualizar" (secundário): a tela é de leitura, a ação é clicar no item. |
-| Rota `/` | **Não foi trocada** (é do ponto). O painel vive em `/painel`. |
+| Rota `/` | Redireciona por papel: contador/master → `/painel`; a Timesheet agora é `/ponto`. |
 
 ## Para o integrador
 
@@ -45,12 +45,14 @@ migração nova: o painel só **lê**.
 - `app/(app)/layout.tsx`: o ícone `painel` no `Icon` e o item `Painel` no começo dos grupos da contabilidade (antes do módulo de ponto; o cliente não vê). Conflito provável com agenda/documentos/ponto: trivial.
 - Nada em `proxy.ts`: `/painel` e `/api/painel` não estão em `CLIENTE_PODE`, então o cliente já é redirecionado/barrado. `/painel` **não** pertence a `ROTAS_PONTO` nem `ROTAS_CAIXA`: todo contador alcança.
 
-### Decisão que fica com você: o painel vira a página inicial do contador?
+### Decidido (Sprint 4, Frente B): o painel é a página inicial do contador
 
-Hoje `/` é a folha de ponto. Quando o ponto for integrado, decida se o contador
-cai em `/painel` ao entrar (ex.: no redirecionamento pós-login do `proxy.ts`/`login`
-mandar `usuario` e `master` para `/painel`, mantendo `/` acessível pelo menu). Não
-fiz isso para não mexer em `/` nem no fluxo de login de outras frentes.
+`/` não tem mais tela: o `proxy.ts` redireciona por papel (`lib/inicio.ts`) —
+`usuario` e `master` → `/painel`, `cliente` → `/caixa`. A Timesheet da Folha de
+Ponto passou para `/ponto` (menu "Folha de Ponto" e aba "Timesheet"). Escolhi
+redirecionar `/` (em vez de decidir por papel dentro da página) porque links e
+favoritos antigos de `/` continuam funcionando e o pós-login (`next || '/'`) não
+precisou mudar. Contador sem módulo de ponto/caixa também cai no painel.
 
 ### Banco
 

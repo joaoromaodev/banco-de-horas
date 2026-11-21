@@ -83,7 +83,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         // branco viram abas dentro dele (ver AbasPonto), como o Livro Caixa faz.
         ...(temModulo('ponto')
           ? [{ itens: [
-              { href: '/', label: 'Folha de Ponto', icon: 'timesheet', ativoEm: ['/', '/folhas'] },
+              { href: '/ponto', label: 'Folha de Ponto', icon: 'timesheet', ativoEm: ['/ponto', '/folhas'] },
               // Departamento pessoal da mesma contadora: anda junto com o ponto.
               { href: '/contratos', label: 'Contrato de Experiência', icon: 'contrato' },
             ] } as Grupo]
@@ -176,7 +176,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               )}
               {grupo.itens.map((item) => {
-                const casa = (p: string) => (p === '/' ? pathname === '/' : pathname.startsWith(p));
+                const casa = (p: string) => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '-');
                 const ativo = item.ativoEm ? item.ativoEm.some(casa) : casa(item.href);
                 return (
                   <a key={item.href} href={item.href} aria-current={ativo ? 'page' : undefined}

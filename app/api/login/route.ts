@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMaster } from '@/lib/config';
 import { conferirSenha, Sessao, resolverModulos } from '@/lib/auth';
-import { buscarUsuario } from '@/lib/cadastro';
+import { buscarUsuario, lerEmpresasComArquivadas } from '@/lib/cadastro';
+import { estaArquivada } from '@/lib/arquivamento';
 import { gravarSessao, sessaoDoUsuario } from '@/lib/sessao';
 
 export const runtime = 'nodejs';
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest) {
   // Cliente sem empresa vinculada não enxergaria nada: barra no login, com motivo claro.
   if (sessao.role === 'cliente' && !sessao.empresa) {
     return Response.json({ erro: 'Usuário sem empresa vinculada. Procure o administrador.' }, { status: 403 });
+  }
+  // Empresa arquivada: o cliente dela não entra (o usuário e os dados são preservados).
+  if (sessao.role === 'cliente' && sessao.empresa) {
+    try {
+      const e = (await lerEmpresasComArquivadas()).find((x) => x.id === sessao!.empresa);
+      if (e && estaArquivada(e)) {
+        return Response.json({ erro: 'A empresa está arquivada. Fale com a sua contabilidade.' }, { status: 403 });
+      }
+    } catch { /* banco indisponível: segue; as guardas das rotas barram igual */ }
   }
   // Contador/cliente sem escritório também não enxergaria nada (só acontece se a
   // migração 0010 não tiver rodado ou o cadastro estiver incompleto).

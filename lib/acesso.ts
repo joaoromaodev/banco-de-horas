@@ -10,7 +10,8 @@
 // em lib/visibilidade.ts; aqui elas ganham a sessão e o I/O.
 import { NextRequest } from 'next/server';
 import { COOKIE_SESSAO, lerSessao, Sessao } from './auth';
-import { buscarUsuario, lerEmpresa, lerEmpresas } from './cadastro';
+import { buscarUsuario, lerEmpresa, lerEmpresas, lerEmpresasComArquivadas } from './cadastro';
+import { soArquivadas } from './arquivamento';
 import { empresaVisivel } from './visibilidade';
 import { Empresa } from './tipos';
 import { mensagemSomenteLeitura, type MotivoBloqueio } from './cobranca';
@@ -64,6 +65,11 @@ export function empresaVisivelPara(s: Sessao, e: Pick<Empresa, 'id' | 'escritori
 /** As empresas que esta sessão enxerga. */
 export async function empresasVisiveis(s: Sessao): Promise<Empresa[]> {
   return (await lerEmpresas()).filter((e) => empresaVisivelPara(s, e));
+}
+
+/** As empresas **arquivadas** que esta sessão enxerga (só a gestão usa: reativar). */
+export async function empresasArquivadasVisiveis(s: Sessao): Promise<Empresa[]> {
+  return soArquivadas(await lerEmpresasComArquivadas()).filter((e) => empresaVisivelPara(s, e));
 }
 
 /**

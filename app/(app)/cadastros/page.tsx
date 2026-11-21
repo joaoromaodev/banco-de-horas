@@ -26,6 +26,9 @@ export default function Cadastro() {
   const [salvandoAdmin, setSalvandoAdmin] = useState(false);
   const [aExcluir, setAExcluir] = useState<Administrador | null>(null);
   const [desfazer, setDesfazer] = useState<{ nome: string; ficha: string } | null>(null);
+  const [arquivadas, setArquivadas] = useState<Empresa[]>([]);
+  const [aArquivar, setAArquivar] = useState<Empresa | null>(null);
+  const [desfazerEmpresa, setDesfazerEmpresa] = useState<Empresa | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -37,6 +40,36 @@ export default function Cadastro() {
       if (!r.ok) throw new Error(d.erro);
       setEmpresas(d.empresas ?? []);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
+  }
+
+  async function carregarArquivadas() {
+    try {
+      const r = await fetch('/api/empresas?arquivadas=1');
+      const d = await r.json();
+      if (r.ok) setArquivadas(d.empresas ?? []);
+    } catch { /* a seção de arquivadas é acessória: falhar em silêncio não atrapalha o resto */ }
+  }
+
+  async function mudarArquivamento(e: Empresa, acao: 'arquivar' | 'reativar') {
+    setMsg(null); setErro(null); setAArquivar(null);
+    try {
+      const res = await fetch('/api/empresas', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: e.id, acao }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.erro);
+      if (acao === 'arquivar') {
+        // tira só a linha: edições não salvas das outras empresas continuam na tela
+        setEmpresas((p) => p.filter((x) => x.id !== e.id));
+        setDesfazerEmpresa(e);
+      } else {
+        setDesfazerEmpresa(null);
+        setMsg(`${e.nome} voltou para a lista de empresas.`);
+        carregarEmpresas();
+      }
+      carregarArquivadas();
+    } catch (er) { setErro(er instanceof Error ? er.message : String(er)); }
   }
 
   async function carregarAdmins() {
@@ -55,6 +88,7 @@ export default function Cadastro() {
     }).catch(() => {});
     carregarEmpresas();
     carregarAdmins();
+    carregarArquivadas();
   }, []);
 
   async function salvarEmpresas() {
@@ -135,6 +169,12 @@ export default function Cadastro() {
             {desfazer.nome} foi removido.
           </Toast>
         )}
+        {desfazerEmpresa && (
+          <Toast tom="info" onFechar={() => setDesfazerEmpresa(null)}
+            acao={<Botao tamanho="sm" variante="tonal" onClick={() => mudarArquivamento(desfazerEmpresa, 'reativar')}>Desfazer</Botao>}>
+            {desfazerEmpresa.nome} foi arquivada.
+          </Toast>
+        )}
       </Toasts>
 
       <Conteudo largura="media">
@@ -188,8 +228,8 @@ export default function Cadastro() {
                         placeholder="e-mail do contador" onChange={(ev) => setE(i, 'contador', ev.target.value)} /></td>
                     )}
                     <td className={`${tb.tdCampo} text-center`}>
-                      <BotaoIcone rotulo="Remover empresa" title="Remover" tom="perigo"
-                        onClick={() => setEmpresas((p) => p.filter((_, j) => j !== i))}>
+                      <BotaoIcone rotulo={`Arquivar ${e.nome || 'empresa'}`} title="Arquivar" tom="perigo"
+                        onClick={() => (e.id ? setAArquivar(e) : setEmpresas((p) => p.filter((_, j) => j !== i)))}>
                         <IconeExcluir size={16} />
                       </BotaoIcone>
                     </td>
@@ -208,8 +248,29 @@ export default function Cadastro() {
               Empresa
             </Botao>
           </div>
-          <p className="mt-3 text-xs text-tinta-suave">Dica: evite renomear uma empresa depois de cadastrar funcionários — o vínculo é pelo id interno.</p>
+          <p className="mt-3 text-xs text-tinta-suave">Arquivar tira a empresa das listas sem apagar nada — dá para reativar logo abaixo.</p>
+          <p className="mt-1 text-xs text-tinta-suave">Dica: evite renomear uma empresa depois de cadastrar funcionários — o vínculo é pelo id interno.</p>
         </Secao>
+
+        {arquivadas.length > 0 && (
+          <Secao titulo="Empresas arquivadas"
+            descricao="Ficam fora das listas, do painel e da agenda, e o administrador delas não consegue entrar. Todos os dados (ponto, caixa, contratos, documentos) ficam guardados. Reativar traz tudo de volta.">
+            <ul className="divide-y divide-borda rounded-xl border border-borda">
+              {arquivadas.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-tinta">{e.nome}</div>
+                    <div className="truncate text-xs text-tinta-suave">
+                      Arquivada{e.arquivadaEm ? ` em ${new Date(e.arquivadaEm).toLocaleDateString('pt-BR')}` : ''}
+                      {e.arquivadaPor ? ` por ${e.arquivadaPor}` : ''}
+                    </div>
+                  </div>
+                  <Botao tamanho="sm" onClick={() => mudarArquivamento(e, 'reativar')}>Reativar</Botao>
+                </li>
+              ))}
+            </ul>
+          </Secao>
+        )}
 
         {/* Administradores da empresa (papel cliente) */}
         <Secao titulo="Administradores da empresa"
@@ -252,6 +313,16 @@ export default function Cadastro() {
           </div>
         </Secao>
       </Conteudo>
+
+      {aArquivar && (
+        <DialogoConfirmacao
+          titulo="Arquivar empresa"
+          mensagem={<>Arquivar <strong>{aArquivar.nome}</strong>? Ela some das listas, do painel e da agenda, e o administrador dela deixa de conseguir entrar. Nenhum dado é apagado e você pode reativar depois.</>}
+          textoConfirmar="Arquivar"
+          onConfirmar={() => mudarArquivamento(aArquivar, 'arquivar')}
+          onCancelar={() => setAArquivar(null)}
+        />
+      )}
 
       {aExcluir && (
         <DialogoConfirmacao
