@@ -1,24 +1,30 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { VENDAS_ABERTAS } from '@/lib/brand';
 import { Secao, linkCls, meta, ROTAS } from '../_partes';
+import { PLANOS, PLANOS_PAGOS } from '@/lib/cobranca';
+import { limiteDoPlano } from '@/lib/cotaOcr';
 import { Precos } from './Precos';
+
+const reais = (v: number) => `R$ ${v.toLocaleString('pt-BR')}`;
 
 export const metadata = meta(
   'Planos e preços',
-  'Essencial R$ 89, Escritório R$ 189 e Ilimitado R$ 349 por mês. Todos os módulos em todos os planos, 14 dias grátis sem cartão. Anual com 2 meses grátis.',
+  `${PLANOS_PAGOS.map((id) => `${PLANOS[id].nome} ${reais(PLANOS[id].mensal)}`).join(', ').replace(/, ([^,]*)$/, ' e $1')} por mês. Todos os módulos em todos os planos, 14 dias grátis sem cartão. Anual com 2 meses grátis.`,
   '/planos',
 );
 
 const SIM = <span className="font-medium text-sucesso"><span aria-hidden="true">✓</span><span className="sr-only">Incluso</span></span>;
 
 const LINHAS: [string, React.ReactNode, React.ReactNode, React.ReactNode][] = [
-  ['Empresas-clientes ativas', 'até 10', 'até 40', 'sem limite'],
+  ['Empresas-clientes ativas', ...PLANOS_PAGOS.map((id) => PLANOS[id].limite === null ? 'sem limite' : `até ${PLANOS[id].limite}`)] as [string, string, string, string],
   ['Livro Caixa (cliente lança, você concilia)', SIM, SIM, SIM],
   ['Folha de Ponto com leitura por IA', SIM, SIM, SIM],
   ['Contrato de Experiência, declaração de VT e aviso de término', SIM, SIM, SIM],
   ['Alertas de vencimento de contratos', SIM, SIM, SIM],
   ['Acesso do cliente ao próprio caixa', SIM, SIM, SIM],
   ['Exportação em PDF e planilha (.xlsx)', SIM, SIM, SIM],
-  ['Folhas lidas por IA por mês', '150', '600', '2.000'],
+  ['Folhas lidas por IA por mês', ...PLANOS_PAGOS.map((id) => limiteDoPlano(id).toLocaleString('pt-BR'))] as [string, string, string, string],
   ['14 dias de teste, sem cartão', SIM, SIM, SIM],
 ];
 
@@ -32,6 +38,8 @@ const FAQ: [string, string][] = [
 ];
 
 export default function Planos() {
+  // Venda fechada: a página some da vitrine (o código fica para quando abrir).
+  if (!VENDAS_ABERTAS) redirect('/conheca');
   return (
     <>
       <section className="border-b border-borda bg-superficie">

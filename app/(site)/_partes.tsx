@@ -4,7 +4,7 @@
 // repetido em `linkCls`.
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { BRAND } from '@/lib/brand';
+import { BRAND, VENDAS_ABERTAS } from '@/lib/brand';
 
 export const ROTAS = {
   conheca: '/conheca',
@@ -67,12 +67,14 @@ export function Cabecalho() {
         <Logo />
         <nav aria-label="Principal" className="flex items-center gap-1 sm:gap-2">
           <Link href={ROTAS.conheca} className="hidden rounded-md px-3 py-2 text-sm text-tinta-suave hover:text-tinta sm:block">Conheça</Link>
-          <Link href={ROTAS.planos} className="hidden rounded-md px-3 py-2 text-sm text-tinta-suave hover:text-tinta sm:block">Planos</Link>
+          {VENDAS_ABERTAS && <Link href={ROTAS.planos} className="hidden rounded-md px-3 py-2 text-sm text-tinta-suave hover:text-tinta sm:block">Planos</Link>}
           <Link href={ROTAS.entrar} className="rounded-md px-2.5 py-2 text-sm font-medium text-primaria-texto hover:text-tinta sm:px-3">Entrar</Link>
-          <Link href={ROTAS.criarConta} className={linkCls('primaria', 'md', 'ml-1')}>
-            <span className="sm:hidden">Testar grátis</span>
-            <span className="hidden sm:inline">Teste grátis</span>
-          </Link>
+          {VENDAS_ABERTAS && (
+            <Link href={ROTAS.criarConta} className={linkCls('primaria', 'md', 'ml-1')}>
+              <span className="sm:hidden">Testar grátis</span>
+              <span className="hidden sm:inline">Teste grátis</span>
+            </Link>
+          )}
         </nav>
       </div>
     </header>
@@ -92,10 +94,10 @@ export function Rodape() {
         <nav aria-label="Rodapé" className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm">
           <Link href={ROTAS.conheca} className="text-tinta-suave hover:text-tinta">Conheça</Link>
           <Link href={ROTAS.termos} className="text-tinta-suave hover:text-tinta">Termos de uso</Link>
-          <Link href={ROTAS.planos} className="text-tinta-suave hover:text-tinta">Planos</Link>
+          {VENDAS_ABERTAS && <Link href={ROTAS.planos} className="text-tinta-suave hover:text-tinta">Planos</Link>}
           <Link href={ROTAS.privacidade} className="text-tinta-suave hover:text-tinta">Privacidade</Link>
           <Link href={ROTAS.entrar} className="text-tinta-suave hover:text-tinta">Entrar</Link>
-          <Link href={ROTAS.criarConta} className="text-tinta-suave hover:text-tinta">Criar conta</Link>
+          {VENDAS_ABERTAS && <Link href={ROTAS.criarConta} className="text-tinta-suave hover:text-tinta">Criar conta</Link>}
         </nav>
       </div>
       <div className="border-t border-borda py-4 text-center text-xs text-tinta-fraca">© 2026 {BRAND.nome} · Praticidade Contábil</div>

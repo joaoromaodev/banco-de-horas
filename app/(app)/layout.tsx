@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { IconeExcluir, IconeMenu, IconePainel } from './icones';
-import { BRAND } from '@/lib/brand';
+import { BRAND, VENDAS_ABERTAS } from '@/lib/brand';
 import { BotaoTema } from '@/components/tema';
 import { SituacaoEscritorio } from '@/lib/visibilidade';
 import { botaoCls } from '@/components/ui';
@@ -99,7 +99,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           // O administrador do escritório convida os outros contadores.
           ...(me?.role === 'usuario' && me.adminEscritorio ? [{ href: '/equipe', label: 'Equipe', icon: 'equipe' }] : []),
           // Plano e pagamento do escritório (o admin age; os demais contadores só veem).
-          ...(me?.role === 'usuario' ? [{ href: '/assinatura', label: 'Assinatura', icon: 'assinatura' }] : []),
+          ...(VENDAS_ABERTAS && me?.role === 'usuario' ? [{ href: '/assinatura', label: 'Assinatura', icon: 'assinatura' }] : []),
           ...(me?.role === 'master' ? [{ href: '/configuracoes', label: 'Configurações', icon: 'config' }] : []),
         ] },
       ];

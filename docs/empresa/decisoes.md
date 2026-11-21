@@ -2,6 +2,21 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Venda fechada até o produto estar pronto (Sprint 4 / Frente A)
+
+- Decisão do João: **primeiro o produto fica pronto, depois vai ao mercado.** Nada de
+  campanha, preço público nem teste grátis anunciado.
+- Uma chave só, `VENDAS_ABERTAS` em `lib/brand.ts` (hoje `false`), esconde: link e
+  botão de planos/teste no cabeçalho, rodapé e landing, preço e "teste grátis" da
+  `/conheca`, "Criar conta" do login e o menu "Assinatura" do app. `/planos`
+  redireciona para `/conheca`. Nenhum código foi apagado; `/criar-conta` segue
+  funcionando (usado em testes) e a faixa de somente leitura do app continua.
+- Preços do site unificados: `Precos.tsx` e a tabela de `/planos` leem `PLANOS`
+  (`lib/cobranca.ts`) e a cota de `lib/cotaOcr.ts`; `tests/precosSite.test.ts` trava.
+- **Termos e privacidade não foram reescritos agora.** A lista do que precisam ter
+  está em `estrategia.md` → "Antes de ir ao mercado", para quando o lançamento for
+  decidido (aí sim com advogado).
+
 ## 21/11/2026 — Integração das Sprints 2 e 3
 
 - Integradas de uma vez, na ordem 0011 → 0015, numa branch `integracao/geral` e
