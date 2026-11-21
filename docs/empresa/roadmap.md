@@ -45,9 +45,9 @@ aplicação em produção: 0011 → 0012 → 0013 → 0014 → 0015.
   e 0015 chegarem à `main` antes da 0011–0013, um `db push` aplica as duas fora de
   ordem e depois recusa a 0011. Ordem de integração: cobrança (0011) → ponto (0012)
   → catálogo (0013) → agenda (0014) → documentos (0015), cada uma com seu merge.
-- **Notebook (segunda máquina):** o `supabase login` feito em 21/11 entrou numa
-  conta que não enxerga o projeto `zxjeibkttmacpuukvyzo`; migrações daqui só depois
-  de logar com a conta dona do projeto.
+- **Notebook (segunda máquina):** Supabase CLI logado e vinculado ao projeto
+  `zxjeibkttmacpuukvyzo` em 21/11/2026; `migration list --remote` mostra 0000–0010
+  aplicadas, igual à `main`.
 
 - **Sheets nega acesso com as credenciais locais** ("The caller does not have
   permission" em `/api/funcionarios` no dev, 21/11/2026). A produção usa
