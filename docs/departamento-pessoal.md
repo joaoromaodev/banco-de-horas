@@ -352,7 +352,6 @@ junto); quem as preenche são os gatilhos, sempre da mesma empresa.
   (mesma limitação dos contratos).
 - Retenção do dado pessoal (CPF, salário) segue a do resto do sistema — a definir com o
   jurídico.
-<<<<<<< HEAD
 
 ## Sprint 9 · Frente A — conferência entre módulos
 
@@ -391,7 +390,6 @@ e aviso na ficha do empregado, filtrado pelo empregado).
   Conferir a contagem contra o Timesheet. Nunca alterar dados da Edilse para "criar" caso.
 - Empresa arquivada passa a responder **409** "Empresa arquivada — reative em Cadastros para
   alterar" a gravações do DP (era 403); ver `docs/multi-escritorio.md`.
-=======
+
 - Simulação de rescisão: só simulação; limites e pontos divergentes na seção própria.
   Próximo passo natural: INSS/IRRF e médias de horas extras tiradas do ponto.
->>>>>>> origin/claude/simulacao-rescisao

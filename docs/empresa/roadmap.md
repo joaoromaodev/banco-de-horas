@@ -102,16 +102,27 @@ Produção: migrações 0000–0023; próximo número livre **0024**. Backup ant
 (DP da Vaz, resumo de outubro, limite e demonstrativo do NÉLIO) e escrita com conta de
 teste (empregado, férias, agenda); conta apagada.
 
+## Sprint 9 — Conferência entre módulos e rescisão (✅ concluída e publicada em 21/11/2026)
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Conferência entre módulos (ativo sem admissão, ponto sem vínculo, contrato encerrado com ponto, desligado com ponto, FÉRIAS sem programação, férias com ponto) no painel e no DP; 409 claro ao gravar em empresa arquivada; jornada única (revisão, planilha e resumo usam `jornadaDoEmpregado`) | `claude/conferencia-modulos` | ✅ publicada, sem migração. Nos dados reais: aponta os 9 empregados sem admissão |
+| B. Simulação de rescisão (9 tipos; aviso proporcional com projeção; 13º e férias; experiência arts. 479/480; FGTS como estimativa sobre saldo informado; prazos do art. 477), memória de cálculo com fonte legal por linha e PDF marcado "SIMULAÇÃO"; valores brutos | `claude/simulacao-rescisao` | ✅ publicada, sem migração. Exemplo conferido com o `contador`: R$ 10.822,23. Três pontos sem consenso para a Edilse decidir (ver `docs/departamento-pessoal.md`) |
+
+## Sprint 10 — Ponto pelo cliente e agilidade (em andamento)
+
+| Frente | Sessão | Status |
+|---|---|---|
+| A. Folha de ponto enviada pelo cliente (foto pelo celular → IA → rascunho → contadora confere e aplica) | `ponto-cliente` (Opus) | ⏳ migração 0026 reservada |
+| B. Edição em lote e importação no DP, notificações no app (sino), `/ponto?empresa=` | `agilidade` (Sonnet) | ⏳ migração 0027 reservada |
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
 |---|---|---|
 | Carnê-Leão e recibos (PF) | Opus alto | respostas da Edilse (beneficiário ≠ pagador; layout do Carnê-Leão Web) |
 | Documento → lançamento sugerido por IA | Opus alto | aceite da Edilse (opção por empresa) e Gemini pago |
-| Mensagem clara ao gravar em empresa arquivada (hoje sai o 403 genérico "Acesso restrito"; a guarda está certa, só o texto) | Sonnet | — |
-| Conferência entre módulos (funcionário sem admissão/contrato, contrato encerrado com ponto, FÉRIAS no ponto sem férias programadas) | Sonnet | — (o cadastro do empregado já existe) |
-| Alinhar a jornada usada pela revisão do ponto e pelo `gerar-lote` com `jornadaDoEmpregado` | Sonnet | — |
-| Simulação de rescisão (sem valor de documento) | Opus alto | — |
+| Rescisão: INSS/IRRF e médias de horas extras tiradas do ponto | Opus alto | — |
 | Ver no painel de logs da Vercel a duração das funções depois de uso real (ganho da região) | João/dono | acesso à Vercel |
 
 ## Antes de ir ao mercado (adiado por decisão do João)
