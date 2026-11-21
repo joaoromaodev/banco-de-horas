@@ -28,6 +28,7 @@ function Icon({ name }: { name: string }) {
   if (name === 'folha') return <svg {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></svg>;
   if (name === 'caixa') return <svg {...props}><rect x="2" y="6" width="20" height="13" rx="2" /><path d="M2 10h20M12 14h5" /></svg>;
   if (name === 'contrato') return <svg {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 18c1.5-2 2.5-2 3.5 0s2 2 3.5 0" /></svg>;
+  if (name === 'painel') return <svg {...props}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>;
   if (name === 'agenda') return <svg {...props}><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 2v4M16 2v4M8.5 15l2.5 2.5 4.5-4.5" /></svg>;
   if (name === 'equipe') return <svg {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
   if (name === 'cadastros') return <svg {...props}><path d="M16 21v-2a4 4 0 0 0-8 0v2" /><circle cx="12" cy="7" r="4" /></svg>;
@@ -71,6 +72,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const grupos: Grupo[] = me?.role === 'cliente'
     ? [{ itens: [{ href: '/caixa', label: 'Livro Caixa', icon: 'caixa' }, { href: '/documentos', label: 'Documentos', icon: 'folha' }] }]
     : [
+        // Painel: o que precisa de atenção hoje (só da contabilidade; ver docs/painel.md).
+        { itens: [{ href: '/painel', label: 'Painel', icon: 'painel' }] },
         // Folha de Ponto é um módulo só: um item na barra, e Timesheet / Folhas em
         // branco viram abas dentro dele (ver AbasPonto), como o Livro Caixa faz.
         ...(temModulo('ponto')
