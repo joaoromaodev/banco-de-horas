@@ -181,7 +181,7 @@ export default function Conheca() {
         <ol className="grid gap-4 md:grid-cols-3">
           {PASSOS.map(([n, t, d]) => (
             <li key={n} className="rounded-xl border border-borda bg-fundo p-5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primaria text-sm font-semibold text-white" aria-hidden="true">{n}</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primaria text-sm font-semibold text-sobre-primaria" aria-hidden="true">{n}</span>
               <h3 className="mt-4 text-[15px] font-semibold text-tinta">{t}</h3>
               <p className="mt-1.5 text-[13px] leading-relaxed text-tinta-suave">{d}</p>
             </li>

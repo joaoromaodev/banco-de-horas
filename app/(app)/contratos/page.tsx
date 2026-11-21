@@ -347,7 +347,7 @@ export default function ContratosPage() {
               )}
               {filtrados.map((c) => (
                 <div key={c.id}
-                  className={`rounded-xl border bg-superficie px-3 py-2.5 shadow-cartao transition-colors ${editandoId === c.id ? 'border-primaria ring-2 ring-petroleo-100' : 'border-borda hover:border-borda-forte'}`}>
+                  className={`rounded-xl border bg-superficie px-3 py-2.5 shadow-cartao transition-colors ${editandoId === c.id ? 'border-primaria ring-2 ring-primaria-borda' : 'border-borda hover:border-borda-forte'}`}>
                   <div className="flex items-start justify-between gap-2">
                     <button type="button" onClick={() => abrir(c)} aria-current={editandoId === c.id ? 'true' : undefined}
                       className="min-w-0 flex-1 rounded text-left">

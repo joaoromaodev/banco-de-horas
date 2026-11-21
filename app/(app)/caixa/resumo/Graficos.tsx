@@ -14,12 +14,12 @@
 import { useState } from 'react';
 import { dinheiro, dinheiroCurto, MESES, MESES_LONGOS } from '../formato';
 
-const ENTRADA = '#059669';
-const SAIDA = '#dc2626';
-const SALDO = '#14636c'; // petróleo-700 — a linha do saldo é a cor da marca
-const GRADE = '#dde6e7'; // --color-borda
-const EIXO = '#5f7377'; // --color-tinta-fraca (4,6:1 — rótulo de eixo legível)
-const ROTULO = '#0f2226'; // --color-tinta
+const ENTRADA = 'var(--color-grafico-entrada)';
+const SAIDA = 'var(--color-grafico-saida)';
+const SALDO = 'var(--color-primaria-texto)'; // a linha do saldo é a cor da marca
+const GRADE = 'var(--color-borda)';
+const EIXO = 'var(--color-tinta-fraca)';
+const ROTULO = 'var(--color-tinta)';
 
 export interface PontoMes {
   mes: number;
@@ -137,7 +137,7 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
 
         {pontos.map((p) => (
           <circle key={p.mes} cx={x(p.mes)} cy={y(p.saldoFinal)} r={ativo === p.mes ? 5.5 : 4}
-            fill={p.saldoFinal < 0 ? SAIDA : SALDO} stroke="#fff" strokeWidth={2} />
+            fill={p.saldoFinal < 0 ? SAIDA : SALDO} stroke="var(--color-superficie)" strokeWidth={2} />
         ))}
 
         {/* rótulo direto só no último ponto — número em todo ponto vira poluição */}

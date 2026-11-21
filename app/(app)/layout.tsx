@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { IconeExcluir, IconeMenu, IconePainel } from './icones';
 import { BRAND } from '@/lib/brand';
+import { BotaoTema } from '@/components/tema';
 import { avisoTeste, SituacaoEscritorio } from '@/lib/visibilidade';
 
 type Modulo = 'ponto' | 'caixa';
@@ -189,6 +190,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="truncate text-sm font-medium">{me?.nome ?? '—'}</div>
               <div className="truncate text-xs text-petroleo-200">{me ? (me.escritorio?.nome ?? ROTULO_PAPEL[me.role]) : '—'}</div>
             </div>
+            <BotaoTema className={botaoEscuro} />
             <button onClick={sair} data-dica="Sair" aria-label="Sair" className={botaoEscuro}>
               <Icon name="logout" />
             </button>

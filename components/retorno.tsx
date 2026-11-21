@@ -136,7 +136,7 @@ export function Dicas() {
   if (!balao) return null;
   return createPortal(
     <div role="tooltip"
-      className="pointer-events-none fixed z-[80] w-max max-w-[min(18rem,calc(100vw-1.5rem))] rounded-md bg-petroleo-950 px-2.5 py-1.5 text-xs font-medium leading-snug text-white shadow-flutuante"
+      className="pointer-events-none fixed z-[80] w-max max-w-[min(18rem,calc(100vw-1.5rem))] rounded-md bg-tinta px-2.5 py-1.5 text-xs font-medium leading-snug text-fundo shadow-flutuante"
       style={{
         left: balao.x, top: balao.y,
         transform: `translate(-50%, ${balao.abaixo ? '0' : '-100%'})`,
