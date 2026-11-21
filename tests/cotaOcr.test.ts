@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  avaliarCota, competenciaBelem, COTA_PLANO_DESCONHECIDO, COTA_POR_PLANO, limiteDoPlano,
+  avaliarCota, competenciaBelem, COTA_PLANO_DESCONHECIDO, COTA_POR_PLANO, excedeuRitmo, limiteDoPlano, RITMO,
 } from '@/lib/cotaOcr';
 
 describe('limiteDoPlano', () => {
@@ -88,5 +88,13 @@ describe('competenciaBelem', () => {
     expect(competenciaBelem(new Date('2026-12-01T02:00:00Z'))).toBe('2026-11');
     expect(competenciaBelem(new Date('2026-12-01T03:00:00Z'))).toBe('2026-12');
     expect(competenciaBelem(new Date('2027-01-01T01:00:00Z'))).toBe('2026-12');
+  });
+});
+
+describe('excedeuRitmo', () => {
+  it('bloqueia a partir do máximo de tentativas na janela (falhas incluídas)', () => {
+    expect(excedeuRitmo(RITMO.maximo - 1)).toBe(false);
+    expect(excedeuRitmo(RITMO.maximo)).toBe(true);
+    expect(excedeuRitmo(Number.NaN)).toBe(false);
   });
 });

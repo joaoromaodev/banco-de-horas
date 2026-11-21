@@ -23,7 +23,7 @@ Migrações numeradas de antemão para não colidir: A `0011`, B `0012`, C `0013
 | Frente | Sessão | Modelo | Status |
 |---|---|---|---|
 | A. Cobrança: assinatura (gateway escolhido por consultor), webhook, conta somente leitura ao fim do teste | `cobranca` | Opus alto | ⏳ no computador de casa (`claude/cobranca-118569`, sem commits em 21/11 12:50). Se seguir vazia até 22/11 ~12h, o dono refaz |
-| B. Folha de Ponto do Sheets para o Postgres, por escritório + chave Gemini da plataforma + cota de OCR por plano | `ponto-postgres` | Opus alto | ⏳ no computador de casa (`claude/ponto-postgres-8196ff`, sem commits em 21/11 12:50). Mesmo prazo de 24 h |
+| B. Folha de Ponto do Sheets para o Postgres, por escritório + chave Gemini da plataforma + cota de OCR por plano | `ponto-postgres` | Opus alto | ✅ pronta em `claude/ponto-postgres-notebook-3cd4c9` (reassumida no notebook). Migração 0012 não aplicada; importação simulada com dados reais (9 funcionários, 183 dias). Ver "Para o integrador" em `docs/folha-de-ponto.md` |
 | C. Catálogo do Livro Caixa por escritório (base global + extensões) | `catalogo-caixa` | Sonnet médio | ✅ branch `claude/catalogo-caixa-859f94` pronta; integra depois da 0011 e 0012 (ordem das migrações) |
 | D. Modo escuro e polimento visual (tokens, contraste, telas novas) | `modo-escuro` | Sonnet médio | ✅ branch `claude/modo-escuro-cc7676` (tokens escuros AA, seletor claro/escuro/auto, telas e gráficos varridos; integrada e publicada em 21/11/2026) |
 

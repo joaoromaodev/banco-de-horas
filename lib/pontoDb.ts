@@ -9,6 +9,7 @@
 // rotas respondem 503 "aguardando o banco" em vez de quebrar.
 import { getDb } from './db';
 import { DiaFreq, Frequencia, Funcionario, Marcador, MARCADORES } from './tipos';
+import { RESERVA_VALIDA_MIN, RITMO } from './cotaOcr';
 
 export interface Feriado {
   data: string; // AAAA-MM-DD
@@ -229,14 +230,30 @@ export async function salvarFeriados(escritorioId: string, lista: Feriado[]): Pr
 }
 
 // ---------------------------------------------------------------- Cota de leituras por IA
-/** Leituras do escritório na competência (reservadas + concluídas). */
-export async function contarLeiturasOcr(escritorioId: string, competencia: string): Promise<number> {
+/**
+ * Leituras do escritório na competência que contam na cota: concluídas e reservas
+ * recentes (em andamento). Falhas e reservas órfãs (> 5 min) não contam.
+ */
+export async function contarLeiturasOcr(escritorioId: string, competencia: string, agora = new Date()): Promise<number> {
+  const desde = new Date(agora.getTime() - RESERVA_VALIDA_MIN * 60_000).toISOString();
   const { count, error } = await getDb().from('ponto_leituras_ocr')
     .select('id', { count: 'exact', head: true })
-    .eq('escritorio_id', escritorioId).eq('competencia', competencia);
+    .eq('escritorio_id', escritorioId).eq('competencia', competencia)
+    .or(`situacao.eq.concluida,and(situacao.eq.reservada,criado_em.gte.${desde})`);
   if (error) falhar(error);
   // Num HEAD sem a tabela o PostgREST devolve 204 sem erro e sem contagem: não é
   // "zero leituras", é banco sem a 0012 — falha fechada.
+  if (count === null) throw new ErroBancoPendente();
+  return count;
+}
+
+/** Tentativas do escritório (qualquer situação) nos últimos `RITMO.janelaMin` minutos. */
+export async function contarTentativasRecentes(escritorioId: string, agora = new Date()): Promise<number> {
+  const desde = new Date(agora.getTime() - RITMO.janelaMin * 60_000).toISOString();
+  const { count, error } = await getDb().from('ponto_leituras_ocr')
+    .select('id', { count: 'exact', head: true })
+    .eq('escritorio_id', escritorioId).gte('criado_em', desde);
+  if (error) falhar(error);
   if (count === null) throw new ErroBancoPendente();
   return count;
 }
@@ -258,7 +275,13 @@ export async function confirmarLeituraOcr(id: string): Promise<void> {
   if (error) falhar(error);
 }
 
-/** Leitura que não chegou ao fim (IA falhou ou cota estourou na corrida) não conta. */
+/** A IA falhou: não conta na cota, mas fica registrada (limite de ritmo, auditoria). */
+export async function falharLeituraOcr(id: string): Promise<void> {
+  const { error } = await getDb().from('ponto_leituras_ocr').update({ situacao: 'falhou' }).eq('id', id).eq('situacao', 'reservada');
+  if (error) falhar(error);
+}
+
+/** Reserva desfeita porque a cota estourou na corrida com outra leitura. */
 export async function cancelarLeituraOcr(id: string): Promise<void> {
   const { error } = await getDb().from('ponto_leituras_ocr').delete().eq('id', id).eq('situacao', 'reservada');
   if (error) falhar(error);

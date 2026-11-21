@@ -8,20 +8,24 @@
 //   1. avalia a cota com o que já foi usado; esgotada → 429 com convite de plano;
 //   2. RESERVA a leitura (linha em ponto_leituras_ocr) e reconta — se a corrida com
 //      outra leitura passou do limite, desfaz e recusa;
-//   3. chama o Gemini; falhou → apaga a reserva (não conta); deu certo → confirma.
+//   3. chama o Gemini; falhou → marca 'falhou' (não conta na cota, conta no ritmo);
+//      deu certo → confirma.
+// À parte da cota há um limite de ritmo (tentativas por 10 min, por escritório).
 import { NextRequest } from 'next/server';
 import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
 import { extrairFolha } from '@/lib/ocr';
 import { getGeminiApiKey, getGeminiModelo } from '@/lib/config';
-import { avaliarCota, competenciaBelem } from '@/lib/cotaOcr';
+import { avaliarCota, competenciaBelem, excedeuRitmo, MENSAGEM_RITMO } from '@/lib/cotaOcr';
 import { lerEscritorio } from '@/lib/escritorios';
-import { cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasOcr, reservarLeituraOcr } from '@/lib/pontoDb';
+import {
+  cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasOcr, contarTentativasRecentes, falharLeituraOcr, reservarLeituraOcr,
+} from '@/lib/pontoDb';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-/** Foto de celular cabe com folga; acima disso é engano ou abuso. */
-const TAMANHO_MAX = 10 * 1024 * 1024;
+/** A Vercel recusa corpo acima de ~4,5 MB; abaixo disso explicamos com educação. */
+const TAMANHO_MAX = 4 * 1024 * 1024;
 const TIPOS_IMAGEM = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 /** Situação da cota do escritório no mês corrente (Belém). */
@@ -69,7 +73,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ erro: 'Arquivo de imagem não enviado.' }, { status: 400 });
   }
   if (file.size > TAMANHO_MAX) {
-    return Response.json({ erro: 'A foto passa de 10 MB. Tire outra com resolução menor.' }, { status: 413 });
+    return Response.json({ erro: 'A foto passa de 4 MB. Tire outra com resolução menor.' }, { status: 413 });
   }
   const mimeType = file.type || 'image/jpeg';
   if (!TIPOS_IMAGEM.includes(mimeType)) {
@@ -97,6 +101,9 @@ export async function POST(req: NextRequest) {
     const quem = { plano: escritorio?.plano, situacao: escritorio?.situacao };
     const antes = avaliarCota({ ...quem, usadas: await contarLeiturasOcr(escritorioId, competencia) });
     if (!antes.permitido) return Response.json({ erro: antes.mensagem, cota: antes }, { status: 429 });
+    if (excedeuRitmo(await contarTentativasRecentes(escritorioId))) {
+      return Response.json({ erro: MENSAGEM_RITMO, cota: antes }, { status: 429 });
+    }
 
     // 2. Reserva e reconta (fecha a corrida entre leituras simultâneas).
     reserva = await reservarLeituraOcr({ escritorioId, competencia, empresaId: g.empresa.id, usuario: g.sessao.email });
@@ -127,7 +134,7 @@ export async function POST(req: NextRequest) {
     const depois = await estadoCota(escritorioId).catch(() => null);
     return Response.json({ ...resultado, cota: depois });
   } catch (e) {
-    await cancelarLeituraOcr(reserva).catch(() => {});
+    await falharLeituraOcr(reserva).catch(() => {});
     console.error('[ponto] leitura por IA falhou', e);
     return Response.json({ erro: 'Não foi possível ler a folha agora. Tente de novo ou preencha à mão — esta tentativa não conta na cota.' }, { status: 502 });
   }

@@ -107,6 +107,22 @@ export function avaliarCota(opts: {
   return { permitido: true, nivel: 'ok', usadas, limite, restantes, mensagem: null };
 }
 
+/**
+ * Limite de ritmo, à parte da cota: tentativas (inclusive as que falharam, que não
+ * contam na cota) por escritório numa janela curta. Segura abuso de custo — uma
+ * sessão mandando imagem quebrada em sequência.
+ */
+export const RITMO = { janelaMin: 10, maximo: 30 };
+/** Reserva mais velha que isto (função morta no meio) deixa de contar na cota. */
+export const RESERVA_VALIDA_MIN = 5;
+
+export function excedeuRitmo(tentativasNaJanela: number): boolean {
+  return (Number(tentativasNaJanela) || 0) >= RITMO.maximo;
+}
+
+export const MENSAGEM_RITMO = 'Muitas leituras em pouco tempo. Espere alguns minutos e tente de novo — ' +
+  'enquanto isso, dá para preencher a folha à mão.';
+
 /** Competência AAAA-MM no fuso de Belém (UTC−3, sem horário de verão). */
 export function competenciaBelem(agora: Date = new Date()): string {
   const belem = new Date(agora.getTime() - 3 * 60 * 60 * 1000);

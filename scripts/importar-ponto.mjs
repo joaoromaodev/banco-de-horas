@@ -10,7 +10,8 @@
 //   ignoreDuplicates nas chaves únicas da 0012). Rodar de novo não duplica nem
 //   desfaz o que foi editado no app depois da importação.
 // - Em --gravar, salva antes uma cópia JSON do que leu da planilha (pasta
-//   temporária do sistema; o caminho é impresso) — dado pessoal: apague depois.
+//   temporária do sistema) e a APAGA ao fim de uma gravação sem erro. Com
+//   --manter-copia ela fica (dado pessoal: apague depois de conferir).
 // - Precisa de NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, GOOGLE_SHEETS_ID e
 //   GOOGLE_SERVICE_ACCOUNT_JSON (ou GOOGLE_SERVICE_ACCOUNT_FILE).
 //
@@ -175,13 +176,19 @@ async function main() {
 
   const copia = path.join(os.tmpdir(), `ponto-sheets-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   fs.writeFileSync(copia, JSON.stringify({ Funcionarios: abas.Funcionarios, Frequencias: abas.Frequencias, Feriados: abas.Feriados }));
-  console.log(`Cópia do que foi lido da planilha: ${copia} (dado pessoal — apague depois de conferir).`);
+  console.log(`Cópia do que foi lido da planilha: ${copia}`);
 
   await inserir(db, 'ponto_funcionarios', plano.funcionarios, 'empresa_id,nome');
   await inserir(db, 'ponto_frequencias', plano.frequencias, 'empresa_id,funcionario,ano,mes,dia');
   await inserir(db, 'ponto_feriados', plano.feriados, 'escritorio_id,data');
   const depois = await contarNoBanco(db);
   console.log('Banco depois:', depois);
+  if (args.includes('--manter-copia')) {
+    console.log(`Cópia mantida em ${copia} — dado pessoal: apague depois de conferir.`);
+  } else {
+    fs.rmSync(copia, { force: true });
+    console.log('Cópia temporária apagada (use --manter-copia para guardá-la).');
+  }
   console.log('Pronto. Rodar de novo não duplica nada.');
 }
 

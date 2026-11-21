@@ -96,7 +96,9 @@ create table if not exists ponto_feriados (
 -- Uma linha por leitura. A rota RESERVA a linha antes de chamar o Gemini (situação
 -- 'reservada') e conta as do mês já com ela; se passou do limite do plano, apaga a
 -- reserva e recusa. Assim duas leituras simultâneas no limite não furam a cota.
--- Leitura que falha apaga a reserva (não conta); a bem-sucedida vira 'concluida'.
+-- Leitura que falha vira 'falhou': não conta na cota, mas conta no limite de
+-- ritmo (tentativas por 10 min) e deixa ver abuso. A bem-sucedida vira 'concluida'.
+-- Reserva órfã (função morta no meio) deixa de contar depois de 5 minutos.
 -- `competencia` = AAAA-MM no fuso de Belém, calculada no servidor.
 create table if not exists ponto_leituras_ocr (
   id             uuid primary key default gen_random_uuid(),
@@ -104,10 +106,11 @@ create table if not exists ponto_leituras_ocr (
   competencia    text not null check (competencia ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
   empresa_id     text,
   usuario        text,
-  situacao       text not null default 'reservada' check (situacao in ('reservada', 'concluida')),
+  situacao       text not null default 'reservada' check (situacao in ('reservada', 'concluida', 'falhou')),
   criado_em      timestamptz not null default now()
 );
 create index if not exists ponto_leituras_ocr_mes_idx on ponto_leituras_ocr (escritorio_id, competencia);
+create index if not exists ponto_leituras_ocr_ritmo_idx on ponto_leituras_ocr (escritorio_id, criado_em);
 
 alter table ponto_funcionarios enable row level security;
 alter table ponto_frequencias  enable row level security;
