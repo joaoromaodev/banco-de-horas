@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lerSessao, temModulo, COOKIE_SESSAO } from '@/lib/auth';
 
-const PUBLICO = ['/login', '/api/login', '/api/logout'];
+const PUBLICO = ['/login', '/api/login', '/api/logout', '/conheca', '/planos', '/termos', '/privacidade'];
 // `/api/usuarios` NÃO entra aqui de propósito: ela agora atende master e contador
 // e faz o recorte fino por papel/dono internamente (ver a rota). O `cliente` já é
 // barrado por não constar em CLIENTE_PODE.
@@ -40,8 +40,9 @@ export async function proxy(req: NextRequest) {
   if (!sessao) {
     if (ehApi) return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 });
     const url = req.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('next', pathname);
+    // Visitante na raiz vê o site público; qualquer outro caminho protegido pede login.
+    url.pathname = pathname === '/' ? '/conheca' : '/login';
+    if (pathname !== '/') url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
 
