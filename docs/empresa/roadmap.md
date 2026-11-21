@@ -14,15 +14,18 @@
 | B. Site público: landing, planos, termos de uso, privacidade (LGPD) | `site-publico` | `claude/site-publico-c4e042` | ✅ integrada. Pendências: depoimento da Edilse, dados da empresa nos termos, advogado |
 | C. Qualidade: testes (Vitest) das regras puras + CI no GitHub Actions | `testes-ci` | `claude/testes-ci-eaaca5` | ✅ integrada — ver [`docs/testes.md`](../testes.md) |
 
-Integração (dono): merge, migração em produção (com backup) e push após lint/build/testes. Mensagens à Edilce: o dono redige, o João envia.
+Integração (dono): merge, migração em produção (com backup) e push após lint/build/testes. Mensagens à Edilse: o dono redige, o João envia.
 
-## Sprint 2 — Cobrança e Ponto no Postgres
+## Sprint 2 — Cobrança e Ponto no Postgres (iniciada 21/11/2026)
 
-- Assinatura via Asaas (planos da `estrategia.md`), bloqueio suave ao fim do teste.
-- Folha de Ponto sai do Google Sheets para o Postgres (hoje é o único módulo
-  preso ao Sheets — impede multi-escritório de verdade e esbarra na cota de 60/min).
-- Cota de OCR por plano + chave do Gemini da plataforma (não mais por instalação).
-- Corrigir o modo escuro (armadilha antiga em `docs/livro-caixa.md`).
+Migrações numeradas de antemão para não colidir: A `0011`, B `0012`, C `0013`.
+
+| Frente | Sessão | Modelo | Status |
+|---|---|---|---|
+| A. Cobrança: assinatura (gateway escolhido por consultor), webhook, conta somente leitura ao fim do teste | `cobranca` | Opus alto | ⏳ |
+| B. Folha de Ponto do Sheets para o Postgres, por escritório + chave Gemini da plataforma + cota de OCR por plano | `ponto-postgres` | Opus alto | ⏳ |
+| C. Catálogo do Livro Caixa por escritório (base global + extensões) | `catalogo-caixa` | Sonnet médio | ⏳ |
+| D. Modo escuro e polimento visual (tokens, contraste, telas novas) | `modo-escuro` | Sonnet médio | ⏳ |
 
 ## Sprint 3 — Portal do Cliente e Agenda
 
@@ -31,7 +34,7 @@ Integração (dono): merge, migração em produção (com backup) e push após l
 - Contratos: alertas de todas as empresas no topo, PDF direto.
 - Painel inicial do contador: o que precisa de atenção hoje.
 
-## Backlog da Edilce (pedidos e pendências)
+## Backlog da Edilse (pedidos e pendências)
 
 - [ ] Validar texto legal dos termos do Livro Caixa (variante PF é nossa).
 - [ ] Coletar dados fiscais das empresas (trava o termo definitivo).
