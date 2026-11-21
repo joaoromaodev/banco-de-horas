@@ -18,7 +18,7 @@ const LINHAS: [string, React.ReactNode, React.ReactNode, React.ReactNode][] = [
   ['Alertas de vencimento de contratos', SIM, SIM, SIM],
   ['Acesso do cliente ao próprio caixa', SIM, SIM, SIM],
   ['Exportação em PDF e planilha (.xlsx)', SIM, SIM, SIM],
-  ['Cota mensal de leituras por IA', 'básica', 'ampliada', 'máxima'],
+  ['Folhas lidas por IA por mês', '150', '600', '2.000'],
   ['14 dias de teste, sem cartão', SIM, SIM, SIM],
 ];
 

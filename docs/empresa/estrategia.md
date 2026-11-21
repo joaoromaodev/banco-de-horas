@@ -49,7 +49,7 @@ primeira opção: Pix e boleto nativos, assinatura recorrente, taxa baixa).
 | Ilimitado | sem limite | R$ 349 | R$ 3.490 |
 
 - Todos os módulos em todos os planos (simples de vender); OCR com cota mensal por
-  plano (custo de IA é o único custo variável relevante).
+  plano — 150 / 600 / 2.000 folhas (custo de IA é o único custo variável relevante).
 - **14 dias grátis**, sem cartão.
 - A Edilce é **cliente fundadora**: gratuito vitalício em troca de consultoria e
   depoimento.
