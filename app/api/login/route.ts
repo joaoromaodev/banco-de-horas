@@ -5,8 +5,19 @@ import { conferirSenha, Sessao, resolverModulos } from '@/lib/auth';
 import { buscarUsuario, lerEmpresasComArquivadas } from '@/lib/cadastro';
 import { estaArquivada } from '@/lib/arquivamento';
 import { gravarSessao, sessaoDoUsuario } from '@/lib/sessao';
+import { ipDe, Limitador } from '@/lib/limite';
+import { timingSafeEqual } from 'crypto';
 
 export const runtime = 'nodejs';
+
+// Freio contra adivinhar senha: por IP e por e-mail (por instância — ver lib/limite).
+const porIp = new Limitador(20, 15 * 60 * 1000);
+const porEmail = new Limitador(8, 15 * 60 * 1000);
+
+function iguais(a: string, b: string): boolean {
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
 
 export async function POST(req: NextRequest) {
   let email = '';
@@ -19,11 +30,14 @@ export async function POST(req: NextRequest) {
     return Response.json({ erro: 'Dados inválidos.' }, { status: 400 });
   }
   if (!email || !senha) return Response.json({ erro: 'Informe e-mail e senha.' }, { status: 400 });
+  if (!porIp.tentar(ipDe(req.headers)) || !porEmail.tentar(email)) {
+    return Response.json({ erro: 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.' }, { status: 429 });
+  }
 
   const master = getMaster();
   let sessao: Omit<Sessao, 'exp'> | null = null;
 
-  if (email === master.email && senha === master.senha) {
+  if (email === master.email && master.senha !== null && iguais(senha, master.senha)) {
     sessao = { email, nome: 'Administrador', role: 'master', modulos: resolverModulos('master') };
   } else {
     try {

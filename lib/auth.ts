@@ -61,7 +61,14 @@ const DURACAO_MS = 1000 * 60 * 60 * 12; // 12h
 
 /** Segredo do servidor (sessão e fichas de desfazer). */
 export function getSecret(): string {
-  return process.env.SESSION_SECRET || 'dev-secret-troque-em-producao';
+  const s = process.env.SESSION_SECRET?.trim();
+  if (s) return s;
+  // Publicado sem segredo, qualquer um forjaria sessão de administrador com o
+  // texto fixo abaixo: melhor falhar alto do que aceitar cookie forjável.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV) {
+    throw new Error('SESSION_SECRET não configurado no ambiente publicado.');
+  }
+  return 'dev-secret-troque-em-producao';
 }
 
 // ---- base64url ----
