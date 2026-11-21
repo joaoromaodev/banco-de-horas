@@ -1,10 +1,42 @@
 # Testes e CI
 
-Última atualização: **21/11/2026** (Sprint 1, Frente C).
+Última atualização: **21/11/2026** (Sprint 14, Frente B — testes de guarda e de rota).
 
-Rede de segurança das regras puras de `lib/`. Não há teste de tela nem de rota
-(ainda): tudo o que precisa de Supabase, Google Sheets ou Gemini ficou de fora de
-propósito.
+Rede de segurança das regras puras de `lib/` e, desde a Sprint 14, das **guardas
+das rotas de API**, do **proxy do cliente** e dos **fluxos críticos** pelas rotas.
+Não há teste de tela; Supabase, Storage, Sheets e Gemini são sempre simulados.
+
+## O que o CI passa a garantir (Sprint 14)
+
+| Teste | Garante | Se quebrar |
+|---|---|---|
+| `guardaRotas.test.ts` | **Todo** handler exportado (GET/POST/PUT/PATCH/DELETE) de `app/api/**/route.ts` chama uma guarda de `lib/acesso.ts` (`exigir*` ou `sessaoDe`), direto ou por helper local/importado (`guardaEmpresa`, `exigirEmpresaPonto`, `exigirEmpregado`...). As exceções (login, logout, criar-conta, webhook do Asaas, cron) ficam numa lista comentada, cada uma com a **prova** da proteção (token, `CRON_SECRET`, limitador) e conferida como pública no proxy. Sem sessão, toda outra rota leva 401 no proxy. | A mensagem diz a rota e o método. Ponha a guarda no começo do handler; se for pública de verdade, PUBLICO no proxy + `EXCECOES` no teste. |
+| `proxyCliente.test.ts` | Lê as telas do cliente (`/inicio`, `/caixa`, `/documentos`, `/enviar-ponto` e o layout com o sino), segue os imports e junta os `/api/...` citados. (1) tudo o que elas chamam passa no proxy para o cliente; (2) todo prefixo de API em `CLIENTE_PODE` é usado por alguma tela do cliente; (3) rota sob prefixo do cliente que nenhuma tela dele usa exige gestor (`exigirGestor`/`Master`/`AdminEscritorio`) — ou está em `COMPARTILHADAS_SEM_TELA` com motivo (hoje só `/api/envio-ponto/foto`); (4) toda API fora de `CLIENTE_PODE`/`PUBLICO` dá 403 ao cliente. | (1) falta prefixo em `CLIENTE_PODE`; (2) prefixo sobrando; (3) rota da contabilidade aberta ao cliente: `exigirGestor`. |
+| `caixaFluxoRotas.test.ts` | Fluxo do caixa pelas rotas, com as **guardas reais** (cookie assinado) e banco em memória: cliente lança → resumo/Demonstrativo escondidos → contadora confere → confirma o mês (upsert) → cliente vê resumo e Demonstrativo (sem registro de envio) → livro PDF/XLSX. Editar o conferido derruba a conferência; desconfirmar esconde; cheque = 2 linhas. Isolamento: outro escritório, outra empresa do mesmo escritório, cliente em rota da contabilidade (conferir, confirmar, livro, revisão), conta de catálogo de outro escritório, empresa arquivada (contabilidade lê, grava 409; cliente dela 403), sem sessão 401 — sempre conferindo que **nada foi gravado**. | — |
+| `envioPontoFluxoRotas.test.ts` | Folha enviada pelo cliente com guardas reais e I/O com estado: envia → confirma → lê → aplica (grafia do cadastro) → cliente vê "aplicada" → não reaplica/devolve/exclui → desfazer; e devolvida com motivo visível ao cliente. Isolamento: outro escritório (404/403), outra empresa (404/403, não envia em nome da outra), cliente não aplica/devolve, empresa arquivada (409 ao gravar; cliente 403). Complementa `envioPontoRotas.test.ts`, que mocka as guardas. | — |
+
+Helpers: `tests/varreduraRotas.ts` (leitura estática das rotas e telas),
+`tests/rotaTeste.ts` (escritórios, empresas e sessões de teste; pedido com cookie
+assinado; cadastro falso que esconde arquivadas) e `tests/bancoFalso.ts`, que agora
+também grava (`insert`/`update`/`delete`/`upsert`) com `aoGravar` (coluna gerada),
+`aoLer` (join) e `visoes` (view, ex.: `resumo_mensal`).
+
+### Rota nova: o que fazer
+
+1. Comece cada handler com a guarda de `lib/acesso.ts` que corresponde e devolva
+   `g.resposta` quando `!g.ok`. Empresa vinda do pedido: `exigirEmpresa` (ou
+   `motivoNegado` depois de `exigirSessao`/`exigirGestor`). Só a contabilidade:
+   `exigirGestor`. Avisos do cliente: `exigirClienteDaEmpresa`.
+2. Declare o handler na coluna 0 (`export async function GET(...)`) — é o formato
+   que a varredura lê; reexportação (`export { GET } from`) é acusada.
+3. Se o cliente usa: ponha o prefixo em `CLIENTE_PODE` (proxy.ts) e chame a rota
+   de uma tela do cliente. Se fica sob um prefixo do cliente mas é da
+   contabilidade, use `exigirGestor`.
+4. Pública de verdade (webhook, cron): PUBLICO no proxy + entrada em `EXCECOES`
+   de `guardaRotas.test.ts` com o motivo e a prova.
+5. Rode `npm test`: os dois testes-varredura dizem o que faltou.
+6. Rota que lê/grava dado de empresa: acrescente um caso de isolamento (outro
+   escritório, outra empresa, arquivada) no padrão de `caixaFluxoRotas.test.ts`.
 
 ## Como rodar
 
@@ -80,8 +112,9 @@ direto até ser extraída:
    `lib/ocr.ts`, `lib/contratosServidor.ts`** — I/O (Supabase/Sheets/Gemini/docx/xlsx).
    `planilha.ts`/`planilhaCaixa.ts` (ExcelJS) e `folhaPonto.ts` (pdf-lib) seriam
    bons candidatos a teste de "gera arquivo e relê" numa próxima rodada.
-4. Rotas de API e `proxy.ts` (lista de permissão do `cliente`) — sem teste; é onde
-   a Frente A mexe. Vale um teste de contrato por rota depois da integração.
+4. ~~Rotas de API e `proxy.ts`~~ — cobertos desde a Sprint 14 (varreduras + fluxos;
+   ver acima). Ainda sem teste de fluxo: agenda, contratos, cobrança e painel (só a
+   varredura de guarda).
 
 ## Bugs e riscos achados
 
@@ -105,6 +138,20 @@ Os itens 1–5 estão como `it.todo` em `tests/auth.test.ts` e `tests/caixa.test
   e `dadosVazios`; lembre que Belém é UTC−3 (02:00Z ainda é o dia anterior).
 - Importar `lib/caixa.ts` é seguro: `getDb()` é preguiçoso e só falha se chamado.
 - `process.env` em teste: `vi.stubEnv` + `vi.unstubAllEnvs()` num `finally`.
+
+## Achados da Sprint 14 (varreduras)
+
+- **Nenhuma rota sem guarda.** Os 119 handlers de `app/api` (68 rotas) chamam guarda de
+  `lib/acesso.ts`, exceto as 5 exceções legítimas (login, logout, criar-conta,
+  webhook do Asaas com token, cron com `CRON_SECRET`).
+- **Nenhuma API da contabilidade alcançável pelo cliente.** Sob os prefixos do
+  cliente, as rotas sem tela do cliente (`/api/caixa/de-para`, `/api/caixa/seed`)
+  exigem gestor/master; `/api/envio-ponto/foto` é compartilhada por decisão.
+- **Observação (não é vazamento):** a contabilidade recebe 403 ao **listar** os
+  envios de ponto de uma empresa arquivada (`GET /api/envio-ponto?empresa=`):
+  `escritorioDaEmpresa` (lib/pontoAcesso.ts) usa `lerEmpresa`, que esconde
+  arquivadas. As outras rotas deixam a arquivada ser consultada. Decidir se a fila
+  de envios entra no "arquivada só consulta".
 
 ## Lint
 
