@@ -143,6 +143,33 @@ export function liberadoAte(confirmados: number[]): number {
   return n;
 }
 
+/**
+ * Mês em que a tela do demonstrativo abre (1–12), quando o link não traz `?mes=`.
+ *
+ * 1. O último mês confirmado em sequência desde janeiro — é o que a contadora envia e
+ *    o único que o cliente enxerga.
+ * 2. Sem nada confirmado: o último mês com movimento (entradas ou saídas), sem passar
+ *    do mês corrente — é o que a contadora está fechando.
+ * 3. Sem movimento: o mês anterior ao corrente (a competência que fecha agora) no ano
+ *    corrente; dezembro num exercício passado; janeiro num exercício futuro.
+ */
+export function mesInicial(
+  ano: number,
+  meses: { mes: number; confirmado: boolean; entradas?: number | null; saidas?: number | null }[],
+  hoje: Date = new Date(),
+): number {
+  const ate = liberadoAte(meses.filter((m) => m.confirmado).map((m) => m.mes));
+  if (ate >= 1) return ate;
+  const anoHoje = hoje.getFullYear();
+  const teto = ano === anoHoje ? hoje.getMonth() + 1 : ano < anoHoje ? 12 : 0;
+  const comMovimento = meses
+    .filter((m) => m.mes >= 1 && m.mes <= teto && ((m.entradas ?? 0) !== 0 || (m.saidas ?? 0) !== 0))
+    .map((m) => m.mes);
+  if (comMovimento.length) return Math.max(...comMovimento);
+  if (ano === anoHoje) return Math.max(hoje.getMonth(), 1);
+  return ano < anoHoje ? 12 : 1;
+}
+
 // --------------------------------------------------------------------- textos
 
 const MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];

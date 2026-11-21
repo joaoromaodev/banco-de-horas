@@ -478,7 +478,7 @@ export function Indicador({ rotulo, valor, tom = 'neutro', destaque = false }: {
 }) {
   return (
     <div className={cx(
-      'rounded-xl border bg-superficie px-4 py-3.5 shadow-cartao',
+      'min-w-0 rounded-xl border bg-superficie px-3 py-3 shadow-cartao sm:px-4 sm:py-3.5',
       destaque ? 'border-primaria-borda ring-1 ring-primaria-borda' : 'border-borda',
     )}>
       <div className="text-xs font-medium text-tinta-suave">{rotulo}</div>

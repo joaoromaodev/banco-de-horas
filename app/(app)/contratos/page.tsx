@@ -558,27 +558,36 @@ export default function ContratosPage() {
             )}
 
             {/* ---------------------------------------------------- ações */}
-            <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-borda bg-superficie/95 p-3 shadow-flutuante backdrop-blur">
-              <span data-dica={semTabela ? 'Aguardando a migração 0009 no banco' : undefined}>
-                <Botao variante="primaria" onClick={salvar} carregando={ocupado === 'salvar'} disabled={!!ocupado || semTabela}>
-                  {ocupado === 'salvar' ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Salvar contrato'}
-                </Botao>
-              </span>
-              <span className="mx-1 hidden h-6 w-px bg-borda sm:block" aria-hidden="true" />
-              <div role="radiogroup" aria-label="Formato do documento" className="flex items-center gap-3">
-                {([['docx', 'Word'], ['pdf', 'PDF']] as const).map(([v, r]) => (
-                  <Marcacao key={v} type="radio" name="formato" checked={formato === v}
-                    onChange={() => { setFormato(v); try { localStorage.setItem('contratos.formato', v); } catch {} }}>{r}</Marcacao>
-                ))}
+            {/* Duas linhas: salvar + formato; depois os downloads. Medida pelo próprio
+                contêiner (em 1024 px a coluna do formulário tem ~420 px): estreita, os
+                quatro downloads viram grade 2×2; larga, uma fileira só. */}
+            <div className="@container sticky bottom-3 z-10 space-y-2.5 rounded-xl border border-borda bg-superficie/95 p-3 shadow-flutuante backdrop-blur">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <span data-dica={semTabela ? 'Aguardando a migração 0009 no banco' : undefined}>
+                  <Botao variante="primaria" onClick={salvar} carregando={ocupado === 'salvar'} disabled={!!ocupado || semTabela}>
+                    {ocupado === 'salvar' ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Salvar contrato'}
+                  </Botao>
+                </span>
+                <div role="radiogroup" aria-label="Formato do documento" className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-tinta-suave" aria-hidden="true">Formato</span>
+                  {([['docx', 'Word'], ['pdf', 'PDF']] as const).map(([v, r]) => (
+                    <Marcacao key={v} type="radio" name="formato" checked={formato === v}
+                      onChange={() => { setFormato(v); try { localStorage.setItem('contratos.formato', v); } catch {} }}>{r}</Marcacao>
+                  ))}
+                </div>
               </div>
-              {([['contrato', 'Contrato'], ['vale', 'Declaração de VT'], ['encerramento', 'Aviso de término']] as const).map(([doc, r]) => (
-                <Botao key={doc} onClick={() => baixar(doc)} carregando={ocupado === doc} disabled={!!ocupado} icone={<IconeBaixar />}>
-                  {ocupado === doc ? 'Gerando…' : r}
-                </Botao>
-              ))}
-              <Botao variante="tonal" onClick={() => baixar('todos')} carregando={ocupado === 'todos'} disabled={!!ocupado} icone={<IconeBaixar />}>
-                {ocupado === 'todos' ? 'Gerando…' : 'Admissão completa (.zip)'}
-              </Botao>
+              <div role="group" aria-label="Baixar documentos" className="grid grid-cols-2 gap-2 border-t border-borda pt-2.5 @xl:flex @xl:flex-wrap">
+                {([['contrato', 'Contrato'], ['vale', 'Declaração de VT'], ['encerramento', 'Aviso de término']] as const).map(([doc, r]) => (
+                  <Botao key={doc} tamanho="sm" onClick={() => baixar(doc)} carregando={ocupado === doc} disabled={!!ocupado} icone={<IconeBaixar />}>
+                    {ocupado === doc ? 'Gerando…' : r}
+                  </Botao>
+                ))}
+                <span data-dica="Contrato, declaração de VT e aviso de término num arquivo só" className="grid">
+                  <Botao tamanho="sm" variante="tonal" onClick={() => baixar('todos')} carregando={ocupado === 'todos'} disabled={!!ocupado} icone={<IconeBaixar />}>
+                    {ocupado === 'todos' ? 'Gerando…' : 'Admissão (.zip)'}
+                  </Botao>
+                </span>
+              </div>
             </div>
           </div>
         </div>
