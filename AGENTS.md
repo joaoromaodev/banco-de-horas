@@ -34,3 +34,7 @@ Mantenha esse arquivo atualizado ao fim de cada etapa.
 `<select>`, `<datalist>`, `alert/confirm/prompt` nem `title=` cru; uma ação primária
 por tela; excluir sempre com confirmação **e** desfazer. A vitrine dos componentes
 está em [`docs/design-system.html`](docs/design-system.html).
+
+**Plano da empresa:** estratégia, roadmap e regras da equipe de sessões em
+[`docs/empresa/`](docs/empresa/). Antes de começar uma frente, veja
+[`roadmap.md`](docs/empresa/roadmap.md) e [`equipe.md`](docs/empresa/equipe.md).
