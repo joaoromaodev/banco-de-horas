@@ -121,15 +121,15 @@ Teste de ponta a ponta da folha pelo cliente com conta de teste: envio, foto no 
 leitura ("lida"), fila da contadora, 2 avisos no sino, cliente barrado na empresa da
 Edilse e na Timesheet; conta, foto e dados apagados.
 
-## Sprint 11 — Cliente, rescisão completa e QA visual (🔄 em andamento)
+## Sprint 11 — Cliente, rescisão completa e QA visual (✅ concluída e publicada em 21/11/2026)
 
 | Frente | Branch | Status |
 |---|---|---|
 | A. Página inicial do cliente (`/inicio`): movimento a lançar, pedidos da contabilidade, folhas devolvidas e último Demonstrativo; cada bloco falha sozinho; vira a home do cliente | `claude/inicio-cliente` | ✅ publicada em 21/11, sem migração |
-| B. Rescisão completa: INSS/IRRF, médias de horas extras do ponto, valores líquidos | `claude/rescisao-completa` | 🔄 refeita em 21/11 (a primeira tentativa não sobreviveu à limpeza da sessão) |
+| B. Rescisão completa: INSS/IRRF, médias de horas extras do ponto, valores líquidos | `claude/rescisao-completa` | ✅ publicada em 21/11, sem migração; rota `/api/dp/medias`. Tabelas em `lib/tabelasTributos.ts` (INSS 2025/2026, IRRF Lei 15.191 + redução Lei 15.270). Exemplo conferido com o `contador`: bruto R$ 34.795,76, líquido R$ 33.202,49 |
 | C. Pente-fino visual no navegador: 5 defeitos corrigidos (rolagem horizontal no celular, checkboxes do fechamento, fila do ponto repetida, data do DP em lote, rótulo "(Sheets)"); relatório em `docs/qa-visual.md` | `claude/pente-fino-visual-20f3c4` | ✅ publicada em 21/11 |
 
-Publicação de A + C: 930 testes, CI e Vercel verdes; em produção `/inicio` exige login e
+Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/dp/medias` responde 401 sem sessão. A + C, CI e Vercel verdes; em produção `/inicio` exige login e
 `/api/inicio-cliente` responde 401 sem sessão.
 
 ## Próximas frentes (backlog priorizado)
@@ -176,6 +176,9 @@ O time faz quando o lançamento for decidido: termos e privacidade (lista em
 - [ ] Coletar dados fiscais das empresas (trava o termo definitivo).
 - [ ] Validar layout impresso dos 3 documentos de contrato.
 - [ ] PDF/xlsx do livro com rótulos "Conta Titular / Conta Analítica".
+- [ ] Rescisão: confirmar redução da Lei 15.270 no 13º; 13º sem desconto simplificado;
+      mês sem ponto entra com zero na média; regra dos 15 dias no aquisitivo; data-base e
+      piso da categoria; salário pago no mês seguinte (ver `docs/departamento-pessoal.md`).
 - [ ] Reclassificar, se for o caso, os 15 lançamentos de material de expediente.
 
 ## Feito

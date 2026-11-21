@@ -143,7 +143,7 @@ sessões).
   apagar branches `integracao/*` já em `main`.
 - **Quando o contexto passar de ~50%**: documentar aqui e limpar a sessão.
 
-### Em andamento neste momento (Sprint 11)
+### Sprint 11 (concluída e publicada em 21/11 — tabela mantida como histórico)
 | Frente | Onde | Como integrar |
 |---|---|---|
 | A. Página inicial do cliente (`/inicio`) | subagente em worktree → branch `claude/inicio-cliente` | migração 0029 se houver |
@@ -180,7 +180,7 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
 ### Produção agora
 - Migrações **0000–0028** aplicadas (0024–0026 não usadas). Próximo livre: **0029**.
 - Funções da Vercel em `gru1` (São Paulo), junto do Supabase (`sa-east-1`).
-- 930 testes; CI verde no último push (Sprint 11 A + C publicadas; B refeita, em andamento).
+- 980 testes; CI verde no último push. Sprint 11 (A, B, C) concluída e publicada; nenhuma frente em andamento.
 
 ### Pendências que só o João resolve
 - Vercel: `CRON_SECRET` (resumo da agenda), `RESEND_API_KEY` + `EMAIL_REMETENTE`
@@ -192,5 +192,5 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
 
 ### Próximas ideias (depois da Sprint 11)
 Carnê-Leão e documento → lançamento (dependem da Edilse); rescisão com convenção
-coletiva; e-mail ao cliente de folha devolvida/pendência (depende do Resend); medir a
+coletiva, pensão alimentícia e adicional noturno sobre HE noturna (OJ 97); e-mail ao cliente de folha devolvida/pendência (depende do Resend); medir a
 duração das funções na Vercel após uso real.
