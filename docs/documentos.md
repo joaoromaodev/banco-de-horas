@@ -147,3 +147,14 @@ no menu, só contabilidade).
 - **Guarda legal**: documentos contábeis em geral têm guarda de 5 anos — a regra de retenção acima precisa conciliar isso com a LGPD.
 - `lerEmpresa` usa o cache de empresas de `lib/cadastro.ts` (TTL curto): uma
   empresa movida de escritório pode levar alguns segundos para refletir aqui.
+
+## Sprint 10 · Frente B — documentos no sino
+
+Documento novo (`status = recebido`, últimos 14 dias) e pendência atendida pelo cliente viram
+notificação no sino da contabilidade, derivadas das próprias tabelas — sem coluna nova. Detalhes
+em [`notificacoes.md`](notificacoes.md).
+
+### Para o integrador (Sprint 10 · Frente B)
+
+- Nada em `documentos`/`pendencias` mudou. O sino só lê `documentos.enviado_em`,
+  `pendencias.atendida_em` e `atendida_por`.

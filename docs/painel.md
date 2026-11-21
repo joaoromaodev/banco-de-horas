@@ -124,3 +124,15 @@ Cada fonte degrada sozinha; erro da rota só avisa dentro do bloco.
 
 - `app/(app)/painel/page.tsx`: só importa e insere `<ConferenciaModulos />` (conflito trivial).
 - Sem migração. Testar em produção: `/painel` → bloco novo, contra `/dp` e o Timesheet (só leitura).
+
+## Sprint 10 · Frente B — links e sino
+
+- O sino de notificações (contagem e lista do que aconteceu desde a última visita) está em
+  [`notificacoes.md`](notificacoes.md); o painel continua sendo "o que está pendente agora".
+- Links com empresa: `/ponto?empresa=&ano=&mes=` já funciona (ver `folha-de-ponto.md`) e a
+  conferência entre módulos o usa. Os itens do painel só trazem o nome da empresa; levar ao
+  `/documentos`/`/caixa` já na empresa continua dependendo dessas telas lerem `?empresa=`.
+
+### Para o integrador (Sprint 10 · Frente B)
+
+- Painel: nenhum arquivo tocado. `app/(app)/layout.tsx` ganhou o sino (ver `notificacoes.md`).

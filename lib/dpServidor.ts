@@ -129,6 +129,33 @@ export async function atualizarEmpregado(escritorioId: string, id: string, d: Da
   return deLinha(data);
 }
 
+const VAZIO_DADOS: DadosEmpregado = {
+  nome: '', cpf: null, cargo: null, admissao: null, salarioBase: null, horasSemanais: null, escala: null, dsr: 0,
+  bancoHoras: false, bancoHorasDesde: null, situacao: 'ativo', situacaoDesde: null, afastamentoTipo: null, aquisitivoBase: null,
+};
+
+const COLUNA_LOTE: Record<string, string> = {
+  admissao: 'admissao', cargo: 'cargo', salarioBase: 'salario_base', horasSemanais: 'horas_semanais', escala: 'escala',
+  bancoHoras: 'banco_horas', bancoHorasDesde: 'banco_horas_desde',
+};
+
+/**
+ * Grava só as colunas pedidas (edição em lote e desfazer): uma edição simultânea em
+ * outro campo do mesmo empregado não é pisada. `valores` usa os nomes de `DadosEmpregado`.
+ */
+export async function atualizarCamposEmpregado(
+  escritorioId: string, empresaId: string, id: string, valores: Partial<DadosEmpregado>, por: string,
+): Promise<void> {
+  const linha = paraLinha({ ...VAZIO_DADOS, ...valores }) as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const k of Object.keys(valores)) if (COLUNA_LOTE[k]) patch[COLUNA_LOTE[k]] = linha[COLUNA_LOTE[k]];
+  if (!Object.keys(patch).length) return;
+  const { error } = await getDb().from('dp_empregados')
+    .update({ ...patch, atualizado_por: por, atualizado_em: new Date().toISOString() })
+    .eq('id', id).eq('escritorio_id', escritorioId).eq('empresa_id', empresaId);
+  if (error) falhar(error);
+}
+
 // ------------------------------------------------------------------ férias
 
 export async function listarFerias(escritorioId: string | null, filtro: { empresas?: string[]; empregadoId?: string }): Promise<FeriasProgramada[]> {

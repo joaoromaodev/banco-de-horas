@@ -476,3 +476,24 @@ Testes em `tests/conferenciaModulos.test.ts` (bloco `jornadaDaFolha`).
 - A planilha avulsa (`/api/gerar`) não monta jornada por conta própria; não foi mexida.
 - Conferir em produção: abrir revisão e resumo do mesmo mês de uma empresa real — os dias a
   cumprir e as horas devem bater com a planilha do lote (nada deve mudar em relação a antes).
+
+## Sprint 10 · Frente B — `/ponto?empresa=&ano=&mes=`
+
+A Timesheet abre direto na empresa e no mês da URL e **atualiza a URL** ao trocar empresa,
+mês ou ano (`history.replaceState`, sem recarregar). Regras puras em `lib/pontoUrl.ts`
+(`anoMesDaUrl`, `urlDoPonto`, `linkPonto`; `tests/pontoUrl.test.ts`).
+
+- `empresa` inválida (não está na lista) é ignorada; `ano` (2000–2100) e `mes` (1–12) fora da
+  faixa também. Sem parâmetros, o comportamento é o de antes. Empresa arquivada na URL segue a
+  consulta somente leitura de sempre.
+- Para gerar o link a partir de código: `linkPonto(empresaId, ano?, mes?)`.
+- Já ajustado: a conferência entre módulos (`ponto_sem_vinculo` sem ficha → `/ponto?empresa=`).
+  Agenda e painel ainda levam à tela sem empresa (os itens do painel só trazem o nome).
+
+### Para o integrador (Sprint 10 · Frente B)
+
+- Em `app/(app)/ponto/page.tsx` mexi só nos efeitos de leitura/gravação da URL e na escolha da
+  empresa inicial (`empresaDaUrl`). **A Frente A (fila de folhas enviadas pelo cliente) também
+  mexe nesta página**: o conflito esperado é trivial (imports e o efeito que carrega `/api/empresas`).
+- Testar (só leitura): abrir `/ponto?empresa=<id da Vaz>&ano=2026&mes=10` → empresa e mês já
+  escolhidos; trocar o mês → a URL muda; copiar a URL em outra aba → mesma tela.

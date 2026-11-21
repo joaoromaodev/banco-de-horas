@@ -9,6 +9,7 @@
 import type { Marcador } from './tipos';
 import { vencimento1, vencimento2, isoValida, type ContratoSalvo } from './contratos';
 import { br, cpfValido, nomeChave, soDigitos, type Empregado } from './dp';
+import { linkPonto } from './pontoUrl';
 import { fimDoGozo, type FeriasProgramada } from './ferias';
 
 export type CodigoConferencia =
@@ -124,7 +125,7 @@ export function conferirModulos(
   const achados: AchadoConferencia[] = [];
   const nomeEmpresa = (id: string) => empresas.get(id) ?? '';
   const linkDp = (empresaId: string, empregadoId: string | null) =>
-    empregadoId ? `/dp?empresa=${encodeURIComponent(empresaId)}&empregado=${encodeURIComponent(empregadoId)}` : '/ponto';
+    empregadoId ? `/dp?empresa=${encodeURIComponent(empresaId)}&empregado=${encodeURIComponent(empregadoId)}` : linkPonto(empresaId);
   const add = (a: Omit<AchadoConferencia, 'chave' | 'empresaNome' | 'titulo'> & { sufixo?: string }) => {
     const { sufixo, ...resto } = a;
     achados.push({

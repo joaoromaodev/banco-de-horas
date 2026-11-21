@@ -8,7 +8,8 @@ import { achadosPorDia, revisarFolha } from '@/lib/revisaoPonto';
 import { dataBR } from '@/lib/data';
 import LupaImagem from '../LupaImagem';
 import { AbasPonto } from '../AbasPonto';
-import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
+import { comArquivadaDaUrl, empresaDaUrl, FaixaArquivada } from '../FaixaArquivada';
+import { anoMesDaUrl, urlDoPonto } from '@/lib/pontoUrl';
 import { IconeBaixar } from '../icones';
 import { DialogoConfirmacao } from '../Dialogo';
 import { AchadosDoMes, PainelRevisaoMes, RevisaoDoMes, SeloAchados } from './RevisaoPonto';
@@ -107,6 +108,18 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [carregarRevisao]);
 
+  // `?ano=&mes=` da URL (só na montagem); depois a URL acompanha a escolha.
+  useEffect(() => {
+    const { ano: a, mes: m } = anoMesDaUrl(window.location.search);
+    if (a) setAno(a);
+    if (m) setMes(m);
+  }, []);
+  useEffect(() => {
+    if (!empresa) return; // ainda lendo a URL e a lista de empresas
+    const nova = urlDoPonto(window.location.href, empresa, ano, mes);
+    if (nova !== window.location.href) window.history.replaceState(null, '', nova);
+  }, [empresa, ano, mes]);
+
   // Carrega cadastros (funciona mesmo se a planilha não estiver configurada).
   useEffect(() => {
     fetch('/api/empresas').then((r) => r.json()).then(async (d) => {
@@ -114,7 +127,10 @@ export default function Home() {
         // `?empresa=` de uma arquivada (consulta, só leitura): entra na lista e é a selecionada.
         const { lista, consulta } = await comArquivadaDaUrl<Empresa>(d.empresas);
         setEmpresas(lista);
-        if (lista.length) setEmpresa((prev) => consulta || prev || lista[0].id);
+        // `?empresa=` (links da conferência, do painel e da agenda) abre direto na empresa.
+        const daUrl = empresaDaUrl();
+        const valida = lista.some((e) => e.id === daUrl) ? daUrl : '';
+        if (lista.length) setEmpresa((prev) => consulta || prev || valida || lista[0].id);
       }
     }).catch(() => {});
   }, []);

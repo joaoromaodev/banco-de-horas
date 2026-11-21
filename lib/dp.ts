@@ -70,8 +70,12 @@ export type DadosEmpregado = Pick<Empregado,
 // ------------------------------------------------------------------ validação
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-export const isoOk = (s: unknown): s is string =>
-  typeof s === 'string' && ISO.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+export const isoOk = (s: unknown): s is string => {
+  if (typeof s !== 'string' || !ISO.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  // Mês 13 ou dia 32 dão "Invalid Date" (toISOString lançaria RangeError).
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
 
 export function br(iso: string | null | undefined): string {
   const m = String(iso ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);

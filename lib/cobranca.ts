@@ -246,8 +246,8 @@ export function planoEfetivo(e: EstadoCobranca, agora: number = Date.now()): Pla
 // ---------------------------------------------------------------- Escrita
 const METODOS_ESCRITA = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-/** Rotas de escrita que continuam abertas em somente leitura: entrar, sair e pagar. */
-const ESCRITA_LIVRE = ['/api/login', '/api/logout', '/api/criar-conta', '/api/cobranca'];
+/** Rotas de escrita que continuam abertas em somente leitura: entrar, sair, pagar e marcar notificações como lidas (estado só da pessoa, não é dado do escritório). */
+const ESCRITA_LIVRE = ['/api/login', '/api/logout', '/api/criar-conta', '/api/cobranca', '/api/notificacoes'];
 
 /**
  * POSTs que só GERAM arquivo a partir do que já existe (exportar), sem gravar

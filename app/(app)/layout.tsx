@@ -9,6 +9,7 @@ import { SituacaoEscritorio } from '@/lib/visibilidade';
 import { esquecerMe, lerMe } from '@/lib/meCliente';
 import { botaoCls } from '@/components/ui';
 import { dataBR, type Situacao } from '@/lib/cobranca';
+import { SinoBotao, SinoPainel, useSino } from './Sino';
 
 type Modulo = 'ponto' | 'caixa';
 interface EscritorioMe { id: string; nome: string; plano: string; situacao: SituacaoEscritorio; testeAte: string | null; }
@@ -51,11 +52,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [recolhido, setRecolhido] = useState(false);
   // Gaveta do menu no celular (no desktop a barra é fixa e isto não tem efeito).
   const [menuAberto, setMenuAberto] = useState(false);
+  // Sino de notificações (só contabilidade de um escritório; ver Sino.tsx).
+  const [sinoAberto, setSinoAberto] = useState(false);
 
   useEffect(() => {
     lerMe().then((d) => d?.autenticado && setMe(d)).catch(() => {});
     setRecolhido(localStorage.getItem('sidebar-recolhida') === '1');
   }, []);
+
+  const sino = useSino(me?.role === 'usuario');
 
   useEffect(() => {
     if (!menuAberto) return;
@@ -144,7 +149,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </button>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo-mark.svg" alt="" className="h-7 w-7 shrink-0" />
-        <span className="truncate text-sm font-semibold tracking-tight">{BRAND.nome}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{BRAND.nome}</span>
+        {me?.role === 'usuario' && <SinoBotao sino={sino} aberto={sinoAberto} onAlternar={() => setSinoAberto((v) => !v)} className={botaoEscuro} />}
       </div>
 
       {menuAberto && (
@@ -212,6 +218,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="truncate text-sm font-medium">{me?.nome ?? '—'}</div>
               <div className="truncate text-xs text-petroleo-200">{me ? (me.escritorio?.nome ?? ROTULO_PAPEL[me.role]) : '—'}</div>
             </div>
+            {me?.role === 'usuario' && <SinoBotao sino={sino} aberto={sinoAberto} onAlternar={() => setSinoAberto((v) => !v)} className={`${botaoEscuro} max-lg:hidden`} />}
             <BotaoTema className={botaoEscuro} />
             <button onClick={sair} data-dica="Sair" aria-label="Sair" className={botaoEscuro}>
               <Icon name="logout" />
@@ -234,6 +241,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}
         {children}
       </main>
+      {me?.role === 'usuario' && <SinoPainel sino={sino} aberto={sinoAberto} onFechar={() => setSinoAberto(false)} recolhido={recolhido} />}
     </div>
   );
 }
