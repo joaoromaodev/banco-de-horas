@@ -140,8 +140,10 @@ export async function POST(req: NextRequest) {
 
     // É isto que mantém as listas abertas: usou, entrou na lista da empresa —
     // tanto a titular (conta) quanto a analítica (histórico).
-    if (l.contaId) await vincularConta(empresa, l.contaId);
-    if (l.historicoId) await vincularHistorico(empresa, l.historicoId);
+    await Promise.all([
+      l.contaId ? vincularConta(empresa, l.contaId) : null,
+      l.historicoId ? vincularHistorico(empresa, l.historicoId) : null,
+    ]);
 
     return Response.json({ ok: true, criados: data?.length ?? 0 });
   } catch (e) {
@@ -191,8 +193,10 @@ export async function PATCH(req: NextRequest) {
     }).eq('id', id);
     if (error) throw new ErroCaixa(traduzir(error.message), 400);
 
-    if (l.contaId) await vincularConta(dono.empresaId, l.contaId);
-    if (l.historicoId) await vincularHistorico(dono.empresaId, l.historicoId);
+    await Promise.all([
+      l.contaId ? vincularConta(dono.empresaId, l.contaId) : null,
+      l.historicoId ? vincularHistorico(dono.empresaId, l.historicoId) : null,
+    ]);
     return Response.json({ ok: true });
   } catch (e) {
     return falha(e);

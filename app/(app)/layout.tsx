@@ -6,6 +6,7 @@ import { IconeExcluir, IconeMenu, IconePainel } from './icones';
 import { BRAND, VENDAS_ABERTAS } from '@/lib/brand';
 import { BotaoTema } from '@/components/tema';
 import { SituacaoEscritorio } from '@/lib/visibilidade';
+import { esquecerMe, lerMe } from '@/lib/meCliente';
 import { botaoCls } from '@/components/ui';
 import { dataBR, type Situacao } from '@/lib/cobranca';
 
@@ -51,7 +52,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [menuAberto, setMenuAberto] = useState(false);
 
   useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => d?.autenticado && setMe(d)).catch(() => {});
+    lerMe().then((d) => d?.autenticado && setMe(d)).catch(() => {});
     setRecolhido(localStorage.getItem('sidebar-recolhida') === '1');
   }, []);
 
@@ -110,6 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   async function sair() {
     await fetch('/api/logout', { method: 'POST' });
+    esquecerMe();
     router.push('/login');
     router.refresh();
   }

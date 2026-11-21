@@ -2,7 +2,7 @@
 //
 // Tudo aqui é de servidor (usa lib/db). A autorização não mora aqui: cada rota
 // chama a guarda de lib/acesso antes de encostar nestas funções.
-import { getDb } from './db';
+import { getDb, lerTudo } from './db';
 import { lerEmpresa } from './cadastro';
 import { filtrarCatalogo, itemVisivel, proximoCodigo, type VisaoCatalogo } from './visibilidadeCatalogo';
 
@@ -216,6 +216,12 @@ export class ErroCaixa extends Error {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- linha crua do PostgREST
+type LinhaBanco = Record<string, any>;
+
+/** Erro do banco numa leitura paginada de `lancamentos`. */
+const falhaLancamentos = (e: { message: string }) => new ErroCaixa(`lancamentos: ${e.message}`, 502);
+
 /**
  * Devolve o exercício da empresa no ano, criando-o se ainda não existir.
  *
@@ -272,20 +278,22 @@ const visaoDoDono = (dono: string | null): VisaoCatalogo =>
 export async function contasDaEmpresa(empresaId: string, visao: VisaoCatalogo): Promise<ContaCaixa[]> {
   const db = getDb();
   const filtro = filtroVisao(visao);
-  const consulta = db.from('plano_contas').select('id, codigo, nome, grupo, natureza, escritorio_id').eq('ativa', true);
+  const falhar = (t: string) => (e: { message: string }) => new ErroCaixa(`${t}: ${e.message}`, 502);
   const [cat, vinculos] = await Promise.all([
     // `codigo` desempata: contas criadas depois entram no fim do próprio grupo,
-    // com a mesma `ordem` da última conta dele.
-    (filtro ? consulta.or(filtro) : consulta).order('ordem').order('codigo'),
-    db.from('empresa_contas').select('conta_id').eq('empresa_id', empresaId),
+    // com a mesma `ordem` da última conta dele. `id` fecha a ordem para paginar.
+    lerTudo<LinhaBanco>((de, ate) => {
+      const consulta = db.from('plano_contas').select('id, codigo, nome, grupo, natureza, escritorio_id').eq('ativa', true);
+      return (filtro ? consulta.or(filtro) : consulta).order('ordem').order('codigo').order('id').range(de, ate);
+    }, { falhar: falhar('plano_contas') }),
+    lerTudo<LinhaBanco>((de, ate) => db.from('empresa_contas').select('conta_id')
+      .eq('empresa_id', empresaId).order('conta_id').range(de, ate), { falhar: falhar('empresa_contas') }),
   ]);
-  if (cat.error) throw new ErroCaixa(`plano_contas: ${cat.error.message}`, 502);
-  if (vinculos.error) throw new ErroCaixa(`empresa_contas: ${vinculos.error.message}`, 502);
 
-  const usadas = new Set((vinculos.data ?? []).map((v) => v.conta_id as string));
+  const usadas = new Set(vinculos.map((v) => v.conta_id as string));
   return filtrarCatalogo(
     visao,
-    (cat.data ?? []).map((c) => ({
+    cat.map((c) => ({
       id: c.id, codigo: c.codigo, nome: c.nome, grupo: c.grupo, natureza: c.natureza,
       daEmpresa: usadas.has(c.id), escritorioId: (c.escritorio_id as string | null) ?? null,
     })),
@@ -329,15 +337,20 @@ export async function exigirCatalogoVisivel(
   visao: VisaoCatalogo, contaId: string | null, historicoId: string | null,
 ): Promise<void> {
   const db = getDb();
-  if (contaId) {
-    const { data, error } = await db.from('plano_contas').select('escritorio_id').eq('id', contaId).maybeSingle();
+  // As duas conferências são independentes: uma ida só ao banco, não duas em fila.
+  const [conta, historico] = await Promise.all([
+    contaId ? db.from('plano_contas').select('escritorio_id').eq('id', contaId).maybeSingle() : null,
+    historicoId ? db.from('historicos_padrao').select('escritorio_id').eq('id', historicoId).maybeSingle() : null,
+  ]);
+  if (conta) {
+    const { data, error } = conta;
     if (error) throw new ErroCaixa(`plano_contas: ${error.message}`, 502);
     if (!data || !itemVisivel(visao, { escritorioId: data.escritorio_id })) {
       throw new ErroCaixa('Conta titular não encontrada no catálogo.');
     }
   }
-  if (historicoId) {
-    const { data, error } = await db.from('historicos_padrao').select('escritorio_id').eq('id', historicoId).maybeSingle();
+  if (historico) {
+    const { data, error } = historico;
     if (error) throw new ErroCaixa(`historicos_padrao: ${error.message}`, 502);
     if (!data || !itemVisivel(visao, { escritorioId: data.escritorio_id })) {
       throw new ErroCaixa('Conta analítica não encontrada no catálogo.');
@@ -361,18 +374,20 @@ export async function vincularConta(empresaId: string, contaId: string): Promise
 export async function historicosDaEmpresa(empresaId: string, visao: VisaoCatalogo): Promise<HistoricoCaixa[]> {
   const db = getDb();
   const filtro = filtroVisao(visao);
-  const consulta = db.from('historicos_padrao').select('id, texto, natureza, conta_id, escritorio_id');
+  const falhar = (t: string) => (e: { message: string }) => new ErroCaixa(`${t}: ${e.message}`, 502);
   const [cat, vinculos] = await Promise.all([
-    (filtro ? consulta.or(filtro) : consulta).order('ordem'),
-    db.from('empresa_historicos').select('historico_id').eq('empresa_id', empresaId),
+    lerTudo<LinhaBanco>((de, ate) => {
+      const consulta = db.from('historicos_padrao').select('id, texto, natureza, conta_id, escritorio_id');
+      return (filtro ? consulta.or(filtro) : consulta).order('ordem').order('id').range(de, ate);
+    }, { falhar: falhar('historicos_padrao') }),
+    lerTudo<LinhaBanco>((de, ate) => db.from('empresa_historicos').select('historico_id')
+      .eq('empresa_id', empresaId).order('historico_id').range(de, ate), { falhar: falhar('empresa_historicos') }),
   ]);
-  if (cat.error) throw new ErroCaixa(`historicos_padrao: ${cat.error.message}`, 502);
-  if (vinculos.error) throw new ErroCaixa(`empresa_historicos: ${vinculos.error.message}`, 502);
 
-  const usadas = new Set((vinculos.data ?? []).map((v) => v.historico_id as string));
+  const usadas = new Set(vinculos.map((v) => v.historico_id as string));
   return filtrarCatalogo(
     visao,
-    (cat.data ?? []).map((h) => ({
+    cat.map((h) => ({
       id: h.id, texto: h.texto, natureza: h.natureza, contaId: h.conta_id, daEmpresa: usadas.has(h.id),
       escritorioId: (h.escritorio_id as string | null) ?? null,
     })),
@@ -430,13 +445,13 @@ export async function criarAnalitica(
 /** Lançamentos de um mês, na ordem em que aparecem no livro. */
 export async function lancamentosDoMes(exercicioId: string, mes: number): Promise<LancamentoCaixa[]> {
   const db = getDb();
-  const { data, error } = await db
+  // Paginado: um mês movimentado passa de 1.000 linhas e o Supabase cortaria sem avisar.
+  const data = await lerTudo<LinhaBanco>((de, ate) => db
     .from('lancamentos')
     .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, pagador_nome, pagador_documento, criado_por, criado_em, atualizado_por, conferido_por, conferido_em')
     .eq('exercicio_id', exercicioId).eq('mes', mes)
-    .order('data').order('criado_em');
-  if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
-  return (data ?? []).map((l) => ({
+    .order('data').order('criado_em').order('id').range(de, ate), { falhar: falhaLancamentos });
+  return data.map((l) => ({
     id: l.id, data: l.data, historico: l.historico, complemento: l.complemento,
     contaId: l.conta_id, entrada: num(l.entrada), saida: num(l.saida),
     juros: num(l.juros), multa: num(l.multa),
@@ -452,11 +467,14 @@ export async function lancamentosDoMes(exercicioId: string, mes: number): Promis
  */
 export async function saldoTransportado(ex: ExercicioCaixa, mes: number): Promise<number> {
   if (mes <= 1) return ex.saldoInicial;
+  // O banco já acumula: `resumo_mensal.saldo_final` do mês anterior = saldo inicial +
+  // tudo até o fim dele (0005). Uma linha em vez de baixar todos os lançamentos
+  // anteriores (que passavam de 1.000 e eram cortados sem aviso).
   const db = getDb();
   const { data, error } = await db
-    .from('lancamentos').select('entrada, saida, juros, multa').eq('exercicio_id', ex.id).lt('mes', mes);
-  if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
-  return (data ?? []).reduce((s, l) => s + num(l.entrada) - num(l.saida) - num(l.juros) - num(l.multa), ex.saldoInicial);
+    .from('resumo_mensal').select('saldo_final').eq('exercicio_id', ex.id).eq('mes', mes - 1).maybeSingle();
+  if (error) throw new ErroCaixa(`resumo_mensal: ${error.message}`, 502);
+  return data ? num(data.saldo_final) : ex.saldoInicial;
 }
 
 /** Os 12 meses da view `resumo_mensal` — entradas, saídas e saldo acumulado. */
@@ -617,19 +635,21 @@ export async function montarLivro(empresaId: string, ano: number): Promise<Livro
     // Só resolve código/nome das contas dos lançamentos que já existem: sem recorte.
     contasDaEmpresa(empresaId, { todos: true }),
   ]);
-  const termo = await lerTermo(ex.id);
   const mapaConta = new Map(contas.map((c) => [c.id, c]));
 
-  // Um só SELECT dos lançamentos do exercício, na ordem do livro; agrupa por mês.
+  // Os lançamentos do exercício, na ordem do livro, paginados (acima de 1.000 linhas
+  // o Supabase cortava sem avisar e o livro saía incompleto); agrupa por mês.
   const db = getDb();
-  const { data, error } = await db
-    .from('lancamentos')
-    .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, pagador_nome, pagador_documento, criado_por, criado_em, atualizado_por, conferido_por, conferido_em, mes')
-    .eq('exercicio_id', ex.id).order('data').order('criado_em');
-  if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
+  const [termo, data] = await Promise.all([
+    lerTermo(ex.id),
+    lerTudo<LinhaBanco>((de, ate) => db
+      .from('lancamentos')
+      .select('id, data, historico, complemento, conta_id, entrada, saida, juros, multa, pagador_nome, pagador_documento, criado_por, criado_em, atualizado_por, conferido_por, conferido_em, mes')
+      .eq('exercicio_id', ex.id).order('data').order('criado_em').order('id').range(de, ate), { falhar: falhaLancamentos }),
+  ]);
 
   const porMes = new Map<number, LinhaLivro[]>();
-  for (const l of data ?? []) {
+  for (const l of data) {
     const conta = l.conta_id ? mapaConta.get(l.conta_id) : undefined;
     const linha: LinhaLivro = {
       id: l.id, data: l.data, historico: l.historico, complemento: l.complemento,

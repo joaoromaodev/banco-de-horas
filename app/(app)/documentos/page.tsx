@@ -14,6 +14,7 @@ import {
   ROTULO_CATEGORIA, situacaoPrazo, StatusDocumento, StatusPendencia, tamanhoBR, TIPOS_TEXTO, validarArquivo,
 } from '@/lib/documentos';
 import { hojeBelem } from '@/lib/contratos';
+import { lerMe } from '@/lib/meCliente';
 import { DialogoConfirmacao, Modal } from '../Dialogo';
 import { IconeBaixar, IconeCheck, IconeDesfazer, IconeDocumento, IconeExcluir, IconeLapis, IconeMais } from '../icones';
 import {
@@ -107,7 +108,7 @@ export default function DocumentosPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/me').then((r) => (r.ok ? r.json() : null)),
+      lerMe(),
       fetch('/api/empresas').then((r) => (r.ok ? r.json() : null)),
     ]).then(([m, e]) => {
       if (!m?.autenticado) return;

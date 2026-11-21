@@ -7,7 +7,7 @@
 // Isolamento: toda leitura parte de UMA empresa (os exercícios dela) — nunca de
 // um escritório inteiro nem de outra empresa. O catálogo usado para nomear as
 // contas na revisão é resolvido só para os ids que os lançamentos já citam.
-import { getDb } from './db';
+import { getDb, lerTudo } from './db';
 import { ErroCaixa } from './caixa';
 import { lerEmpresa } from './cadastro';
 import { compactarExemplos, exemploDe, sugestaoAceita, type ExemploConferido, type OrigemSugestao } from './sugestaoConta';
@@ -17,8 +17,6 @@ const num = (v: unknown): number => (v == null ? 0 : Number(v));
 
 /** Quantos lançamentos, no máximo, a sugestão lê (os mais recentes). */
 export const MAX_EXEMPLOS = 3000;
-/** Página do PostgREST (o Supabase corta em 1000 linhas por resposta). */
-const PAGINA = 1000;
 /** Chamadas de IA por escritório por dia (fuso de Belém). */
 export const LIMITE_IA_DIA = 200;
 /** …e por empresa quando quem pergunta é o cliente (um cliente não esgota o escritório). */
@@ -33,21 +31,11 @@ export function hojeBelem(agora: Date = new Date()): string {
   return new Date(agora.getTime() - 3 * 3600_000).toISOString().slice(0, 10);
 }
 
-/** Lê todas as páginas de uma consulta ordenada, até `max` linhas. */
-async function paginado<T>(
+/** Lê todas as páginas (lib/db → lerTudo), traduzindo o erro do banco. */
+const paginado = <T>(
   consulta: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
   max: number,
-): Promise<T[]> {
-  const todas: T[] = [];
-  for (let de = 0; de < max; de += PAGINA) {
-    const ate = Math.min(de + PAGINA, max) - 1;
-    const { data, error } = await consulta(de, ate);
-    if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
-    todas.push(...(data ?? []));
-    if (!data || data.length < ate - de + 1) break;
-  }
-  return todas;
-}
+): Promise<T[]> => lerTudo(consulta, { max, falhar: (e) => new ErroCaixa(`lancamentos: ${e.message}`, 502) });
 
 async function exerciciosDa(empresaId: string): Promise<{ id: string; ano: number; saldoInicial: number }[]> {
   const { data, error } = await getDb().from('exercicios').select('id, ano, saldo_inicial').eq('empresa_id', empresaId);

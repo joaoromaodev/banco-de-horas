@@ -2,7 +2,7 @@
 // 0014). Só de servidor (secret key, ignora RLS). A autorização é de quem chama
 // (rotas em app/api/agenda, com lib/acesso.ts): aqui só se garante que toda
 // escrita leva o `escritorio_id` informado e que toda leitura é recortada por ele.
-import { getDb } from './db';
+import { getDb, lerTudo } from './db';
 import { lerUsuarios } from './cadastro';
 import { Conclusao, Frequencia, NovaObrigacao, Obrigacao } from './agenda';
 
@@ -66,12 +66,14 @@ const TABELA = 'agenda_obrigacoes';
 
 // ------------------------------------------------------------ obrigações
 export async function listarObrigacoes(escopo: Escopo, empresaId?: string) {
-  let q = getDb().from(TABELA).select('*').is('excluido_em', null);
-  if (escopo !== 'plataforma') q = q.eq('escritorio_id', escopo.escritorioId);
-  if (empresaId) q = q.eq('empresa_id', empresaId);
-  const { data, error } = await q.order('empresa_id').order('criado_em');
-  if (error) traduzir(error);
-  return (data ?? []).map(deLinha);
+  const db = getDb();
+  const data = await lerTudo<any>((de, ate) => {
+    let q = db.from(TABELA).select('*').is('excluido_em', null);
+    if (escopo !== 'plataforma') q = q.eq('escritorio_id', escopo.escritorioId);
+    if (empresaId) q = q.eq('empresa_id', empresaId);
+    return q.order('empresa_id').order('criado_em').order('id').range(de, ate);
+  }, { falhar: traduzir });
+  return data.map(deLinha);
 }
 
 /** Dono da obrigação (para a checagem de acesso antes de editar/excluir/concluir). */
@@ -121,15 +123,18 @@ export async function excluirObrigacoes(ids: string[], escritorioId: string, res
  * mensais, trimestrais e anuais desde 2024 e todas as únicas.
  */
 export async function listarConclusoes(escopo: Escopo, desdeAno: number, empresaId?: string): Promise<Conclusao[]> {
-  let q = getDb().from('agenda_conclusoes')
-    .select('obrigacao_id, competencia, feita_por, feita_em, agenda_obrigacoes!inner(empresa_id, excluido_em)')
-    .gte('competencia', String(desdeAno))
-    .is('agenda_obrigacoes.excluido_em', null);
-  if (escopo !== 'plataforma') q = q.eq('escritorio_id', escopo.escritorioId);
-  if (empresaId) q = q.eq('agenda_obrigacoes.empresa_id', empresaId);
-  const { data, error } = await q;
-  if (error) traduzir(error);
-  return (data ?? []).map((l: any) => ({
+  const db = getDb();
+  // Obrigações × meses passa de 1.000 conclusões com poucas dezenas de empresas.
+  const data = await lerTudo<any>((de, ate) => {
+    let q = db.from('agenda_conclusoes')
+      .select('obrigacao_id, competencia, feita_por, feita_em, agenda_obrigacoes!inner(empresa_id, excluido_em)')
+      .gte('competencia', String(desdeAno))
+      .is('agenda_obrigacoes.excluido_em', null);
+    if (escopo !== 'plataforma') q = q.eq('escritorio_id', escopo.escritorioId);
+    if (empresaId) q = q.eq('agenda_obrigacoes.empresa_id', empresaId);
+    return q.order('obrigacao_id').order('competencia').range(de, ate);
+  }, { falhar: traduzir });
+  return data.map((l: any) => ({
     obrigacaoId: String(l.obrigacao_id), competencia: String(l.competencia),
     feitaPor: String(l.feita_por), feitaEm: String(l.feita_em),
   }));
@@ -192,9 +197,10 @@ export function destinatariosDoAviso(c: ConfigAviso, equipe: { email: string; ad
 // ------------------------------------------------------------ cron
 /** Escritórios com ao menos uma obrigação ativa (os únicos que podem receber resumo). */
 export async function escritoriosComAgenda(): Promise<string[]> {
-  const { data, error } = await getDb().from(TABELA).select('escritorio_id').is('excluido_em', null).eq('ativa', true);
-  if (error) traduzir(error);
-  return [...new Set((data ?? []).map((l: any) => String(l.escritorio_id)))];
+  const db = getDb();
+  const data = await lerTudo<any>((de, ate) => db.from(TABELA).select('id, escritorio_id')
+    .is('excluido_em', null).eq('ativa', true).order('id').range(de, ate), { falhar: traduzir });
+  return [...new Set(data.map((l: any) => String(l.escritorio_id)))];
 }
 
 /** Configurações de aviso de vários escritórios de uma vez. */

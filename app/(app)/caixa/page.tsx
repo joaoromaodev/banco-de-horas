@@ -9,7 +9,7 @@
 // todas as empresas, confere lançamento a lançamento e confirma o mês. Nada
 // disso trava a edição: lançamento é sempre editável e excluível, inclusive
 // retroativo — decisão dela.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import SeletorAnalitica, { Historico } from './SeletorAnalitica';
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { lerMe } from '@/lib/meCliente';
 import { sugerirConta, type ConsultaSugestao, type ExemploConferido, type Sugestao } from '@/lib/sugestaoConta';
 import type { NivelAlerta, ResultadoRevisao, RevisaoLancamento } from '@/lib/revisaoCaixa';
 
@@ -156,7 +157,7 @@ export default function Caixa() {
   useEffect(() => { setDesfazer(null); }, [empresaSel, mes, ano]);
 
   useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+    lerMe().then((d) => {
       if (!d?.autenticado) return;
       setMe(d);
       // O cliente é fixo na própria empresa e NUNCA herda o filtro salvo de outra
@@ -203,19 +204,43 @@ export default function Caixa() {
     setRevisao(r?.ok ? await r.json().catch(() => null) : null);
   }, [empresaSel, ano, ehGestor]);
 
-  const recarregar = useCallback(async () => {
-    if (!empresaSel) return;
+  // Fila de conferência: é o aviso "a empresa lançou" que a contadora pediu.
+  // Depende só do ano — não recarrega a cada troca de mês (era uma varredura à toa).
+  const carregarPendencias = useCallback(() => {
+    if (!ehGestor) return;
+    fetch(`/api/caixa/atividade?ano=${ano}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setPendencias(d?.empresas ?? []))
+      .catch(() => {});
+  }, [ehGestor, ano]);
+
+  // Contador de cargas em andamento: o "carregando" só apaga quando a última termina.
+  const emAndamento = useRef(0);
+  const comEstado = useCallback(async (...cargas: Promise<unknown>[]) => {
+    emAndamento.current++;
     setCarregando(true); setErro(null);
     try {
-      await Promise.all([carregarExercicio(), carregarMes(), carregarRevisao()]);
+      await Promise.all(cargas);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
-      setCarregando(false);
+      emAndamento.current--;
+      if (emAndamento.current === 0) setCarregando(false);
     }
-  }, [empresaSel, carregarExercicio, carregarMes, carregarRevisao]);
+  }, []);
 
-  useEffect(() => { recarregar(); }, [recarregar]);
+  // Depois de gravar algo: refaz tudo o que a gravação pode ter mudado.
+  const recarregar = useCallback(async () => {
+    if (!empresaSel) return;
+    await comEstado(carregarExercicio(), carregarMes(), carregarRevisao());
+    carregarPendencias();
+  }, [empresaSel, comEstado, carregarExercicio, carregarMes, carregarRevisao, carregarPendencias]);
+
+  // Carga da tela, cada parte só quando o que ela usa muda (antes, trocar o mês
+  // refazia também o exercício e a revisão do ano inteiro — a mais pesada das três).
+  useEffect(() => { if (empresaSel) void comEstado(carregarExercicio()); }, [empresaSel, comEstado, carregarExercicio]);
+  useEffect(() => { if (empresaSel) void comEstado(carregarMes()); }, [empresaSel, comEstado, carregarMes]);
+  useEffect(() => { if (empresaSel) void carregarRevisao(); }, [empresaSel, carregarRevisao]);
 
   useEffect(() => {
     if (!empresaSel) return;
@@ -235,15 +260,7 @@ export default function Caixa() {
   }, [empresaSel]);
   useEffect(() => { carregarModelo(); }, [carregarModelo]);
 
-  // Fila de conferência: é o aviso "a empresa lançou" que a contadora pediu.
-  const carregarPendencias = useCallback(() => {
-    if (!ehGestor) return;
-    fetch(`/api/caixa/atividade?ano=${ano}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setPendencias(d?.empresas ?? []))
-      .catch(() => {});
-  }, [ehGestor, ano]);
-  useEffect(() => { carregarPendencias(); }, [carregarPendencias, dados]);
+  useEffect(() => { carregarPendencias(); }, [carregarPendencias]);
 
   // ------------------------------------------------------------------ ações
   async function chamar(url: string, init: RequestInit) {
@@ -335,6 +352,7 @@ export default function Caixa() {
     try {
       await chamar('/api/caixa/lancamentos', { method: 'PATCH', body: JSON.stringify({ id: l.id, conferido: marcar }) });
       await carregarMes();
+      carregarPendencias(); // conferir tira da fila
       carregarModelo(); // o conferido vira exemplo: a sugestão aprende na hora
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));

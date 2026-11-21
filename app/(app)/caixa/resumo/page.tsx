@@ -15,6 +15,7 @@ import { EntradasSaidas, EvolucaoSaldo, PontoMes } from './Graficos';
 import { AbasCaixa } from '../AbasCaixa';
 import { Aviso, CabecalhoPagina, Carregando, Conteudo, Esqueleto, Indicador, Secao, Selo, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
+import { lerMe } from '@/lib/meCliente';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; }
@@ -62,7 +63,7 @@ export default function ResumoCaixa() {
   useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
 
   useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+    lerMe().then((d) => {
       if (!d?.autenticado) return;
       setMe(d);
       // O cliente é fixo na própria empresa e NUNCA herda o filtro salvo de outra

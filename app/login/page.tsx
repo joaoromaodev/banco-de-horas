@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BRAND, VENDAS_ABERTAS } from '@/lib/brand';
 import { Aviso, Botao, Entrada } from '@/components/ui';
 import { PainelMarca } from './PainelMarca';
+import { esquecerMe } from '@/lib/meCliente';
 
 export default function Login() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function Login() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.erro ?? 'Falha no login.');
+      esquecerMe();
       const next = new URLSearchParams(window.location.search).get('next') || '/';
       router.push(next);
       router.refresh();
