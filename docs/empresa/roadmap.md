@@ -69,7 +69,9 @@ Fora por ora: extrato OFX/conciliação (não há conta de banco no modelo do li
 
 Só o João consegue:
 - [ ] Vercel → `CRON_SECRET` (o aviso da agenda precisa disto **já**, mesmo sem venda);
-      `RESEND_API_KEY` + `EMAIL_REMETENTE`; mais tarde `ASAAS_*`. Conferir `GEMINI_API_KEY` e `MASTER_PASSWORD`.
+      `RESEND_API_KEY` + `EMAIL_REMETENTE`; mais tarde `ASAAS_*`. Conferir `GEMINI_API_KEY`.
+- [ ] **`MASTER_PASSWORD` forte na Vercel (≥ 12 caracteres, não `admin1234`)**: desde 21/11 o
+      login de administrador fica desligado em produção com senha ausente ou fraca.
 - [ ] Gemini no nível pago (no gratuito o Google pode usar as fotos das folhas).
 - [ ] Asaas, razão social e CNPJ — só quando o lançamento for decidido.
 

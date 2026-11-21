@@ -2,6 +2,14 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Endurecimento do login
+
+- Em produção, o master só entra com `MASTER_PASSWORD` forte (≥ 12, fora de uma
+  lista de padrões); sem isso, o login de master fica desligado em vez de cair em
+  `admin1234`. `SESSION_SECRET` ausente em produção passa a ser erro (antes, texto
+  fixo = cookie forjável). Login com limite de tentativas por IP e por e-mail.
+  Conferido depois do deploy: a produção tem `SESSION_SECRET` (cookie falso → login).
+
 ## 21/11/2026 — Sem nomes de pessoas no site
 
 - Pedido do João: a landing não usa nome de cliente nem de pessoa da equipe por
