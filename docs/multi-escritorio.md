@@ -215,3 +215,27 @@ em `lib/escritorioConfig.ts`; banco em `lib/escritorioServidor.ts`.
    - em Pedidos mensais, o campo de dia novo vem com o prazo salvo;
    - ligar/desligar o resumo da agenda e trocar destinatários reflete em `agenda_avisos`.
 3. Sem variável de ambiente nova.
+
+## Sprint 9 · Frente A — gravar em empresa arquivada (409)
+
+`podeAcessarEmpresa` continua devolvendo true/false, mas agora é só o veredito de
+`motivoNegado(sessao, empresaId)` (`lib/acesso.ts`), que devolve o **motivo**:
+`null` (pode), `{ status: 409, codigo: 'empresa_arquivada' }` (contabilidade **gravando** em
+arquivada do próprio escritório: "Empresa arquivada — reative em Cadastros para alterar") ou
+`{ status: 403 }` (todo o resto). A visibilidade é conferida antes: quem não enxerga a empresa
+(outro escritório, outro cliente) recebe 403 genérico e não descobre que ela existe. O cliente
+de empresa arquivada segue 403. Nada foi afrouxado: o conjunto de negados é o mesmo.
+
+Usam o motivo: `exigirEmpresa`, `exigirEmpresaPonto` (ponto, DP, folha, resumo…), as rotas do
+caixa (lançamentos, contas, exercício, fiscal, histórico, livro, meses, revisão, sugestão),
+agenda, contratos, pedidos mensais e, por id de registro, documentos e pendências (antes
+**essas duas não barravam** escrita por id em arquivada; agora barram). `MENSAGEM_ARQUIVADA`
+(proxy e `/api/empresas`) ganhou o mesmo texto. Rotas novas: use `exigirEmpresa*`,
+`respostaNegadaEmpresa(s, id)` ou `motivoNegado(s, id)` — não monte o 403 à mão.
+
+### Para o integrador (Frente A, Sprint 9)
+
+- Testes: `tests/arquivadaMotivo.test.ts`; `tests/dpRotas.test.ts` agora espera 409.
+- A tela que mostra `erro` da API já exibe a mensagem; nenhum ajuste de UI.
+- Testar em produção sem gravar: arquivar/reativar só em empresa de teste; em empresa arquivada,
+  tentar lançar no caixa deve mostrar "Empresa arquivada — reative em Cadastros para alterar".

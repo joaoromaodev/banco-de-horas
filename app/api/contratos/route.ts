@@ -3,7 +3,7 @@
 // Exclusivo da contabilidade: `exigirGestor` + acesso à empresa. O `cliente`
 // já é barrado no proxy (a rota não está em CLIENTE_PODE).
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirGestor, respostaNegadaEmpresa } from '@/lib/acesso';
 import { lerFiscal } from '@/lib/caixa';
 import { DadosContrato, normalizarDados, Situacao, validar } from '@/lib/contratos';
 import {
@@ -27,7 +27,6 @@ async function ligarAoDp(empresa: string, contratoId: string, dados: DadosContra
   if (escritorioId) await ligarEmpregadoDoContrato(escritorioId, empresa, contratoId, dados, por);
 }
 
-const negado = () => Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
 
 function dadosValidos(bruto: unknown): DadosContrato {
   const d = normalizarDados((bruto ?? {}) as Partial<DadosContrato>);
@@ -40,7 +39,7 @@ export async function GET(req: NextRequest) {
   const g = await exigirGestor(req);
   if (!g.ok) return g.resposta;
   const empresa = req.nextUrl.searchParams.get('empresa') ?? '';
-  if (!(await podeAcessarEmpresa(g.sessao, empresa))) return negado();
+  { const r = await respostaNegadaEmpresa(g.sessao, empresa); if (r) return r; }
   try {
     // Endereço da sede: do cadastro fiscal da empresa (Fase 5, Parte C), se houver.
     const empregadora = await lerFiscal(empresa).then((f) => ({
@@ -65,7 +64,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const empresa = String(body.empresa ?? '');
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) return negado();
+    { const r = await respostaNegadaEmpresa(g.sessao, empresa); if (r) return r; }
     const contrato = await criarContrato(empresa, dadosValidos(body.dados), g.sessao.email);
     await ligarAoDp(empresa, contrato.id, contrato.dados, g.sessao.email);
     return Response.json({ contrato });
@@ -81,7 +80,7 @@ export async function PATCH(req: NextRequest) {
     const id = String(body.id ?? '');
     const empresa = await empresaDoContrato(id);
     if (!empresa) return Response.json({ erro: 'Contrato não encontrado.' }, { status: 404 });
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) return negado();
+    { const r = await respostaNegadaEmpresa(g.sessao, empresa); if (r) return r; }
 
     if (body.restaurar) {
       await excluirContrato(id, true);
@@ -104,7 +103,7 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get('id') ?? '';
     const empresa = await empresaDoContrato(id);
     if (!empresa) return Response.json({ erro: 'Contrato não encontrado.' }, { status: 404 });
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) return negado();
+    { const r = await respostaNegadaEmpresa(g.sessao, empresa); if (r) return r; }
     await excluirContrato(id);
     return Response.json({ ok: true });
   } catch (e) { return falha(e); }

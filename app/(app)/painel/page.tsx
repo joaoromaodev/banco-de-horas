@@ -12,6 +12,7 @@ import {
   Aviso, Botao, botaoCls, CabecalhoPagina, Carregando, Conteudo, cx, EstadoVazio, Indicador, Secao, Selo, Tom,
 } from '@/components/ui';
 import { IconeCheck } from '../icones';
+import ConferenciaModulos from '../ConferenciaModulos';
 import Fechamento from './Fechamento';
 import LimiteFaturamento from './LimiteFaturamento';
 
@@ -148,6 +149,7 @@ export default function PainelPage() {
             )}
             <Fechamento />
             <LimiteFaturamento />
+            <ConferenciaModulos url="/api/painel/conferencia" mostrarEmpresa />
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {dados.blocos.map((b) => <CartaoBloco key={b.chave} bloco={b} />)}
             </div>

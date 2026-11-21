@@ -249,3 +249,41 @@ junto); quem as preenche são os gatilhos, sempre da mesma empresa.
   (mesma limitação dos contratos).
 - Retenção do dado pessoal (CPF, salário) segue a do resto do sistema — a definir com o
   jurídico.
+
+## Sprint 9 · Frente A — conferência entre módulos
+
+Só alerta (nunca corrige), com link para a tela onde se corrige. Regras puras em
+`lib/conferenciaModulos.ts` (`tests/conferenciaModulos.test.ts`); leituras em
+`lib/conferenciaModulosServidor.ts`; rotas `GET /api/dp/conferencia?empresa=` (uma empresa,
+`exigirEmpresaPonto`) e `GET /api/painel/conferencia` (todas as visíveis, `exigirGestor` +
+módulo `ponto`); tela `app/(app)/ConferenciaModulos.tsx` (bloco do `/painel`, lista do `/dp`
+e aviso na ficha do empregado, filtrado pelo empregado).
+
+| Regra | Quando alerta |
+|---|---|
+| Ativo sem admissão | `situacao = ativo` e sem `admissao` (afastado/desligado não) |
+| Ponto sem vínculo | há ponto lançado, mas sem admissão no DP **e** sem contrato de experiência (por CPF, senão pelo nome). Ativo sem admissão já aparece na regra acima e não repete |
+| Contrato encerrado com ponto | contrato `encerrado` e ponto **trabalhado** (algum horário) depois do término (`dados.termino`; sem ele, vencimento da prorrogação/1º período). **Efetivado não alerta** (segue trabalhando); contrato novo ou admissão posterior ao término anulam |
+| Desligado com ponto | `desligado` e ponto trabalhado depois de `situacaoDesde` (no próprio dia não conta) |
+| FÉRIAS sem programação | marcador FÉRIAS em dias fora de qualquer `dp_ferias` (início..fim do gozo) do empregado |
+| Férias com ponto | dia com horário dentro de férias programadas (o dia marcado FÉRIAS não conta) |
+
+- Janela: ponto dos **3 últimos meses** (`MESES_CONFERIDOS`); só dias lançados.
+- Ponto ↔ empregado: pelo vínculo `empregado_id` do ponto; sem ele, pelo nome (se único na empresa).
+- **Cada fonte degrada sozinha** (DP, ponto, contratos, férias): a que falhar entra em
+  `indisponiveis`, as regras que dependem dela são puladas e a tela diz o que não pôde ler.
+  Sem a 0021 as colunas de DP somem e a conferência fica só com o que existe.
+- Sem migração. Sem escrita no banco.
+
+### Para o integrador (Frente A, Sprint 9)
+
+- Arquivos novos: `lib/conferenciaModulos.ts`, `lib/conferenciaModulosServidor.ts`,
+  `app/api/dp/conferencia/route.ts`, `app/api/painel/conferencia/route.ts`,
+  `app/(app)/ConferenciaModulos.tsx`. Tocados: `app/(app)/painel/page.tsx`,
+  `app/(app)/dp/page.tsx`, `app/(app)/dp/Ficha.tsx` (só inserem o componente),
+  `lib/contratosServidor.ts` (+ `listarContratosDeEmpresas`).
+- Testar em produção (só leitura): `/painel` → bloco "Conferência entre módulos"; `/dp` de
+  uma empresa real → bloco acima da lista; ficha de empregado com divergência → aviso.
+  Conferir a contagem contra o Timesheet. Nunca alterar dados da Edilse para "criar" caso.
+- Empresa arquivada passa a responder **409** "Empresa arquivada — reative em Cadastros para
+  alterar" a gravações do DP (era 403); ver `docs/multi-escritorio.md`.

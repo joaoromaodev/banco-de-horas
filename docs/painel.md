@@ -112,3 +112,15 @@ Bloco **Limite de faturamento** (MEI/Simples) depois do fechamento, via `/api/pa
 - **Feriados municipais** na agenda continuam fora (herdado de `docs/agenda.md`).
 - Possível evolução: "marcar como feita"/"conferir" direto no painel; hoje a ação é
   na tela de origem.
+
+## Sprint 9 · Frente A — conferência entre módulos
+
+Bloco **Conferência entre módulos** depois do limite de faturamento, via
+`/api/painel/conferencia` (só com o módulo `ponto`; some sem ele). Cruza DP, ponto, contratos
+e férias e só alerta; regras e decisões em [`departamento-pessoal.md`](departamento-pessoal.md).
+Cada fonte degrada sozinha; erro da rota só avisa dentro do bloco.
+
+### Para o integrador (Frente A, Sprint 9)
+
+- `app/(app)/painel/page.tsx`: só importa e insere `<ConferenciaModulos />` (conflito trivial).
+- Sem migração. Testar em produção: `/painel` → bloco novo, contra `/dp` e o Timesheet (só leitura).

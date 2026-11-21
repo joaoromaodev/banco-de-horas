@@ -6,7 +6,7 @@
 // POST { empresa, regime | null }: registra (ou limpa) o regime que ELA decidiu —
 // regime não se deduz por CNAE nem faturamento. Só contabilidade.
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirGestor, respostaNegadaEmpresa } from '@/lib/acesso';
 import { temModulo } from '@/lib/auth';
 import { listarObrigacoes } from '@/lib/agendaServidor';
 import { propostaDeAgenda, regimeCadastroValido, RegimeCadastro, SinaisEmpresa } from '@/lib/agendaDerivada';
@@ -14,7 +14,7 @@ import { lerEmpresa } from '@/lib/cadastro';
 import { listarContratos } from '@/lib/contratosServidor';
 import { ErroFechamento, lerRegimes, limparRegime, salvarRegime } from '@/lib/fechamentoServidor';
 import { lerFuncionarios } from '@/lib/pontoDb';
-import { escritorioDaEmpresa, falha as falhaAgenda, negado } from '../comum';
+import { escritorioDaEmpresa, falha as falhaAgenda } from '../comum';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   if (!g.ok) return g.resposta;
   try {
     const empresaId = req.nextUrl.searchParams.get('empresa') ?? '';
-    if (!(await podeAcessarEmpresa(g.sessao, empresaId))) return negado();
+    { const r = await respostaNegadaEmpresa(g.sessao, empresaId); if (r) return r; }
     const escritorio = await escritorioDaEmpresa(g.sessao, empresaId);
     const empresa = await lerEmpresa(empresaId);
 

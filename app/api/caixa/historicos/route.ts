@@ -5,7 +5,7 @@
 // A leitura das analíticas mora em /contas (o GET devolve contas + historicos
 // juntos, que a tela carrega de uma vez).
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirGestor, motivoNegado } from '@/lib/acesso';
 import { criarAnalitica, ErroCaixa } from '@/lib/caixa';
 import { donoDaCriacao } from '@/lib/visibilidadeCatalogo';
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const texto = String(body.texto ?? '').trim();
     const contaId = String(body.contaId ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    { const n = await motivoNegado(g.sessao, empresa); if (n) throw new ErroCaixa(n.erro, n.status); }
     if (!texto) throw new ErroCaixa('Informe o texto da conta analítica.');
     // A natureza da analítica sai da titular, então a titular é obrigatória ao criar.
     if (!contaId) throw new ErroCaixa('Escolha a conta titular antes de criar a analítica.');

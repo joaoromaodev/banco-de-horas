@@ -459,3 +459,20 @@ O DSR perdido entra na folha do mês da falta ou do mês do domingo (adotado: do
 domingo)? A convenção da categoria prevê sábado a 100% ou perda de DSR por atraso? Há
 banco de horas por acordo? Há horistas? Há trabalho noturno hoje (se não, a
 prorrogação pode esperar)?
+
+## Sprint 9 · Frente A — jornada única
+
+Revisão do ponto (`/api/revisao-ponto`), resumo da folha (`regrasDoEmpregado`) e planilha em
+lote (`/api/gerar-lote`) montavam a jornada cada um do seu jeito. Agora os três chamam
+`jornadaDaFolha` (`lib/dp.ts`), que usa `jornadaDoEmpregado`: funcionário → empresa → padrão,
+sábado conforme a empresa. O resultado numérico é o mesmo de antes (a jornada diária nunca
+veio do DP; só horas semanais/escala/DSR); o ganho é que não podem mais divergir.
+Testes em `tests/conferenciaModulos.test.ts` (bloco `jornadaDaFolha`).
+
+### Para o integrador (Frente A, Sprint 9)
+
+- Tocados: `lib/dp.ts` (+ `jornadaDaFolha`), `lib/resumoFolha.ts`, `app/api/revisao-ponto/route.ts`,
+  `app/api/gerar-lote/route.ts` (leem também `lerEmpregadosParaFolha`, tolerando DP ausente).
+- A planilha avulsa (`/api/gerar`) não monta jornada por conta própria; não foi mexida.
+- Conferir em produção: abrir revisão e resumo do mesmo mês de uma empresa real — os dias a
+  cumprir e as horas devem bater com a planilha do lote (nada deve mudar em relação a antes).

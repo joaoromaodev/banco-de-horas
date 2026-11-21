@@ -1,6 +1,6 @@
 // Peças comuns das rotas da agenda (não é rota: só `route.ts` vira endpoint).
 import type { Sessao } from '@/lib/auth';
-import { podeAcessarEmpresa } from '@/lib/acesso';
+import { motivoNegado } from '@/lib/acesso';
 import { lerEmpresa } from '@/lib/cadastro';
 import { ErroAgenda, Escopo, obrigacaoPorId } from '@/lib/agendaServidor';
 
@@ -10,7 +10,6 @@ export function falha(e: unknown) {
   return Response.json({ erro: 'Falha ao processar a agenda.' }, { status: 502 });
 }
 
-export const negado = () => Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
 
 /** Master vê a plataforma; contador, o próprio escritório; sem escritório, nada. */
 export function escopoDe(s: Sessao): Escopo | null {
@@ -23,7 +22,7 @@ export function escopoDe(s: Sessao): Escopo | null {
  * escritório da EMPRESA (não da sessão): assim o master também grava no lugar certo.
  */
 export async function escritorioDaEmpresa(s: Sessao, empresaId: string): Promise<string> {
-  if (!(await podeAcessarEmpresa(s, empresaId))) throw new ErroAgenda('Acesso restrito a esta empresa.', 403);
+  { const n = await motivoNegado(s, empresaId); if (n) throw new ErroAgenda(n.erro, n.status); }
   const e = await lerEmpresa(empresaId);
   if (!e?.escritorioId) throw new ErroAgenda('Empresa sem escritório vinculado.', 400);
   return e.escritorioId;
@@ -33,6 +32,6 @@ export async function escritorioDaEmpresa(s: Sessao, empresaId: string): Promise
 export async function obrigacaoAcessivel(s: Sessao, id: string, incluirExcluida = false) {
   const o = await obrigacaoPorId(id, incluirExcluida);
   if (!o) throw new ErroAgenda('Obrigação não encontrada.', 404);
-  if (!(await podeAcessarEmpresa(s, o.empresaId))) throw new ErroAgenda('Acesso restrito a esta empresa.', 403);
+  { const n = await motivoNegado(s, o.empresaId); if (n) throw new ErroAgenda(n.erro, n.status); }
   return o;
 }

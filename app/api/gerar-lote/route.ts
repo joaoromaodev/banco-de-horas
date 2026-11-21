@@ -7,6 +7,8 @@ import { gerarPlanilha } from '@/lib/planilha';
 import { lerFeriados, lerFrequenciasDoMes, lerFuncionarios } from '@/lib/pontoDb';
 import { lerJornadaEmpresa } from '@/lib/cadastro';
 import { MESES } from '@/lib/calendario';
+import { jornadaDaFolha, type Empregado } from '@/lib/dp';
+import { lerEmpregadosParaFolha } from '@/lib/dpServidor';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -28,24 +30,22 @@ export async function GET(req: NextRequest) {
   const nomeEmpresa = g.empresa.nome;
 
   try {
-    const [freqs, feriadosArr, funcs, jornadaEmpresa] = await Promise.all([
+    const [freqs, feriadosArr, funcs, jornadaEmpresa, empregadoPorNome] = await Promise.all([
       lerFrequenciasDoMes(g.escritorioId, empresa, ano, mes),
       lerFeriados(g.escritorioId),
       lerFuncionarios(g.escritorioId, empresa),
       lerJornadaEmpresa(empresa),
+      // Cadastro do DP (0021); sem a tabela, segue sem ele.
+      lerEmpregadosParaFolha(g.escritorioId, empresa).catch(() => new Map<string, Empregado>()),
     ]);
     if (!freqs.length) {
       return Response.json({ erro: `Nenhuma frequência salva para ${nomeEmpresa || 'a empresa'} em ${MESES[mes]}/${ano}.` }, { status: 404 });
     }
 
     const feriados = new Set(feriadosArr.map((f) => f.data));
-    // Minutos por dia podem variar por funcionário; "trabalha aos sábados" é da empresa.
+    // Mesma jornada da revisão e do resumo da folha (jornadaDoEmpregado, via lib/dp.ts).
     const jornadaPorNome = new Map(
-      funcs.map((f) => [f.nome, {
-        utilMin: f.jornadaUtilMin ?? jornadaEmpresa.utilMin,
-        sabadoMin: f.jornadaSabadoMin ?? jornadaEmpresa.sabadoMin,
-        trabalhaSabado: jornadaEmpresa.trabalhaSabado,
-      }]),
+      funcs.map((f) => [f.nome, jornadaDaFolha(empregadoPorNome.get(f.nome), f, jornadaEmpresa)]),
     );
 
     const zip = new JSZip();

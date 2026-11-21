@@ -41,7 +41,7 @@ export function podeReativar(plano: Plano | null, ativasAgora: number):
 /** Rotas que cuidam do próprio arquivamento: não passam pela barreira. */
 const FORA_DA_BARREIRA = ['/api/empresas', '/api/login', '/api/logout', '/api/criar-conta', '/api/cobranca'];
 
-export const MENSAGEM_ARQUIVADA = 'Esta empresa está arquivada: dá para consultar e exportar, mas não para alterar. Reative-a em Cadastro para voltar a lançar.';
+export const MENSAGEM_ARQUIVADA = 'Empresa arquivada — reative em Cadastros para alterar';
 
 /** Este método/caminho grava dados? (exportação por POST não conta; arquivar/reativar tem regra própria.) */
 export function ehEscritaDeDados(metodo: string, caminho: string): boolean {

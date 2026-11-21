@@ -251,3 +251,19 @@ export function vinculadoEm(e: Pick<Empregado, 'admissao' | 'situacao' | 'situac
 
 /** Normaliza o nome para casar ponto ↔ contrato ↔ DP (maiúsculas, espaços simples). */
 export const nomeChave = (s: string) => String(s ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+
+/**
+ * Jornada diária que revisão do ponto, resumo da folha e planilha usam — a MESMA
+ * para os três (sai de `jornadaDoEmpregado`: funcionário → empresa → padrão), para
+ * eles não discordarem. Devolve só o que o cálculo do dia precisa (`Jornada`).
+ */
+export function jornadaDaFolha(
+  empregado: Pick<Empregado, 'horasSemanais' | 'escala' | 'dsr'> | null | undefined,
+  funcionario: Pick<Funcionario, 'jornadaUtilMin' | 'jornadaSabadoMin'> | null | undefined,
+  empresa: Jornada,
+): Jornada {
+  const j = jornadaDoEmpregado(empregado, funcionario, {
+    jornadaUtilMin: empresa.utilMin, jornadaSabadoMin: empresa.sabadoMin, trabalhaSabado: empresa.trabalhaSabado,
+  });
+  return { utilMin: j.utilMin, sabadoMin: j.sabadoMin, trabalhaSabado: j.trabalhaSabado };
+}

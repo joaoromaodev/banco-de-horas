@@ -5,7 +5,7 @@
 // Para contador, ele tem de ser o mesmo da sessão (empresaVisivel já garante; aqui
 // conferimos de novo, de graça). O master não tem escritório: usa o da empresa.
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from './acesso';
+import { exigirGestor, motivoNegado, podeAcessarEmpresa } from './acesso';
 import type { Sessao } from './auth';
 import { lerEmpresa } from './cadastro';
 import type { Empresa } from './tipos';
@@ -34,6 +34,9 @@ export async function exigirEmpresaPonto(req: NextRequest, empresaId: string | n
   if (!g.ok) return g;
   const id = String(empresaId ?? '').trim();
   if (!id) return negar('Informe a empresa.', 400);
+  // Empresa arquivada + gravação: 409 com a mensagem de reativar (não o 403 genérico).
+  const n = await motivoNegado(g.sessao, id);
+  if (n) return negar(n.erro, n.status);
   const r = await escritorioDaEmpresa(g.sessao, id);
   if (!r) return negar('Acesso restrito a esta empresa.', 403);
   return { ok: true, sessao: g.sessao, ...r };

@@ -8,7 +8,7 @@
 // O POST é outra coisa: **criar conta que não existe no catálogo** continua
 // sendo só da contadora.
 import { NextRequest } from 'next/server';
-import { exigirEmpresa, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirEmpresa, exigirGestor, motivoNegado } from '@/lib/acesso';
 import { contasDaEmpresa, criarConta, ErroCaixa, historicosDaEmpresa, vincularConta } from '@/lib/caixa';
 import { donoDaCriacao, visaoDoCatalogo } from '@/lib/visibilidadeCatalogo';
 
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     const grupo = String(body.grupo ?? '').trim();
     const nome = String(body.nome ?? '').trim();
     if (!empresa) throw new ErroCaixa('Informe a empresa.');
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    { const n = await motivoNegado(g.sessao, empresa); if (n) throw new ErroCaixa(n.erro, n.status); }
     if (!grupo) throw new ErroCaixa('Escolha o grupo da conta.');
     if (!nome) throw new ErroCaixa('Informe o nome da conta.');
 

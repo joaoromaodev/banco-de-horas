@@ -5,7 +5,7 @@
 // recorrentes, mês sem lançamento e saldo negativo. Só alerta, nunca bloqueia.
 // É trabalho da contabilidade: o cliente não recebe (403).
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirGestor, motivoNegado } from '@/lib/acesso';
 import { ErroCaixa } from '@/lib/caixa';
 import { revisarExercicio } from '@/lib/caixaInteligente';
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!g.ok) return g.resposta;
   try {
     const empresa = req.nextUrl.searchParams.get('empresa') ?? '';
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) throw new ErroCaixa('Acesso restrito a esta empresa.', 403);
+    { const n = await motivoNegado(g.sessao, empresa); if (n) throw new ErroCaixa(n.erro, n.status); }
     const ano = Number(req.nextUrl.searchParams.get('ano'));
     if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new ErroCaixa('Ano inválido.');
     return Response.json(await revisarExercicio(empresa, ano));
