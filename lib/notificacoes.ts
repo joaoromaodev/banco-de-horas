@@ -5,7 +5,9 @@
 // (`registrarNotificacao`, em lib/notificacoesServidor.ts). Ver docs/notificacoes.md.
 import type { AchadoConferencia } from './conferenciaModulos';
 
-export type TipoNotificacao = 'documento' | 'pendencia' | 'caixa' | 'conferencia' | 'evento';
+export type TipoNotificacao = 'documento' | 'pendencia' | 'caixa' | 'conferencia' | 'evento'
+  // Avisos ao cliente (lib/avisosCliente.ts): só o papel `cliente` recebe.
+  | 'folha_devolvida' | 'pedido' | 'demonstrativo';
 
 export interface Notificacao {
   /** Estável: identifica o item para "marcar como lida". Muda quando chega algo novo do mesmo tipo. */

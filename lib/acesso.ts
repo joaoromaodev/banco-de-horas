@@ -153,6 +153,20 @@ export async function exigirEmpresa(req: NextRequest, empresaId: string): Promis
   return { ok: true, sessao };
 }
 
+/**
+ * Exige o papel `cliente`, com escritório e empresa, e que a empresa DA SESSÃO passe
+ * em `motivoNegado` (do escritório dele, não arquivada). A empresa vem só da sessão —
+ * nunca do corpo nem de `?empresa=`. Usado pelos avisos ao cliente no sino.
+ */
+export async function exigirClienteDaEmpresa(req: NextRequest): Promise<Guarda & { empresaId?: string }> {
+  const sessao = await sessaoDe(req);
+  if (!sessao) return negar('Não autenticado.', 401);
+  if (sessao.role !== 'cliente' || !sessao.empresa?.trim() || !sessao.escritorioId) return negar('Acesso restrito.', 403);
+  const n = await motivoNegado(sessao, sessao.empresa);
+  if (n) return negar(n.erro, n.status);
+  return { ok: true, sessao, empresaId: sessao.empresa };
+}
+
 /** Exige o administrador do escritório (contador com `adminEscritorio`) — cobrança e equipe. */
 export async function exigirAdminEscritorio(req: NextRequest, oQue = 'cuida da assinatura'): Promise<Guarda> {
   const sessao = await sessaoDe(req);

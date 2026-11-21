@@ -62,7 +62,8 @@ export async function registrarNotificacao(n: EventoNotificacao): Promise<boolea
 
 // ------------------------------------------------------------------ leitura (por usuário)
 
-async function lerLeitura(escritorioId: string, usuario: string): Promise<{ leitura: Leitura; persistido: boolean }> {
+/** Leitura da pessoa (`usuario` = e-mail na contabilidade; `cliente|empresa|e-mail` no cliente). */
+export async function lerLeitura(escritorioId: string, usuario: string): Promise<{ leitura: Leitura; persistido: boolean }> {
   const db = getDb();
   const { data, error } = await db.from('notificacoes_leitura').select('lidas_ate, lidas')
     .eq('escritorio_id', escritorioId).eq('usuario', usuario).maybeSingle();

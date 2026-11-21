@@ -30,8 +30,9 @@
 - **Lida** = aconteceu até a "última visita" (`lidas_ate`) **ou** foi marcada individualmente.
   "Marcar todas como lidas" move `lidas_ate` para agora. Clicar no item marca e leva à tela.
   Primeira visita de uma pessoa: o sino começa limpo.
-- **Quem vê**: só a contabilidade de um escritório (`role = usuario`); master não tem
-  escritório e `cliente` não alcança. Recorte pelas empresas visíveis. A leitura é por
+- **Quem vê**: a contabilidade de um escritório (`role = usuario`) — e, desde a Sprint 13,
+  o `cliente`, com **outros** avisos (ver "Avisos ao cliente" abaixo); master não tem
+  escritório. Recorte pelas empresas visíveis. A leitura é por
   pessoa (e-mail); o escritório vem da sessão.
 - **Atualização**: ao montar o layout, ao voltar para a aba (no máximo 1×/min) e a cada 5 min
   com a aba visível; abrir o painel recarrega. A conferência entre módulos (lê 3 meses de
@@ -41,7 +42,55 @@
   saber o que é novo). `POST /api/notificacoes` é uma das rotas liberadas em somente
   leitura (`ESCRITA_LIVRE` em `lib/cobranca.ts`): é estado da pessoa, não do escritório.
 - Cada fonte falha sozinha: o painel avisa "não deu para ler agora: …" e segue.
-- **Sem e-mail** nesta etapa.
+- **Sem e-mail** nesta etapa (o cliente tem um gancho desligado; ver abaixo).
+
+## Avisos ao cliente (Sprint 13 · Frente A)
+
+O papel `cliente` também tem o sino (mesmo botão e painel; `useSino(…, 'cliente')`), com
+avisos **só da empresa da sessão**. Tudo é **derivado** — nada é gravado em `notificacoes`,
+então a contabilidade **não** passa a ver estes avisos e nenhum aviso do escritório vaza
+para o cliente. **Sem migração nova** (a 0030 ficou livre).
+
+| Aviso | Origem | Texto | Leva a | Chave |
+|---|---|---|---|---|
+| Folha de ponto devolvida | `ponto_envios` `devolvida` (0028), ainda não reenviada para o mesmo funcionário e mês, nos últimos 13 meses (o corte da tela); `quando` = `devolvido_em` | "Outubro/2026 · Motivo: …" (motivo cortado em 160) — **sem nome do funcionário** | `/enviar-ponto` | `cli\|folha\|<id>\|<devolvido_em>` (desfazer e devolver de novo → não lida de novo) |
+| Pedido de documento | `pendencias` `aberta`; `quando` = `criado_em` | "<título> · Prazo: dd/mm/aaaa" (ou "Sem prazo") | `/documentos` | `cli\|pedido\|<id>` |
+| Demonstrativo pronto | `meses_confirmados` do ano (e do anterior, se a janela alcança); mês M liberado quando o último de 1..M é confirmado (`liberadoAte`) | "Abril/2026 · confirmado pela contabilidade." | `/caixa/demonstrativo?ano=&mes=` | `cli\|demo\|<ano>\|<mes>\|<quando>` |
+
+- Meses liberados no mesmo instante (confirmar janeiro depois de fevereiro e março) viram
+  **um** aviso, do mês mais alto. Pedido atendido ou folha reenviada somem do sino.
+- Mesma janela (14 dias), mesmo limite e mesmas regras de "lida" do sino da contabilidade —
+  inclusive "primeira visita começa limpa". A leitura vai para `notificacoes_leitura` com
+  `usuario = cliente|<empresa>|<e-mail>` (não se mistura com a da contabilidade e não
+  atravessa se o login for religado a outra empresa). Sem a 0027, o navegador lembra em
+  `sino.visto.cliente` / `sino.lidas.cliente`.
+- Regras puras: `lib/avisosCliente.ts` (`tests/avisosCliente.test.ts`); leituras:
+  `lib/avisosClienteServidor.ts`; rota: a mesma `app/api/notificacoes/route.ts`, que
+  decide pelo papel da sessão — cliente passa por `exigirClienteDaEmpresa` (nova, em
+  `lib/acesso.ts`: papel `cliente` com escritório e empresa, e `motivoNegado` da empresa
+  DA SESSÃO — outro escritório e empresa arquivada → 403). `?empresa=` e corpo são
+  ignorados. Isolamento em `tests/avisosClienteRota.test.ts`.
+- `/api/notificacoes` entrou em `CLIENTE_PODE` (`proxy.ts`); continua em `ESCRITA_LIVRE`
+  (marcar como lida funciona em somente leitura).
+
+### Gancho do e-mail ao cliente
+
+`lib/avisosClienteEmail.ts` → `avisarClientePorEmail(escritorioId, empresaId, quantos)`.
+**Não está chamado em nenhuma rota** de propósito: devolver folha e confirmar mês têm
+"desfazer", e o e-mail não volta atrás; o Demonstrativo já tem o envio próprio da contadora.
+Três travas; sem qualquer uma não envia nem chama o provedor ou o banco:
+`RESEND_API_KEY`, `AVISOS_CLIENTE_EMAIL=ligado` (a chave já existe em produção por causa do
+Demonstrativo) e `APP_URL` (o link nunca usa o `Host` da requisição).
+
+- O corpo é um **resumo neutro** ("Você tem N avisos no ClickContas" + link para `/inicio`):
+  o motivo da devolução e o título do pedido são texto livre da contadora e podem trazer
+  nome de funcionário — não saem do app.
+- Destinatários: logins `cliente` da empresa **no escritório dela** (filtra `escritorio_id`).
+- Para ligar: um resumo diário no cron com `naoLidas` de `lerAvisosCliente` por empresa
+  (decisão do dono: frequência). Antes, o jurídico confirma se o termo cobre o e-mail ao cliente.
+- Revisão do Escudo (21/11/2026): isolamento pela empresa da sessão conferido; sem
+  bloqueantes. Os menores (resumo neutro, `APP_URL` obrigatória, filtro por escritório,
+  corte de 13 meses da folha, testes de regressão) foram corrigidos.
 
 ## Para o integrador
 
@@ -64,6 +113,21 @@ await registrarNotificacao({
 Nunca lança e devolve `false` sem a 0027 — notificar não derruba quem notifica. É
 fire-and-forget: pode `await` ou não. **Frente A (folha de ponto enviada pelo cliente)**:
 chame na confirmação do envio, logo depois de gravar a folha.
+
+### Avisos ao cliente (Sprint 13)
+
+- **Sem migração** e sem variável obrigatória (`AVISOS_CLIENTE_EMAIL` só para o gancho do
+  e-mail, desligado). Funciona com ou sem a 0027 (sem ela, "lida" fica no navegador).
+- Arquivos: `lib/avisosCliente.ts`, `lib/avisosClienteServidor.ts`, `lib/avisosClienteEmail.ts`,
+  `lib/acesso.ts` (`exigirClienteDaEmpresa`), `app/api/notificacoes/route.ts`, `proxy.ts`
+  (`CLIENTE_PODE`), `app/(app)/Sino.tsx` e `app/(app)/layout.tsx`. `lerLeitura` de
+  `lib/notificacoesServidor.ts` passou a ser exportada.
+- Testar em produção (conta de teste; nunca a Edilse): como contador, devolver uma folha
+  da empresa de teste com motivo, criar um pedido com prazo e confirmar um mês do caixa;
+  como cliente dessa empresa, o selo marca 3 (abrir o painel recarrega) e cada item leva
+  a `/enviar-ponto`, `/documentos` e `/caixa/demonstrativo?ano&mes`; o texto não tem nome
+  de funcionário. Cliente de **outra** empresa não vê nada; o sino da contadora não ganha
+  estes itens.
 
 ### Aplicar a 0027
 

@@ -40,6 +40,13 @@ describe('início por papel', () => {
     expect((await ir('/api/inicio-cliente', contador(['ponto']))).status).toBe(403);
   });
 
+  it('o sino (/api/notificacoes) alcança o cliente; o resto da gestão continua barrado', async () => {
+    expect((await ir('/api/notificacoes', cliente)).status).toBe(200);
+    expect((await ir('/api/notificacoes', contador(['caixa']))).status).toBe(200);
+    expect((await ir('/api/notificacoes-x', cliente)).status).toBe(403);
+    expect((await ir('/api/painel', cliente)).status).toBe(403);
+  });
+
   it('"/" sem sessão continua indo ao site público', async () => {
     expect(destino(await ir('/'))).toBe('/conheca');
   });
