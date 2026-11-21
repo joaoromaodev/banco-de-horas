@@ -137,3 +137,17 @@ backlog restante depende de terceiros. Decisões:
 - **Acabamentos de IA e tela:** foto chega girada à IA (rotação perdida ao limpar os
   dados do celular), limite de 30 leituras do cliente contando também as da
   contabilidade, gráfico do Demonstrativo encolhendo no celular.
+
+## 21/11/2026 — Sprint 14 (confiabilidade), decidida pelo dono após parecer da Bússola
+
+- **Pausa em funcionalidade nova.** O uso real ainda é pequeno (1 cliente no caixa, 9
+  empregados sem admissão); mais tela agora é palpite. A sprint é de confiabilidade.
+- **Achado:** sem `CRON_SECRET` na Vercel, `/api/cron/agenda` responde 503 e, além do
+  e-mail, deixa de abrir os pedidos mensais do fechamento e de apagar fotos antigas do
+  ponto — calado. Os pedidos de 1º/12 não sairiam.
+- **A. Nada falha calado:** pedidos mensais abertos também na primeira visita do mês
+  (idempotente, índice único se faltar); `error.tsx`; carregamentos principais com
+  mensagem e "tentar de novo"; tela do master com o que está desligado.
+- **B. Testes de guarda e de rota:** CI quebra se uma rota de `app/api` não chamar a
+  guarda; testes de rota nos fluxos de dinheiro e acesso.
+- **C. Medição própria de desempenho e erros** fica para a Sprint 15.
