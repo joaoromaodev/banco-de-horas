@@ -47,7 +47,10 @@ create or replace function plano_contas_codigo_fora_do_base() returns trigger
 language plpgsql as $$
 begin
   if new.escritorio_id is not null
-     and exists (select 1 from plano_contas b where b.escritorio_id is null and b.codigo = new.codigo) then
+     and exists (select 1 from plano_contas b
+                 where b.escritorio_id is null and b.codigo = new.codigo
+                   -- a própria linha (o backfill move uma conta do base para o escritório)
+                   and b.id <> new.id) then
     raise exception 'O código % já existe no catálogo base.', new.codigo
       using errcode = '23505';
   end if;
