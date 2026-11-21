@@ -77,6 +77,7 @@ export default function Assinatura() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; o estado só muda quando a resposta chega
     carregar().catch((e) => setErro(e instanceof Error ? e.message : String(e)));
   }, [carregar]);
 

@@ -43,6 +43,7 @@ export function useSino(ativo: boolean, escopo: 'contabilidade' | 'cliente' = 'c
 
   useEffect(() => {
     if (!ativo) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     try { setLocais(new Set(JSON.parse(ler(CHAVE_LIDAS) ?? '[]'))); } catch { /* lista local corrompida: ignora */ }
     carregar(true);
     const t = setInterval(() => { if (document.visibilityState === 'visible') carregar(true); }, REVERIFICAR_MS);

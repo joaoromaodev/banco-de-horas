@@ -79,6 +79,7 @@ export default function DemonstrativoPagina() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const a = Number(q.get('ano')) || Number(localStorage.getItem('caixa.ano'));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     if (a >= PRIMEIRO_EXERCICIO) setAno(a);
     const m = Number(q.get('mes'));
     if (m >= 1 && m <= 12) setMes(m);
@@ -100,6 +101,7 @@ export default function DemonstrativoPagina() {
       if (d.role === 'cliente') { if (d.empresa) setEmpresaSel(d.empresa); }
       else { const e = localStorage.getItem('caixa.empresa'); if (e) setEmpresaSel((x) => x || e); }
     }).catch(() => {}); // lerMe nunca rejeita
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     carregarEmpresas();
   }, [carregarEmpresas]);
 
@@ -108,6 +110,7 @@ export default function DemonstrativoPagina() {
   useEffect(() => {
     if (!empresaSel) return;
     let ativo = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     setAte(null); setResp(null); setFalhaMeses('');
     lerJson(`/api/caixa/resumo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`).then((d) => {
       if (!ativo) return;
@@ -129,6 +132,7 @@ export default function DemonstrativoPagina() {
     } finally { setCarregando(false); }
   }, [empresaSel, ano, mes]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { carregar(); }, [carregar]);
 
   async function enviar(reenviar: boolean) {

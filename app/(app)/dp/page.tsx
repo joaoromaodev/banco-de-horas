@@ -95,6 +95,7 @@ export default function DepartamentoPessoalPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     carregarEmpresas();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
   }, []);

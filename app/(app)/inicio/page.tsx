@@ -33,6 +33,7 @@ export default function InicioCliente() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hora do relógio do navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     setHora(horaBelem());
     carregar();
   }, [carregar]);

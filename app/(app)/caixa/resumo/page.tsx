@@ -56,6 +56,7 @@ export default function ResumoCaixa() {
   // Mantém o filtro em sincronia com a tela de Lançamentos (mesmas chaves).
   useEffect(() => {
     const a = Number(localStorage.getItem('caixa.ano'));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     if (a >= PRIMEIRO_EXERCICIO) setAno(a);
   }, []);
   // Não persiste o filtro do cliente: ele é fixo na própria empresa; salvar
@@ -88,6 +89,7 @@ export default function ResumoCaixa() {
         if (e) setEmpresaSel((atual) => atual || e);
       }
     }).catch(() => {}); // lerMe nunca rejeita
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     carregarEmpresas();
   }, [carregarEmpresas]);
 
@@ -103,6 +105,7 @@ export default function ResumoCaixa() {
     }
   }, [empresaSel, ano]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { carregar(); }, [carregar]);
 
   const meses = resumo?.meses ?? [];

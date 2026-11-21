@@ -57,6 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     lerMe().then((d) => d?.autenticado && setMe(d)).catch(() => {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     setRecolhido(localStorage.getItem('sidebar-recolhida') === '1');
   }, []);
 

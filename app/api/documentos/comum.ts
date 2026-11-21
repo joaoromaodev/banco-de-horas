@@ -23,7 +23,9 @@ export function escopoLeitura(s: Sessao, empresaId: string) {
 /**
  * Empresa do pedido + guarda. O cliente pode omitir (vale a vinculada); para os
  * demais é obrigatória. Usa `exigirEmpresa` (lib/acesso.ts): recorte por
- * escritório e, para o cliente, só a própria empresa.
+ * escritório e, para o cliente, só a própria empresa. Empresa arquivada: a
+ * contabilidade consulta (GET passa), gravar dá 409 e o cliente dela leva 403 —
+ * decidido em `motivoNegado`, que lê o cadastro **com** as arquivadas.
  */
 export async function guardaEmpresa(req: NextRequest, informada: string | null | undefined): Promise<Guarda & { empresaId?: string }> {
   let empresaId = (informada ?? '').trim();

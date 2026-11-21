@@ -55,6 +55,7 @@ export default function LimiteFaturamento({ empresaId }: { empresaId: string }) 
     } catch { setDados(null); }
   }, [empresaId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { carregar(); }, [carregar]);
 
   async function salvarAbertura() {

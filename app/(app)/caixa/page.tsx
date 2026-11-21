@@ -179,6 +179,7 @@ export default function Caixa() {
   // ainda estiver vazio). É o que mantém empresa/exercício entre as abas.
   useEffect(() => {
     const a = Number(localStorage.getItem('caixa.ano'));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     if (a >= PRIMEIRO_EXERCICIO) setAno(a);
   }, []);
   // Não persiste o filtro do cliente: ele é fixo na própria empresa; salvar
@@ -190,7 +191,14 @@ export default function Caixa() {
   }, [empresaSel, me, empresas]);
   useEffect(() => { localStorage.setItem('caixa.ano', String(ano)); }, [ano]);
   // A oferta de desfazer é do mês/empresa onde a exclusão aconteceu; ao navegar, some.
-  useEffect(() => { setDesfazer(null); }, [empresaSel, mes, ano]);
+  // Ajuste durante a renderização (padrão do React para "estado que muda com a
+  // prop"), em vez de um efeito que pintaria o aviso antigo por um quadro.
+  const ondeDesfazer = `${empresaSel}|${ano}|${mes}`;
+  const [ondeAnterior, setOndeAnterior] = useState(ondeDesfazer);
+  if (ondeAnterior !== ondeDesfazer) {
+    setOndeAnterior(ondeDesfazer);
+    setDesfazer(null);
+  }
 
   const carregarEmpresas = useCallback(() => {
     setFalhaEmpresas(null);
@@ -217,6 +225,7 @@ export default function Caixa() {
         if (e) setEmpresaSel((atual) => atual || e);
       }
     }).catch(() => {}); // lerMe nunca rejeita (devolve null); sem ele, a lista de empresas decide
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     carregarEmpresas();
   }, [carregarEmpresas]);
 
@@ -278,8 +287,11 @@ export default function Caixa() {
 
   // Carga da tela, cada parte só quando o que ela usa muda (antes, trocar o mês
   // refazia também o exercício e a revisão do ano inteiro — a mais pesada das três).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { if (empresaSel) void comEstado(carregarExercicio()); }, [empresaSel, comEstado, carregarExercicio]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { if (empresaSel) void comEstado(carregarMes()); }, [empresaSel, comEstado, carregarMes]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { if (empresaSel) void carregarRevisao(); }, [empresaSel, carregarRevisao]);
 
   useEffect(() => {

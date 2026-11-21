@@ -31,10 +31,12 @@ export default function Folhas() {
       }
     }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
   }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { carregarEmpresas(); }, [carregarEmpresas]);
 
+  // Sem empresa, a lista é zerada no próprio `onChange` (não aqui, no efeito).
   useEffect(() => {
-    if (!empresa) { setFuncList([]); return; }
+    if (!empresa) return;
     fetch(`/api/funcionarios?empresa=${encodeURIComponent(empresa)}`).then((r) => r.json()).then((d) => {
       if (Array.isArray(d.funcionarios)) setFuncList(d.funcionarios);
     }).catch(() => {});
@@ -91,7 +93,7 @@ export default function Folhas() {
         <Secao titulo="Empresa e período">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <Selecao rotulo="Empresa" classeCampo="sm:col-span-2" valor={empresa} placeholder="— cadastre uma empresa —"
-              onChange={(v) => { setEmpresa(v); setFuncionario(''); }}
+              onChange={(v) => { setEmpresa(v); setFuncionario(''); if (!v) setFuncList([]); }}
               opcoes={empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
             <Selecao rotulo="Mês" busca={false} valor={String(mes)} onChange={(v) => setMes(Number(v))}
               opcoes={MESES.slice(1).map((m, i) => ({ valor: String(i + 1), rotulo: m }))} />

@@ -16,6 +16,7 @@ let sessao: Sessao | null = null;
 const ordem: string[] = [];
 
 const visita = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- os parâmetros só tipam o mock (os testes conferem os argumentos)
   abrirPedidosNaVisita: vi.fn(async (_esc: string, _hoje?: string) => ({ situacao: 'ja_aberta' as const, competencia: '2026-11' })),
   agendarFaxinaOportunista: vi.fn(() => true),
 }));

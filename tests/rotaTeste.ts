@@ -46,11 +46,15 @@ export async function pedido(
   });
 }
 
-/** Mock de `@/lib/cadastro` (o real lê o Supabase): leituras escondem arquivadas, como em produção. */
+/**
+ * Mock de `@/lib/cadastro` (o real lê o Supabase), com a mesma regra de produção:
+ * as listas (`lerEmpresas`) escondem arquivadas; `lerEmpresa(id)` e
+ * `lerEmpresasComArquivadas` as incluem (a consulta de arquivada lê por eles).
+ */
 export function cadastroFalso(empresas: () => Record<string, EmpresaTeste>) {
   const visiveis = () => Object.values(empresas()).filter((e) => !e.arquivadaEm);
   return {
-    lerEmpresa: async (id: string) => visiveis().find((e) => e.id === id) ?? null,
+    lerEmpresa: async (id: string) => empresas()[id] ?? null,
     lerEmpresas: async () => visiveis(),
     lerEmpresasComArquivadas: async () => Object.values(empresas()),
     buscarUsuario: async () => null,

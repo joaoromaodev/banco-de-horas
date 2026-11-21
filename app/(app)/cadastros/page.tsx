@@ -90,6 +90,7 @@ export default function Cadastro() {
     lerMe().then((d) => {
       if (d) setEhMaster(d.role === 'master');
     }).catch(() => {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     carregarEmpresas();
     carregarAdmins();
     carregarArquivadas();

@@ -132,6 +132,7 @@ export default function DocumentosPage() {
     }).catch((e) => setFalha({ msg: mensagemDeCarga(e), de: 'inicio' }));
   }, [carregar]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { iniciar(); }, [iniciar]);
 
   function trocarEmpresa(id: string) {

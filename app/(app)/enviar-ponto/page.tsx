@@ -107,6 +107,7 @@ export default function EnviarPontoPage() {
     });
   }, [carregar]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { iniciar(); }, [iniciar]);
 
   // Enquanto alguma folha está na fila da IA, atualiza a lista de tempos em tempos
