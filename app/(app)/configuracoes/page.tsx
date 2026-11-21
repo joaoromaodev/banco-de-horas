@@ -28,12 +28,8 @@ const ROTULO_MODULO: Record<Modulo, string> = {
 };
 
 export default function Configuracoes() {
-  // --- Gemini ---
-  const [temChave, setTemChave] = useState(false);
-  const [chave, setChave] = useState('');
-  const [modelo, setModelo] = useState('gemini-2.5-flash');
-  const [savingCfg, setSavingCfg] = useState(false);
-  const [msgCfg, setMsgCfg] = useState<string | null>(null);
+  // --- Leitura por IA (chave da plataforma, só consulta) ---
+  const [ia, setIa] = useState<{ temChave: boolean; modelo: string } | null>(null);
 
   // --- Usuários ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -50,7 +46,7 @@ export default function Configuracoes() {
   async function carregarCfg() {
     const res = await fetch('/api/config');
     const d = await res.json();
-    if (res.ok) { setTemChave(d.temChave); setModelo(d.gemini_modelo || 'gemini-2.5-flash'); }
+    if (res.ok) setIa({ temChave: Boolean(d.temChave), modelo: d.gemini_modelo || '' });
   }
   async function carregarUsuarios() {
     const res = await fetch('/api/usuarios');
@@ -65,19 +61,6 @@ export default function Configuracoes() {
     if (res.ok) setEscritorios(d.escritorios ?? []);
   }
   useEffect(() => { carregarCfg(); carregarUsuarios(); carregarEscritorios(); }, []);
-
-  async function salvarCfg() {
-    setErro(null); setMsgCfg(null); setSavingCfg(true);
-    try {
-      const body: Record<string, string> = { gemini_modelo: modelo };
-      if (chave.trim()) body.gemini_api_key = chave.trim();
-      const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.erro);
-      setMsgCfg('Configurações salvas.'); setChave(''); carregarCfg();
-    } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
-    finally { setSavingCfg(false); }
-  }
 
   async function addUsuario() {
     setErro(null); setMsgUser(null); setSavingUser(true);
@@ -127,7 +110,6 @@ export default function Configuracoes() {
 
       <Toasts>
         {erro && <Toast tom="perigo" onFechar={() => setErro(null)}>{erro}</Toast>}
-        {msgCfg && <Toast onFechar={() => setMsgCfg(null)}>{msgCfg}</Toast>}
         {msgUser && <Toast onFechar={() => setMsgUser(null)}>{msgUser}</Toast>}
         {desfazer && (
           <Toast tom="info" onFechar={() => setDesfazer(null)}
@@ -138,24 +120,15 @@ export default function Configuracoes() {
       </Toasts>
 
       <Conteudo largura="estreita">
-        {/* Gemini */}
-        <Secao titulo="Leitura das folhas (Gemini)"
-          descricao="A chave fica guardada na planilha do Google e é usada só para ler as folhas de ponto.">
-          <div className="space-y-4">
-            <Entrada rotulo="Chave da API" type="password" autoComplete="off" value={chave} onChange={(e) => setChave(e.target.value)}
-              placeholder={temChave ? 'manter atual' : 'AIza... ou AQ...'}
-              dica={temChave ? 'Já existe uma chave salva. Preencha apenas para trocar.' : 'Nenhuma chave salva. Crie em aistudio.google.com/apikey.'} />
-            <Selecao rotulo="Modelo" valor={modelo} onChange={setModelo}
-              opcoes={[
-                { valor: 'gemini-2.5-flash', rotulo: 'gemini-2.5-flash', detalhe: 'rápido, grátis' },
-                { valor: 'gemini-2.5-pro', rotulo: 'gemini-2.5-pro', detalhe: 'mais preciso' },
-              ]} />
-          </div>
-          <div className="mt-5">
-            <Botao variante="primaria" onClick={salvarCfg} carregando={savingCfg}>
-              {savingCfg ? 'Salvando…' : 'Salvar'}
-            </Botao>
-          </div>
+        {/* Leitura por IA */}
+        <Secao titulo="Leitura das folhas por IA"
+          descricao="A chave do Gemini é da plataforma e vale para todos os escritórios; cada um consome a cota mensal do seu plano. Para trocar a chave ou o modelo, altere GEMINI_API_KEY e GEMINI_MODELO na Vercel.">
+          {ia && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Selo tom={ia.temChave ? 'sucesso' : 'perigo'}>{ia.temChave ? 'Chave configurada' : 'Chave ausente'}</Selo>
+              {ia.modelo && <Selo>{ia.modelo}</Selo>}
+            </div>
+          )}
         </Secao>
 
         {/* Usuários */}

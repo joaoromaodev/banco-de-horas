@@ -1,14 +1,12 @@
-// POST /api/salvar — grava a frequência revisada no Google Sheets.
+// POST /api/salvar — grava a frequência revisada (Postgres, por escritório).
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
-import { salvarFrequencia } from '@/lib/sheets';
+import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
+import { salvarFrequencia } from '@/lib/pontoDb';
 import { Frequencia } from '@/lib/tipos';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
-  const g = await exigirGestor(req);
-  if (!g.ok) return g.resposta;
   let freq: Frequencia;
   try {
     const body = await req.json();
@@ -17,15 +15,20 @@ export async function POST(req: NextRequest) {
     return Response.json({ erro: 'JSON inválido.' }, { status: 400 });
   }
 
-  if (!freq || !freq.empresa || !freq.funcionario || !freq.ano || !freq.mes) {
+  const g = await exigirEmpresaPonto(req, freq?.empresa);
+  if (!g.ok) return g.resposta;
+
+  const ano = Number(freq.ano);
+  const mes = Number(freq.mes);
+  if (!String(freq.funcionario ?? '').trim() || !Number.isInteger(ano) || ano < 2000 || ano > 2100
+    || !Number.isInteger(mes) || mes < 1 || mes > 12 || !Array.isArray(freq.dias)) {
     return Response.json({ erro: 'Frequência incompleta (empresa, funcionário, mês e ano).' }, { status: 400 });
   }
-  if (!(await podeAcessarEmpresa(g.sessao, freq.empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
 
   try {
-    const dias = await salvarFrequencia(freq);
+    const dias = await salvarFrequencia(g.escritorioId, { ...freq, empresa: g.empresa.id, ano, mes }, g.sessao.email);
     return Response.json({ ok: true, dias });
   } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao salvar.' }, { status: 502 });
+    return respostaErroPonto(e, 'Falha ao salvar a frequência.');
   }
 }

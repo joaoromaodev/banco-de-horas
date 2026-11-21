@@ -1,40 +1,30 @@
-// GET/POST /api/config — configurações (chave Gemini, modelo).
-// GET nunca devolve a chave em si, só se ela existe.
+// GET /api/config — situação da leitura por IA (só o master).
+//
+// Desde a Sprint 2 a chave do Gemini é da PLATAFORMA: vem só da variável de
+// ambiente GEMINI_API_KEY (e o modelo, de GEMINI_MODELO). Não se guarda chave na
+// planilha nem no banco, e nada a devolve — só se ela existe.
+// POST deixou de existir: a troca de chave é feita no painel da Vercel.
 import { NextRequest } from 'next/server';
 import { exigirMaster } from '@/lib/acesso';
-import { lerConfig, salvarConfig } from '@/lib/sheets';
+import { getGeminiApiKey, getGeminiModelo } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   const g = await exigirMaster(req);
   if (!g.ok) return g.resposta;
-  try {
-    const cfg = await lerConfig();
-    return Response.json({
-      temChave: Boolean(cfg['gemini_api_key']),
-      gemini_modelo: cfg['gemini_modelo'] ?? '',
-    });
-  } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao ler.' }, { status: 502 });
-  }
+  return Response.json({
+    temChave: Boolean(getGeminiApiKey()),
+    gemini_modelo: getGeminiModelo(),
+    origem: 'plataforma',
+  });
 }
 
 export async function POST(req: NextRequest) {
   const g = await exigirMaster(req);
   if (!g.ok) return g.resposta;
-  try {
-    const body = await req.json();
-    const entradas: Record<string, string> = {};
-    if (typeof body.gemini_api_key === 'string' && body.gemini_api_key.trim()) {
-      entradas['gemini_api_key'] = body.gemini_api_key.trim();
-    }
-    if (typeof body.gemini_modelo === 'string') {
-      entradas['gemini_modelo'] = body.gemini_modelo.trim();
-    }
-    await salvarConfig(entradas);
-    return Response.json({ ok: true });
-  } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao salvar.' }, { status: 502 });
-  }
+  return Response.json(
+    { erro: 'A chave da leitura por IA agora é da plataforma: troque as variáveis GEMINI_API_KEY e GEMINI_MODELO na Vercel.' },
+    { status: 410 },
+  );
 }

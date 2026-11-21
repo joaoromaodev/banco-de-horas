@@ -8,7 +8,7 @@ import { NextRequest } from 'next/server';
 import { empresaVisivelPara, exigirGestor } from '@/lib/acesso';
 import { ErroCaixa } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
-import { lerEmpresas } from '@/lib/sheets';
+import { lerEmpresas } from '@/lib/cadastro';
 
 export const runtime = 'nodejs';
 

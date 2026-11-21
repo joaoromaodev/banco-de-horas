@@ -1,40 +1,46 @@
-// GET/POST /api/funcionarios — lista e salva o cadastro de funcionários.
+// GET/POST /api/funcionarios — lista e salva o cadastro de funcionários (Postgres,
+// por escritório).
 import { NextRequest } from 'next/server';
-import { empresasVisiveis, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
-import { lerFuncionarios, salvarFuncionarios } from '@/lib/sheets';
+import { exigirGestor } from '@/lib/acesso';
+import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
+import { lerFuncionarios, salvarFuncionarios } from '@/lib/pontoDb';
 import { Funcionario } from '@/lib/tipos';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
-  const g = await exigirGestor(req);
-  if (!g.ok) return g.resposta;
+  const empresa = new URL(req.url).searchParams.get('empresa');
   try {
-    const empresa = new URL(req.url).searchParams.get('empresa') || undefined;
     if (empresa) {
-      if (!(await podeAcessarEmpresa(g.sessao, empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
-      return Response.json({ funcionarios: await lerFuncionarios(empresa) });
+      const g = await exigirEmpresaPonto(req, empresa);
+      if (!g.ok) return g.resposta;
+      return Response.json({ funcionarios: await lerFuncionarios(g.escritorioId, g.empresa.id) });
     }
-    // Sem filtro: só os funcionários das empresas que a sessão enxerga (escritório).
-    const visiveis = new Set((await empresasVisiveis(g.sessao)).map((e) => e.id));
-    return Response.json({ funcionarios: (await lerFuncionarios()).filter((f) => visiveis.has(f.empresa)) });
+    // Sem empresa: os do escritório da sessão (o master vê todos).
+    const g = await exigirGestor(req);
+    if (!g.ok) return g.resposta;
+    if (g.sessao.role === 'master') return Response.json({ funcionarios: await lerFuncionarios(null) });
+    if (!g.sessao.escritorioId) return Response.json({ funcionarios: [] });
+    return Response.json({ funcionarios: await lerFuncionarios(g.sessao.escritorioId) });
   } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao ler.' }, { status: 502 });
+    return respostaErroPonto(e, 'Falha ao ler os funcionários.');
   }
 }
 
 export async function POST(req: NextRequest) {
-  const g = await exigirGestor(req);
-  if (!g.ok) return g.resposta;
+  let body: { empresa?: string; funcionarios?: Funcionario[] };
   try {
-    const body = await req.json();
-    const empresa: string = (body.empresa ?? '').trim();
-    if (!empresa) return Response.json({ erro: 'Informe a empresa.' }, { status: 400 });
-    if (!(await podeAcessarEmpresa(g.sessao, empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
-    const lista: Funcionario[] = body.funcionarios ?? [];
-    const n = await salvarFuncionarios(empresa, lista);
+    body = await req.json();
+  } catch {
+    return Response.json({ erro: 'JSON inválido.' }, { status: 400 });
+  }
+  const g = await exigirEmpresaPonto(req, body?.empresa);
+  if (!g.ok) return g.resposta;
+  const lista = Array.isArray(body.funcionarios) ? body.funcionarios : [];
+  try {
+    const n = await salvarFuncionarios(g.escritorioId, g.empresa.id, lista);
     return Response.json({ ok: true, total: n });
   } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao salvar.' }, { status: 502 });
+    return respostaErroPonto(e, 'Falha ao salvar os funcionários.');
   }
 }
