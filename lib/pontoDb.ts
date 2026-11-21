@@ -294,6 +294,21 @@ export async function contarLeiturasOcr(escritorioId: string, competencia: strin
   return count;
 }
 
+/**
+ * Leituras de DOCUMENTO (0029) de uma empresa na competência que contam: concluídas
+ * e reservas recentes. É a subcota do cliente — um cliente não esgota o escritório.
+ */
+export async function contarLeiturasDocumentoEmpresa(empresaId: string, competencia: string, agora = new Date()): Promise<number> {
+  const desde = new Date(agora.getTime() - RESERVA_VALIDA_MIN * 60_000).toISOString();
+  const { count, error } = await getDb().from('ponto_leituras_ocr')
+    .select('id', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId).eq('competencia', competencia).eq('origem', 'documento')
+    .or(`situacao.eq.concluida,and(situacao.eq.reservada,criado_em.gte.${desde})`);
+  if (error) falhar(error);
+  if (count === null) throw new ErroBancoPendente();
+  return count;
+}
+
 /** Tentativas do escritório (qualquer situação) nos últimos `RITMO.janelaMin` minutos. */
 export async function contarTentativasRecentes(escritorioId: string, agora = new Date()): Promise<number> {
   const desde = new Date(agora.getTime() - RITMO.janelaMin * 60_000).toISOString();
@@ -305,13 +320,21 @@ export async function contarTentativasRecentes(escritorioId: string, agora = new
   return count;
 }
 
-/** Reserva uma leitura antes de chamar a IA. Devolve o id da reserva. */
-export async function reservarLeituraOcr(r: { escritorioId: string; competencia: string; empresaId: string; usuario: string }): Promise<string> {
+/**
+ * Reserva uma leitura antes de chamar a IA. Devolve o id da reserva.
+ * `origem` (0029): a mesma cota conta a folha de ponto e o documento lido para o
+ * Livro Caixa. Só é gravada quando informada — a folha continua funcionando em
+ * banco sem a 0029 (a coluna nasce com default 'folha').
+ */
+export async function reservarLeituraOcr(r: {
+  escritorioId: string; competencia: string; empresaId: string; usuario: string; origem?: 'documento';
+}): Promise<string> {
   const { data, error } = await getDb().from('ponto_leituras_ocr').insert({
     escritorio_id: r.escritorioId,
     competencia: r.competencia,
     empresa_id: r.empresaId,
     usuario: r.usuario,
+    ...(r.origem ? { origem: r.origem } : {}),
   }).select('id').single();
   if (error) falhar(error);
   return String(data.id);
