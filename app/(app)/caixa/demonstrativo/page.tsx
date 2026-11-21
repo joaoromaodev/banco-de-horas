@@ -16,7 +16,7 @@ import { Aviso, Botao, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, Indic
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { lerMe } from '@/lib/meCliente';
-import { Comparacao, Demonstrativo, liberadoAte, TITULO, textoVariacao } from '@/lib/demonstrativo';
+import { Comparacao, Demonstrativo, liberadoAte, mesInicial, TITULO, textoVariacao } from '@/lib/demonstrativo';
 import { br, rotuloCompetencia } from '@/lib/agenda';
 
 interface Me { role: 'master' | 'usuario' | 'cliente'; empresa: string | null }
@@ -92,17 +92,17 @@ export default function DemonstrativoPagina() {
     }).catch(() => {});
   }, []);
 
-  // Descobre até onde o ano está confirmado em sequência e escolhe o mês (o último liberado).
+  // Descobre até onde o ano está confirmado em sequência e escolhe o mês: o último
+  // liberado; sem nenhum, o último com movimento (regra em `mesInicial`).
   useEffect(() => {
     if (!empresaSel) return;
     let ativo = true;
     setAte(null); setResp(null);
     fetch(`/api/caixa/resumo?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`).then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!ativo || !d) return;
-      const confirmados: number[] = (d.meses as { mes: number; confirmado: boolean }[]).filter((m) => m.confirmado).map((m) => m.mes);
-      const n = liberadoAte(confirmados);
-      setAte(n);
-      setMes((atual) => (atual >= 1 && atual <= 12 ? atual : Math.max(n, 1)));
+      const meses = d.meses as { mes: number; confirmado: boolean; entradas: number | null; saidas: number | null }[];
+      setAte(liberadoAte(meses.filter((m) => m.confirmado).map((m) => m.mes)));
+      setMes((atual) => (atual >= 1 && atual <= 12 ? atual : mesInicial(ano, meses)));
     }).catch(() => { if (ativo) setAte(0); });
     return () => { ativo = false; };
   }, [empresaSel, ano]);

@@ -11,8 +11,9 @@
 // da tabela de lançamentos. O par passa na checagem de daltonismo (ΔE 8,6 em
 // deuteranopia), e ainda assim identidade nunca depende só da cor: as barras têm
 // legenda, posição fixa (entrada sempre à esquerda) e a tabela ao lado.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { dinheiro, dinheiroCurto, MESES, MESES_LONGOS } from '../formato';
+import { geometria, LARGURA_PADRAO, mostraMes } from './geometria';
 
 const ENTRADA = 'var(--color-grafico-entrada)';
 const SAIDA = 'var(--color-grafico-saida)';
@@ -28,8 +29,24 @@ export interface PontoMes {
   saldoFinal: number | null;
 }
 
-const L = 52, R = 12, T = 14, B = 24; // margens do desenho
-const W = 720, H = 200;
+/**
+ * Mede a largura do contêiner: o SVG é desenhado em pixels reais (ver
+ * `geometria.ts`), para o texto do eixo sair no tamanho certo em qualquer tela.
+ */
+function useLargura() {
+  const ref = useRef<HTMLElement>(null);
+  const [largura, setLargura] = useState(LARGURA_PADRAO);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const medir = () => { if (el.clientWidth) setLargura(el.clientWidth); };
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, largura] as const;
+}
 
 /** Escala linear com o cuidado de não dividir por zero quando tudo é igual. */
 function escala(min: number, max: number, de: number, para: number) {
@@ -88,12 +105,13 @@ function Legenda({ itens }: { itens: { cor: string; texto: string }[] }) {
   );
 }
 
-function Dica({ visivel, x, children }: { visivel: boolean; x: number; children: React.ReactNode }) {
+function Dica({ visivel, x, W, children }: { visivel: boolean; x: number; W: number; children: React.ReactNode }) {
   if (!visivel) return null;
-  // Ancora pela fração horizontal para acompanhar o SVG, que é fluido.
+  // Ancora no ponto; perto das bordas, encosta a dica para dentro (não vaza do cartão).
   const pct = (x / W) * 100;
+  const desloca = pct < 30 ? '-translate-x-4' : pct > 70 ? '-translate-x-[calc(100%-1rem)]' : '-translate-x-1/2';
   return (
-    <div className="pointer-events-none absolute top-0 -translate-x-1/2 whitespace-nowrap rounded-lg border border-borda bg-superficie px-2.5 py-1.5 text-xs text-tinta shadow-flutuante"
+    <div className={`pointer-events-none absolute top-0 ${desloca} whitespace-nowrap rounded-lg border border-borda bg-superficie px-2.5 py-1.5 text-xs text-tinta shadow-flutuante`}
       style={{ left: `${pct}%` }}>
       {children}
     </div>
@@ -104,6 +122,8 @@ function Dica({ visivel, x, children }: { visivel: boolean; x: number; children:
 /** Uma série só: o saldo no fim de cada mês. Sem legenda — o título já a nomeia. */
 export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; saldoInicial: number }) {
   const [ativo, setAtivo] = useState<number | null>(null);
+  const [ref, largura] = useLargura();
+  const { W, H, L, R, T, B, fonte, fonteDestaque, passoMes } = geometria(largura);
   const pontos = meses.filter((m) => m.saldoFinal !== null) as (PontoMes & { saldoFinal: number })[];
 
   if (pontos.length === 0) {
@@ -123,13 +143,13 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
   const ultimo = pontos[pontos.length - 1];
 
   return (
-    <figure className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
+    <figure ref={ref} className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block max-w-full" role="img"
         aria-label={`Saldo do caixa mês a mês. Termina em ${dinheiro(ultimo.saldoFinal)} em ${MESES_LONGOS[ultimo.mes - 1]}.`}>
         {marcas(min, max).map((v) => (
           <g key={v}>
             <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={v === 0 ? EIXO : GRADE} strokeWidth={1} />
-            <text x={L - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill={EIXO}>{dinheiroCurto(v)}</text>
+            <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize={fonte} fill={EIXO}>{dinheiroCurto(v)}</text>
           </g>
         ))}
 
@@ -141,12 +161,12 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
         ))}
 
         {/* rótulo direto só no último ponto — número em todo ponto vira poluição */}
-        <text x={x(ultimo.mes)} y={y(ultimo.saldoFinal) - 12} textAnchor="end" fontSize={11} fontWeight={600} fill={ROTULO}>
+        <text x={x(ultimo.mes)} y={y(ultimo.saldoFinal) - 12} textAnchor="end" fontSize={fonteDestaque} fontWeight={600} fill={ROTULO}>
           {dinheiro(ultimo.saldoFinal)}
         </text>
 
-        {MESES.map((rotulo, i) => (
-          <text key={rotulo} x={x(i + 1)} y={H - 6} textAnchor="middle" fontSize={10}
+        {MESES.map((rotulo, i) => mostraMes(i + 1, passoMes) && (
+          <text key={rotulo} x={x(i + 1)} y={H - 8} textAnchor="middle" fontSize={fonte}
             fill={ativo === i + 1 ? ROTULO : EIXO}>{rotulo}</text>
         ))}
 
@@ -157,7 +177,7 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
         ))}
       </svg>
 
-      <Dica visivel={ativo !== null} x={ativo ? x(ativo) : 0}>
+      <Dica visivel={ativo !== null} x={ativo ? x(ativo) : 0} W={W}>
         <strong>{ativo ? MESES_LONGOS[ativo - 1] : ''}</strong>
         <span className="ml-2 text-tinta-suave">
           {(() => {
@@ -173,6 +193,8 @@ export function EvolucaoSaldo({ meses, saldoInicial }: { meses: PontoMes[]; sald
 // -------------------------------------------------------- entradas × saídas
 export function EntradasSaidas({ meses }: { meses: PontoMes[] }) {
   const [ativo, setAtivo] = useState<number | null>(null);
+  const [ref, largura] = useLargura();
+  const { W, H, L, R, T, B, fonte, passoMes } = geometria(largura);
   const comDados = meses.filter((m) => m.entradas !== null);
 
   if (comDados.length === 0) {
@@ -186,14 +208,14 @@ export function EntradasSaidas({ meses }: { meses: PontoMes[] }) {
   const base = H - B;
 
   return (
-    <figure className="relative">
+    <figure ref={ref} className="relative">
       <Legenda itens={[{ cor: ENTRADA, texto: 'Entradas' }, { cor: SAIDA, texto: 'Saídas' }]} />
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block max-w-full" role="img"
         aria-label="Entradas e saídas do caixa por mês. Os números estão na tabela abaixo.">
         {marcas(0, max).map((v) => (
           <g key={v}>
             <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={v === 0 ? EIXO : GRADE} strokeWidth={1} />
-            <text x={L - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill={EIXO}>{dinheiroCurto(v)}</text>
+            <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize={fonte} fill={EIXO}>{dinheiroCurto(v)}</text>
           </g>
         ))}
 
@@ -209,8 +231,8 @@ export function EntradasSaidas({ meses }: { meses: PontoMes[] }) {
           );
         })}
 
-        {MESES.map((rotulo, i) => (
-          <text key={rotulo} x={L + faixa * (i + 0.5)} y={H - 6} textAnchor="middle" fontSize={10}
+        {MESES.map((rotulo, i) => mostraMes(i + 1, passoMes) && (
+          <text key={rotulo} x={L + faixa * (i + 0.5)} y={H - 8} textAnchor="middle" fontSize={fonte}
             fill={ativo === i + 1 ? ROTULO : EIXO}>{rotulo}</text>
         ))}
 
@@ -220,7 +242,7 @@ export function EntradasSaidas({ meses }: { meses: PontoMes[] }) {
         ))}
       </svg>
 
-      <Dica visivel={ativo !== null} x={L + faixa * ((ativo ?? 1) - 0.5)}>
+      <Dica visivel={ativo !== null} x={L + faixa * ((ativo ?? 1) - 0.5)} W={W}>
         {(() => {
           const m = meses.find((z) => z.mes === ativo);
           if (!m) return null;

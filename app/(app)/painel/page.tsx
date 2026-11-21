@@ -137,9 +137,10 @@ export default function PainelPage() {
                 <p className={cx('text-base font-medium', r.atrasadas ? 'text-perigo' : 'text-tinta')} aria-live="polite">
                   {fraseResumo(r)}.
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {/* Três números curtos: lado a lado também no celular (antes, um por linha). */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <Indicador rotulo="Atrasadas" valor={r.atrasadas} tom={r.atrasadas ? 'perigo' : 'neutro'} destaque={r.atrasadas > 0} />
-                  <Indicador rotulo="Para esta semana" valor={r.semana} />
+                  <Indicador rotulo="Esta semana" valor={r.semana} />
                   <Indicador rotulo="Para conferir" valor={r.conferir} />
                 </div>
               </>

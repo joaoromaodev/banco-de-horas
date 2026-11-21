@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emailDoDemonstrativo, liberadoAte, maioresSaidas, mesLiberado, montarDemonstrativo, textoVariacao, variacao,
+  emailDoDemonstrativo, liberadoAte, maioresSaidas, mesInicial, mesLiberado, montarDemonstrativo, textoVariacao, variacao,
   type MesDaSerie,
 } from '@/lib/demonstrativo';
 
@@ -131,5 +131,35 @@ describe('emailDoDemonstrativo', () => {
     expect(e.texto).toContain('Mês anterior (01/2026)');
     expect(e.texto).toContain('10/03/2026');
     expect(e.texto).toContain('https://x.test/caixa/demonstrativo');
+  });
+});
+
+describe('mesInicial (mês em que a tela do demonstrativo abre)', () => {
+  const hoje = new Date(2026, 10, 21); // 21/11/2026
+  const vazio = (n = 12) => Array.from({ length: n }, (_, i) => ({ mes: i + 1, confirmado: false, entradas: 0, saidas: 0 }));
+  const com = (patch: Record<number, { confirmado?: boolean; entradas?: number; saidas?: number }>) =>
+    vazio().map((m) => ({ ...m, ...(patch[m.mes] ?? {}) }));
+
+  it('abre no último mês confirmado em sequência', () => {
+    expect(mesInicial(2026, com({ 1: { confirmado: true }, 2: { confirmado: true }, 3: { confirmado: true }, 10: { entradas: 50 } }), hoje)).toBe(3);
+  });
+  it('confirmado fora de sequência não conta: vale o último com movimento', () => {
+    expect(mesInicial(2026, com({ 2: { confirmado: true, entradas: 10 }, 10: { saidas: 5 } }), hoje)).toBe(10);
+  });
+  it('sem confirmado: último mês com movimento, sem passar do mês corrente', () => {
+    expect(mesInicial(2026, com({ 9: { entradas: 100 }, 10: { saidas: 30 } }), hoje)).toBe(10);
+    expect(mesInicial(2026, com({ 9: { entradas: 100 }, 12: { saidas: 30 } }), hoje)).toBe(9); // dezembro lançado adiantado
+  });
+  it('sem movimento: mês anterior ao corrente (ou janeiro, se estamos em janeiro)', () => {
+    expect(mesInicial(2026, vazio(), hoje)).toBe(10);
+    expect(mesInicial(2026, vazio(), new Date(2026, 0, 10))).toBe(1);
+  });
+  it('exercício passado abre em dezembro; futuro, em janeiro', () => {
+    expect(mesInicial(2025, vazio(), hoje)).toBe(12);
+    expect(mesInicial(2025, com({ 7: { entradas: 1 } }), hoje)).toBe(7);
+    expect(mesInicial(2027, com({ 2: { entradas: 1 } }), hoje)).toBe(1);
+  });
+  it('valores nulos (meses ocultos) contam como sem movimento', () => {
+    expect(mesInicial(2026, [{ mes: 5, confirmado: false, entradas: null, saidas: null }], hoje)).toBe(10);
   });
 });
