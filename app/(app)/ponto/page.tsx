@@ -534,7 +534,7 @@ export default function Home() {
         </Cartao>
 
         {empresa && !bancoPendente && (
-          <FolhasEnviadas key={empresa} empresa={empresa} ano={ano} mes={mes} envioAberto={envioAberto?.id ?? null} versao={versaoEnvios}
+          <FolhasEnviadas key={`envios-${empresa}`} empresa={empresa} ano={ano} mes={mes} envioAberto={envioAberto?.id ?? null} versao={versaoEnvios}
             onAbrir={(e) => abrirEnvio(e)} onDevolver={setDevolvendo}
             onMensagem={(texto, tom) => (tom === 'perigo' ? setErro(texto) : setAviso(texto))} />
         )}
@@ -545,7 +545,7 @@ export default function Home() {
         )}
 
         {empresa && !bancoPendente && (
-          <ResumoFolha key={empresa} empresa={empresa} empresaNome={empresaSel?.nome ?? ''} ano={ano} mes={mes}
+          <ResumoFolha key={`resumo-${empresa}`} empresa={empresa} empresaNome={empresaSel?.nome ?? ''} ano={ano} mes={mes}
             funcionarioAberto={dias ? funcionario : ''} onAbrir={(nome) => abrirFolha(nome)} recarregar={salvos} />
         )}
 
@@ -667,7 +667,7 @@ export default function Home() {
                     </Botao>
                   </span>
                   <span data-dica={nErros > 0 ? 'Corrija os erros antes de salvar' : undefined}>
-                    <Botao onClick={salvarSheets} disabled={carregando || nErros > 0}>Salvar no banco (Sheets)</Botao>
+                    <Botao onClick={salvarSheets} disabled={carregando || nErros > 0}>Salvar no banco</Botao>
                   </span>
                 </div>
               )}

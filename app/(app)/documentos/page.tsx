@@ -367,7 +367,7 @@ export default function DocumentosPage() {
                   titulo={filtroComp ? `Nada enviado em ${competenciaBR(filtroComp)}` : 'Nenhum documento ainda'}
                   descricao={gestor ? 'Quando a empresa enviar, os arquivos aparecem aqui.' : 'Os arquivos que você enviar aparecem aqui.'} />
               ) : (
-                <div className="overflow-x-auto">
+                <div className="relative overflow-x-auto">
                   <table className={tb.tabela}>
                     <thead className={tb.cabeca}>
                       <tr>

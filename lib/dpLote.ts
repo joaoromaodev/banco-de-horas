@@ -46,7 +46,9 @@ export function lerDataLote(v: unknown): string | null {
   const t = String(v ?? '').trim();
   let iso: string | null = null;
   const br = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  const colado = t.match(/^(\d{2})(\d{2})(\d{4})$/); // 01062026: quem digita sem as barras
   if (br) iso = `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+  else if (colado) iso = `${colado[3]}-${colado[2]}-${colado[1]}`;
   else if (/^\d{4}-\d{2}-\d{2}/.test(t)) iso = t.slice(0, 10);
   return iso && isoOk(iso) && Number(iso.slice(0, 4)) >= 1950 ? iso : null;
 }

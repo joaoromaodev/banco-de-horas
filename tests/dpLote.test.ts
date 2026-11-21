@@ -16,6 +16,8 @@ describe('células do lote', () => {
   it('datas em dd/mm/aaaa e ISO; inválidas não passam', () => {
     expect(lerDataLote('10/03/2025')).toBe('2025-03-10');
     expect(lerDataLote('1/3/2025')).toBe('2025-03-01');
+    expect(lerDataLote('01062026')).toBe('2026-06-01'); // sem as barras
+    expect(lerDataLote('31022026')).toBeNull();
     expect(lerDataLote('2025-03-10')).toBe('2025-03-10');
     expect(lerDataLote('31/02/2025')).toBeNull();
     expect(lerDataLote('10/03/25')).toBeNull();
