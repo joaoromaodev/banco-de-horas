@@ -12,6 +12,7 @@ import {
   Aviso, Botao, botaoCls, CabecalhoPagina, Carregando, Conteudo, cx, EstadoVazio, Indicador, Secao, Selo, Tom,
 } from '@/components/ui';
 import { IconeCheck } from '../icones';
+import Fechamento from './Fechamento';
 
 interface Dados { hoje: string; resumo: ResumoPainel; blocos: Bloco[] }
 
@@ -144,6 +145,7 @@ export default function PainelPage() {
             {r.incompleto && (
               <Aviso tom="info">Alguns blocos estão indisponíveis agora, então o resumo pode estar incompleto.</Aviso>
             )}
+            <Fechamento />
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {dados.blocos.map((b) => <CartaoBloco key={b.chave} bloco={b} />)}
             </div>

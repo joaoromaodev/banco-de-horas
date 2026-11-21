@@ -4,7 +4,11 @@
 // barrado no proxy (a rota não está em CLIENTE_PODE). As ocorrências não vêm
 // daqui: a tela as gera com lib/agenda.ts a partir das obrigações.
 import { NextRequest } from 'next/server';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { empresasVisiveis, exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { temModulo } from '@/lib/auth';
+import { hojeBelem } from '@/lib/agenda';
+import { itensDeContratos } from '@/lib/agendaDerivada';
+import { listarEmExperiencia } from '@/lib/contratosServidor';
 import { NovaObrigacao, validarObrigacao } from '@/lib/agenda';
 import {
   atualizarObrigacao, AVISO_PADRAO, criarObrigacoes, equipeDoEscritorio, ErroAgenda, excluirObrigacoes,
@@ -39,11 +43,22 @@ export async function GET(req: NextRequest) {
     const [equipe, aviso] = escritorio
       ? await Promise.all([equipeDoEscritorio(escritorio).catch(() => []), lerAviso(escritorio).catch(() => AVISO_PADRAO)])
       : [[], null];
-    return Response.json({ obrigacoes, conclusoes, equipe, aviso });
+    // Vencimentos dos contratos de experiência, derivados dos contratos salvos (nada duplicado).
+    // Sem o módulo de ponto ou se a leitura falhar, a agenda segue sem eles.
+    let contratos: ReturnType<typeof itensDeContratos> = [];
+    if (temModulo(g.sessao, 'ponto')) {
+      try {
+        const visiveis = empresa ? [] : await empresasVisiveis(g.sessao);
+        const nomes = new Map(visiveis.map((e) => [e.id, e.nome]));
+        const lista = await listarEmExperiencia(empresa ? [empresa] : visiveis.map((e) => e.id));
+        contratos = itensDeContratos(lista, nomes, hojeBelem(), 30);
+      } catch (e) { console.error('[agenda] contratos:', e instanceof Error ? e.message : e); }
+    }
+    return Response.json({ obrigacoes, conclusoes, equipe, aviso, contratos });
   } catch (e) {
     // Sem as tabelas (0014 pendente) a tela mostra o aviso em vez de quebrar.
     if (e instanceof ErroAgenda && e.status === 503) {
-      return Response.json({ obrigacoes: [], conclusoes: [], equipe: [], aviso: null, semTabela: true });
+      return Response.json({ obrigacoes: [], conclusoes: [], equipe: [], aviso: null, contratos: [], semTabela: true });
     }
     return falha(e);
   }

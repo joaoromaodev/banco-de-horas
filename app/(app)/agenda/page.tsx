@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { rotuloDias } from '@/lib/painel';
 import { IconeCheck } from '../icones';
 import { AbasAgenda, AVISO_MIGRACAO, useAgenda } from './comum';
 
@@ -78,6 +79,7 @@ export default function AgendaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- idem
   }, [obrigacoes, ag.feitas, ano, mes, hoje, cal, porId]);
 
+  const contratosVisiveis = useMemo(() => ag.contratos.filter((c) => !empresa || c.empresaId === empresa), [ag.contratos, empresa]);
   const conta = (s: Situacao) => atencao.filter((l) => l.situacao === s).length;
   const nomeEmp = (id: string) => ag.nomeEmpresa.get(id) ?? 'Empresa';
   const rotuloLinha = (l: Linha) => `${l.obrigacao.nome} ${rotuloCompetencia(l.competencia)} · ${nomeEmp(l.empresaId)}`;
@@ -144,6 +146,30 @@ export default function AgendaPage() {
             descricao="Escolha uma empresa e aplique o modelo do regime dela (MEI, Simples, Presumido…) — leva um clique. Depois ajuste o que for diferente."
             acao={<a href="/agenda/obrigacoes" className={botaoCls({ variante: 'tonal' })}>Ir para Obrigações por empresa</a>}
           />
+        )}
+
+        {!ag.carregando && contratosVisiveis.length > 0 && (
+          <Secao titulo="Contratos de experiência"
+            descricao="Fim do 1º período e da prorrogação, tirados dos contratos salvos em Contratos — nada para cadastrar aqui. Vencido sem providência vira prazo indeterminado: marque efetivado ou encerrado lá.">
+            <div className={tb.moldura}>
+              <table className={tb.tabela}>
+                <thead className={tb.cabeca}>
+                  <tr><th className={tb.th}>Vencimento</th><th className={tb.th}>Empresa</th><th className={tb.th}>Contrato</th><th className={tb.th}>Situação</th></tr>
+                </thead>
+                <tbody className={tb.corpo}>
+                  {contratosVisiveis.map((c) => (
+                    <tr key={c.id} className={tb.linha}>
+                      <td className={cx(tb.td, 'whitespace-nowrap tabular-nums')}>{br(c.vencimento)}</td>
+                      <td className={tb.td}>{nomeEmp(c.empresaId)}</td>
+                      <td className={tb.td}>{c.obrigacao}</td>
+                      <td className={tb.td}><Selo tom={c.dias < 0 ? 'perigo' : c.dias === 0 ? 'aviso' : 'primaria'}>{rotuloDias(c.dias)}</Selo></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3"><a href="/contratos" className={botaoCls({ variante: 'secundaria', tamanho: 'sm' })}>Abrir contratos</a></p>
+          </Secao>
         )}
 
         {!ag.carregando && ag.obrigacoes.length > 0 && (

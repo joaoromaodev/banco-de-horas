@@ -34,6 +34,41 @@
 - `tests/documentos.test.ts` (regras puras) e `tests/documentosRotas.test.ts` (rotas com banco simulado: outro escritório, outra empresa, cliente sem poder de gestão)
 - Compartilhados (mudança mínima): `proxy.ts` (`CLIENTE_PODE`) e `app/(app)/layout.tsx` (item "Documentos" no menu do cliente e da contabilidade).
 
+## Sprint 5 · Frente B — pedidos mensais (pendências recorrentes)
+
+Migração **0018** (**não aplicada**): tabela `pendencias_recorrentes` e coluna `pendencias.modelo_id`.
+Regras puras em `lib/fechamento.ts` (`tests/fechamento.test.ts`), banco em `lib/fechamentoServidor.ts`,
+rota `app/api/pendencias-recorrentes/route.ts`, tela `app/(app)/fechamento/page.tsx` ("Pedidos mensais"
+no menu, só contabilidade).
+
+| Tema | Decisão |
+|---|---|
+| O que é | O escritório define, **por empresa**, o que pede todo mês: título, categoria e dia do prazo (1–28). O "modelo padrão" (Extrato bancário, Notas fiscais, Recibos, Informações da folha) é uma lista no código (`MODELO_PADRAO`): a tela marca os itens, escolhe várias empresas e aplica — só entra o que a empresa ainda não pede (título + categoria). Tudo ou nada: confere o acesso a todas as empresas antes de gravar. Aplicar devolve os ids e a tela oferece **Desfazer**. |
+| Abertura | O cron diário (`/api/cron/agenda`, o mesmo — Vercel Hobby) chama `abrirPendenciasRecorrentes`: para cada modelo ativo de empresa ativa (não arquivada, escritório não suspenso) abre a pendência da **competência anterior** com prazo = dia escolhido do mês corrente. Roda **todo dia**, não só no 1º: a Vercel não refaz chamada que falhou, então quem perdeu o dia 1º abre no dia 2. Modelo criado neste mês espera o mês seguinte. |
+| Idempotência | Índice único `(modelo_id, competencia)` em `pendencias`. Vale também para a pendência **excluída**: quem apagou um pedido do mês não o vê reaparecer. Cron chamado duas vezes não duplica (violação `23505` conta como "já existia"). |
+| Fechar sozinho | Ao **confirmar** o envio de um documento sem pedido explícito, `fecharRecorrenteDoDocumento` procura pendência recorrente **aberta** da mesma empresa + categoria + competência, fecha (atendida) e liga o documento a ela (`documentos.pendencia_id`) — assim o "reabre se excluir o último envio" de sempre continua valendo. Havendo mais de uma, a de prazo mais próximo. **Só as nascidas de modelo** fecham sozinhas; pedido manual continua exigindo o vínculo explícito. Falha nessa etapa só vai para o log: o arquivo já chegou. |
+| Um documento basta | Um extrato fecha o "Extrato bancário" mesmo que a empresa tenha duas contas; o contador reabre à mão se achar que não serviu (como já era). |
+| Acesso | `/api/pendencias-recorrentes` só `exigirGestor` + `podeAcessarEmpresa`; fica **fora** do prefixo `/api/pendencias` (que está em `CLIENTE_PODE`) de propósito. `escritorio_id` vem da empresa, nunca da sessão nem do navegador. |
+| Resposta do cron | O JSON ganhou `fechamento: { modelos, abertas, ja_existiam, falhas }` (ou `{ erro }`). |
+| Limite conhecido | Editar um pedido mensal = pausar/excluir e criar de novo (a tela só liga/desliga e exclui). |
+
+### Para o integrador (Frente B)
+
+- **Aplicar a 0018** (mesmo arquivo da agenda — ver `docs/agenda.md`): depende da 0010 e da 0015.
+  Reversão: `alter table pendencias drop column if exists modelo_id; drop table if exists pendencias_recorrentes, empresa_regime;`.
+- Sem variável nova. Sem `vercel.json` novo: o cron existente cobre.
+- Testar em produção com **conta de teste** (escritório criado em `/criar-conta`, nunca a Edilse):
+  1. "Pedidos mensais": aplicar Extrato + Notas em duas empresas de teste → toast com Desfazer.
+  2. O modelo só vale a partir do mês seguinte; para simular:
+     `curl -H "Authorization: Bearer $CRON_SECRET" "https://<app>/api/cron/agenda?dia=<1º do mês que vem>"` →
+     `fechamento.abertas` = 4; repetir a chamada → `abertas` = 0 e `ja_existiam` = 4.
+  3. Em Documentos, as pendências aparecem com prazo e competência do mês anterior.
+  4. Como cliente da empresa de teste: enviar PDF categoria Extrato na competência pedida → a pendência
+     vira "atendida"; excluir o documento → reabre; Desfazer → atendida de novo.
+  5. Documento de outra categoria ou competência → nada fecha.
+  6. Isolamento: logado em outro escritório, `GET /api/pendencias-recorrentes?empresa=<id de teste>` → 403; cliente → 403.
+  Atenção: a simulação com `?dia=` cria pendências de verdade; apague o escritório de teste no fim.
+
 ## Para o integrador
 
 ### Aplicar a 0015

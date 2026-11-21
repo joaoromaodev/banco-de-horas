@@ -6,6 +6,7 @@
 // lemos/gravamos o que a rota já autorizou.
 import { randomUUID } from 'crypto';
 import { getDb } from './db';
+import { fecharRecorrenteDoDocumento } from './fechamentoServidor';
 import {
   caminhoNoStorage, Categoria, conferirAssinatura, deveReabrir, extensao, LIMITE_BYTES,
   StatusDocumento, StatusPendencia, TipoAceito, uuidValido,
@@ -212,6 +213,12 @@ export async function confirmarEnvio(d: Documento, autor: string): Promise<Docum
     .eq('id', d.id).eq('status', 'enviando').select(COLS_DOC).maybeSingle();
   if (eUp) traduzir(eUp);
   if (d.pendenciaId) await atenderPendencia(d.pendenciaId, autor);
+  else {
+    // Sem pedido explícito: fecha a pendência mensal (recorrente) da mesma empresa,
+    // categoria e competência. Falha aqui não derruba o envio (o arquivo já chegou).
+    try { await fecharRecorrenteDoDocumento(d, autor); }
+    catch (e) { console.error('[documentos] fechar pendência recorrente:', e instanceof Error ? e.message : e); }
+  }
   return data ? doc(data) : { ...d, status: 'recebido' };
 }
 
