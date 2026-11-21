@@ -99,6 +99,10 @@ topo dos blocos, carrega sozinha).
   antes da 0014 a agenda): etapa "?" e a empresa **não** aparece como fechada.
 - Pendência: o link de cada etapa leva à tela, não à empresa (as telas ainda não leem `?empresa=`).
 
+## Sprint 8 · Frente C — limite de faturamento
+
+Bloco **Limite de faturamento** (MEI/Simples) depois do fechamento, via `/api/painel/limite`; só com o módulo `caixa`. Ver [`resumo-cliente.md`](resumo-cliente.md).
+
 ## Pendências
 
 - **Link já na empresa**: levar o clique direto à empresa do item (`/documentos?empresa=`,

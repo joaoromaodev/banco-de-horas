@@ -13,6 +13,7 @@ import {
 } from '@/components/ui';
 import { IconeCheck } from '../icones';
 import Fechamento from './Fechamento';
+import LimiteFaturamento from './LimiteFaturamento';
 
 interface Dados { hoje: string; resumo: ResumoPainel; blocos: Bloco[] }
 
@@ -146,6 +147,7 @@ export default function PainelPage() {
               <Aviso tom="info">Alguns blocos estão indisponíveis agora, então o resumo pode estar incompleto.</Aviso>
             )}
             <Fechamento />
+            <LimiteFaturamento />
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {dados.blocos.map((b) => <CartaoBloco key={b.chave} bloco={b} />)}
             </div>

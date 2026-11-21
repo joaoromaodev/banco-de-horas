@@ -17,6 +17,7 @@ import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino, IconeSugestao } from '../icones';
 import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 import { AbasCaixa } from './AbasCaixa';
+import LimiteFaturamento from './LimiteFaturamento';
 import {
   Alternador, Aviso, Botao, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
   EstadoVazio, Indicador, Marcacao, Secao, Selo, seloCls, tb, type Tom,
@@ -517,6 +518,7 @@ export default function Caixa() {
 
       <Conteudo>
         <FaixaArquivada empresa={empresas.find((e) => e.id === empresaSel)} />
+        {empresaSel && <LimiteFaturamento empresaId={empresaSel} />}
         {ehGestor && mostrarDocs && (
           <PainelDocumentos
             empresaId={empresaSel} ano={ano} termo={termo}
