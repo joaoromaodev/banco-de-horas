@@ -166,3 +166,12 @@ export function IconeErro({ size = 18, className }: Props) {
     </svg>
   );
 }
+
+/** Faísca — sugestão (de conta, no Livro Caixa). */
+export function IconeSugestao({ size = 16, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M12 3.5 13.8 9a1.5 1.5 0 0 0 1 1l5.7 1.9-5.7 1.9a1.5 1.5 0 0 0-1 1L12 20.5 10.2 14.8a1.5 1.5 0 0 0-1-1L3.5 11.9 9.2 10a1.5 1.5 0 0 0 1-1Z" />
+    </svg>
+  );
+}

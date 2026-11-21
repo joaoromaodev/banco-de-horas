@@ -4,8 +4,8 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **11/09/2026** (padronização das analíticas do NÉLIO — uma por
-titular — e exclusão de 11 lançamentos órfãos de empresas de teste; 46 lançamentos)
+Última atualização: **21/11/2026** (Sprint 5, Frente A — caixa inteligente: sugestão
+de conta ao lançar e revisão antes da conferência, migração 0017)
 
 ## Por que este módulo existe
 
@@ -603,6 +603,186 @@ roda bem com a coluna nova. Depois de aplicar, conferir que a Edilse continua ve
 6 analíticas do NÉLIO e que um contador de outro escritório não as vê.
 **Sem teste end-to-end** contra o banco (a migração não foi aplicada): typecheck, lint
 (0 erros), 202 testes e build passam; o recorte de visibilidade está coberto pelos testes da regra pura.
+
+### ✅ Caixa inteligente (0017) — 21/11/2026 (Sprint 5, Frente A)
+
+Priorizada pelo consultor contador. Duas coisas, as duas **só sugerem/alertam** — nada
+preenche sozinho, cria conta, marca conferido ou bloqueia lançamento.
+
+#### 1. Sugestão de Conta Titular + Analítica ao lançar
+
+Regra pura em `lib/sugestaoConta.ts` (testada em `tests/sugestaoConta.test.ts`), que
+**roda no navegador**: a tela baixa uma vez os exemplos da empresa
+(`GET /api/caixa/sugestao?empresa=`) e sugere a cada tecla, sem ida ao servidor
+(≈0,1 ms por sugestão). Ordem das fontes — a primeira que resolve, vence:
+
+| Fonte | Como | Motivo que a tela mostra |
+|---|---|---|
+| (a) analítica | o complemento cita o texto de uma analítica visível (tokens sem acento, sem os verbos "Pago/Recebido"; prefixo de 4+ letras casa plural), na natureza da direção | `o complemento cita "luz"` |
+| (b) histórico | votação ponderada nos lançamentos da mesma empresa: complemento (Jaccard com peso idf; números viram forma — "NF 1590" ≈ "NF 1741", "REF 07/2026" ≈ "REF 08/2026"), valor (distância em ln, σ = 0,5) e pagador; só os da mesma direção. **Conferido pesa 1; corrigido pela contadora antes de conferir, 2; ainda não conferido, 0,3** (e não conferido com a natureza da conta trocada não entra) | `como em 9 lançamentos conferidos de "Prótese" com "nf"` — ou, se só há não conferidos por trás, `como você lançou antes (5 lançamentos, ainda não conferidos)`, com confiança no máximo 0,6 |
+| (c) IA | **só com clique** ("Perguntar à IA", quando (a) e (b) não resolvem e há complemento) e **desligada por padrão** (ver "Isolamento e LGPD"). O Gemini escolhe **um índice** de uma lista com as analíticas **da empresa** (ou, sem analítica, as titulares da empresa); índice fora da lista = nada | selo "IA" + `sugestão da IA entre as contas desta empresa — confira` (confiança com teto 0,6) |
+
+Na tela (`app/(app)/caixa/page.tsx`, `FaixaSugestao`): uma faixa abaixo do formulário
+de novo lançamento (tabela e celular) com a titular › analítica sugeridas, o motivo e o
+botão **Usar** (preenche as duas). Se o usuário já escolheu outra, a faixa continua
+("O histórico sugere outra conta") — é um segundo olhar; some quando a escolha bate.
+
+**Por que entram os não conferidos (decisão, ouvido o `contador`):** a tarefa pedia só
+os conferidos, mas o NÉLIO tem 1 conferido em 46 — a votação simplesmente não
+funcionaria. O risco dos não conferidos é a empresa repetir o próprio erro e a
+sugestão dar a ele cara de regra; por isso o freio: peso 0,3, teto de confiança 0,6, o
+rótulo "ainda não conferido" na tela, e os de natureza trocada ficam de fora. Para
+voltar ao "só conferidos", basta `PESO_NAO_CONFERIDO = 0` em `lib/sugestaoConta.ts`.
+
+**Aprende com a contadora:** o que ela confere passa a pesar 1, e o que ela **corrigiu**
+antes de conferir (alterado por outra pessoa que não quem lançou) pesa 2. Ao marcar
+conferido a tela recarrega os exemplos, então a próxima sugestão já usa. Para **medir**,
+a 0017 registra em `caixa_sugestoes` cada sugestão que estava na tela ao lançar
+(`origem`, `aceita`) e, na conferência, se a conta ficou (`confirmada`) ou foi trocada
+(`corrigida`) — `avaliarNaConferencia` em `lib/caixaInteligente.ts`.
+
+**Acurácia medida com os 46 lançamentos reais do NÉLIO** (21/11/2026, só leitura,
+fingindo que todos estivessem conferidos):
+
+| Validação | Oferece sugestão em | Acerta titular + analítica |
+|---|---|---|
+| deixa um de fora (cada um contra os outros 45) | 32 de 46 (69,6%) | **30 de 32 (93,8%)** |
+| sequencial (cada um só contra os anteriores, como na vida real) | 32 de 46 (69,6%) | 28 de 32 (87,5%) |
+| **hoje, de verdade** — 1 conferido + 45 não conferidos (peso 0,3), deixa um de fora | 25 de 46 | **25 de 25 (100%)** |
+| idem, sequencial | 15 de 46 | 15 de 15 (100%) |
+
+Os erros são todos "NF + número" de valor médio entre **Prótese** (laboratório,
+R$ 900–12 mil), **Material de expediente** (R$ 34–1.288) e **Material de consumo** —
+o complemento é igual e os valores se cruzam. Os pesos (`AJUSTE_PADRAO`: tokens 0,4 ·
+valor 0,45 · pagador 0,15, nitidez 4, confiança mínima 0,45) saíram de uma busca em
+grade nesses dados (todos tratados como conferidos), escolhendo o ponto estável e não o
+extremo (46 lançamentos é pouco — recalibrar quando houver algumas centenas conferidos).
+O `contador` sugeriu inverter (texto acima do valor); nos dados do NÉLIO o valor é o que
+separa Prótese de Material — fica como está até haver mais empresas para medir. Com o
+freio dos não conferidos a sugestão oferece menos (a confiança cai), mas acerta tudo o
+que oferece; conferir o NÉLIO (45 pendentes, ~meia hora) é o que mais melhora a cobertura.
+
+**Isolamento e LGPD (revisado pelo `escudo` em 21/11/2026 — sem vazamento entre
+escritórios nem entre empresas).** Os exemplos vêm só dos exercícios **daquela
+empresa**; o nome/CPF do pagador vira um **pseudônimo** (hash de 32 bits, reversível por
+força bruta — serve só porque quem recebe já vê esses lançamentos; não reaproveitar fora
+daqui) **no servidor** antes de ir para a tela; as palavras do complemento vão como estão.
+A sugestão só sai se a conta estiver na lista que a sessão já vê (cliente: só as da
+empresa; contador: base + escritório). `sugestao.id` de outra empresa no POST de
+lançamentos não religa nada (o update filtra empresa e `lancamento_id` nulo), e uma
+sugestão "ia" sem o id da chamada é ignorada (não conta na cota nem na medição).
+
+**O que vai para a IA:** o complemento **mascarado** (sequências de 5+ dígitos viram
+`[número]`, e-mail vira `[e-mail]`), a direção, o valor e a lista de contas da empresa —
+**nunca** o nome nem o CPF do pagador. Mas o complemento pode trazer **nome de paciente e
+procedimento** (dado de saúde, art. 11 da LGPD) — por isso a IA:
+- fica **desligada por padrão**: só liga com a variável `CAIXA_IA_SUGESTAO=ligada`;
+- **nunca** liga para empresa com `identifica_pagador` (clínica/saúde — o NÉLIO);
+- (`iaPermitida` em `lib/caixaInteligente.ts`; a tela só mostra "Perguntar à IA" quando pode).
+
+**Limites da IA:** `LIMITE_IA_DIA` = 200 chamadas por escritório por dia e, quando quem
+pergunta é o cliente, `LIMITE_IA_EMPRESA_CLIENTE` = 30 por empresa (um cliente não esgota
+o escritório) — contadas em `caixa_sugestoes`, origem `ia`; sem a 0017 a IA fica
+desligada. Mais 20 por usuário a cada 10 min (em memória, por instância). A conferência
+da cota e o registro não são atômicos: rajadas paralelas passam um pouco do teto (custo
+baixo, aceito). Usa `GEMINI_API_KEY`/`GEMINI_MODELO` (os mesmos da folha de ponto).
+
+#### 2. Revisão antes da conferência
+
+Regras puras e explicáveis em `lib/revisaoCaixa.ts` (`tests/revisaoCaixa.test.ts`).
+`GET /api/caixa/revisao?empresa=&ano=` (só gestor) revisa o exercício inteiro (mais o
+ano anterior, só para o padrão de valor) com `revisarExercicio` (`lib/caixaInteligente.ts`).
+
+| Alerta | Nível | Regra |
+|---|---|---|
+| Duplicado? | alto | mesma data + direção + valor + conta (+ pagador), complemento igual ou vazio |
+| Parece repetido | médio | o mesmo com complementos diferentes; entrada de balcão igual no dia (sem pagador nem complemento); mesmo valor/conta/pagador a até 3 dias — **só saídas e entradas com pagador, nunca transferência**; o mesmo documento duas vezes na conta em até 60 dias (documento = número **depois de** NF, nota, recibo, boleto, RPS, cupom, pedido, fatura ou duplicata; "sala 1203" não conta) |
+| Valor fora do padrão | médio | ≥ 3× ou ≤ ⅓ da mediana da conta **e** desvio robusto (MAD em ln) ≥ 3; só com 4+ outros lançamentos da conta |
+| Receita como saída / Despesa como entrada | alto; **médio** se o complemento diz estorno/devolução/reembolso/ressarcimento | natureza da titular × direção; na devolução o motivo aponta "Recuperação de despesas" |
+| Data futura | alto | data depois de hoje (erro de dia/mês/ano que o trigger do exercício deixa passar) |
+| Mudou após confirmar | alto | lançado ou alterado depois de o mês ser confirmado — o resumo que o cliente viu mudou |
+| Falta o pagador / CPF/CNPJ inválido | médio | empresa com `identifica_pagador`, entrada que não é transferência |
+| Juros/multa de novo | baixo | juros ou multa em 3 dos últimos 6 meses (e um aviso do exercício) |
+| Saldo negativo | médio | pelo saldo do **fim do dia** (pagar antes de receber no mesmo dia não conta); selo no último lançamento do dia |
+| Sem conta titular | baixo | fora depósito/retirada/transferência |
+| Mês sem lançamento | médio (do exercício) | mês encerrado há **mais de 10 dias** sem nada |
+
+O pagador entra na chave da duplicidade de propósito: duas consultas de R$ 800 de
+pacientes diferentes no mesmo dia são o normal de uma clínica. Os ajustes de ruído
+(documento, fim do dia, transferências, balcão, estorno, carência) e os dois alertas
+novos vieram da revisão do `contador` em 21/11/2026.
+
+Na tela (só a contabilidade): um aviso "Revisão do exercício" com os alertas gerais;
+por lançamento um **selo** com o alerta mais grave (+N) e todos os motivos no balão
+(mouse e teclado); **"Só os que pedem atenção"** e a ordem **"Maior risco primeiro"**
+(alto 5, médio 2, baixo 1 — empate mantém a ordem do livro; o saldo corrido continua o
+da ordem do livro).
+
+Nos dados reais do NÉLIO a revisão aponta: **2 CPFs com dígito inválido** (09/02 e
+20/04 — este tem 10 dígitos), 2 recebimentos muito acima do habitual (R$ 3.000 e
+R$ 11.000 contra mediana de R$ 800), **saldo negativo** a partir de 05/04 (o saldo
+inicial de 2026 ainda é zero, pendência 1) e **setembro e outubro sem lançamento**.
+
+#### Desempenho
+
+- Exemplos: uma consulta paginada (o Supabase corta em 1000 linhas) dos conferidos mais
+  recentes, até 3000, pelo índice parcial novo `lancamentos_conferidos_idx`; compactados
+  (lançamentos iguais viram um exemplo com peso) — 3000 viram poucas centenas, alguns KB.
+- Revisão: duas consultas (lançamentos do ano + anterior pelo índice de exercício, e o
+  nome das contas citadas). Tudo agrupado por `Map`: 46 lançamentos em ~20 ms; 5 mil em
+  ~80 ms; 20 mil no pior caso (todos duplicados) em ~1 s.
+
+#### Para o integrador
+
+- **Migração `0017_caixa_inteligente.sql`** (só o arquivo; **não aplicada**). Aditiva:
+  tabela `caixa_sugestoes` (RLS sem policies) + índices. A ordem não quebra nada — sem
+  ela a sugestão local e a revisão funcionam, só o registro e a IA ficam desligados (a
+  rota da IA responde 503 "falta a migração 0017"). `supabase migration list` antes do push.
+- **Variáveis:** `CAIXA_IA_SUGESTAO` (nova, opcional). **Deixe sem** até: (1) a
+  política de privacidade (`app/(site)/privacidade/page.tsx`, hoje só cita IA na Folha
+  de Ponto) citar a classificação de lançamentos do Livro Caixa por IA, o Google Gemini
+  como suboperador e a transferência internacional — texto para o jurídico; (2) confirmar
+  que a chave do Gemini está no **plano pago** (no gratuito o Google pode usar o que é
+  enviado). Então `CAIXA_IA_SUGESTAO=ligada`. Mesmo ligada, empresa que identifica
+  pagador (o NÉLIO) não usa IA. A IA usa `GEMINI_API_KEY` e `GEMINI_MODELO`.
+- **A 0017 depende da `0012`** (a unique `empresas (id, escritorio_id)` da FK composta).
+- **Painel (fechamento mensal):** para mostrar "pedem atenção" por empresa, chame
+  `revisarExercicio(empresaId, ano)` de `lib/caixaInteligente.ts` — `resumo` traz
+  `{ alto, medio, baixo, lancamentos }` e `gerais` os alertas do exercício (mês sem
+  lançamento etc.). Não toquei no painel.
+- **O que testar em produção com uma conta de teste** (empresa de teste do escritório de
+  teste, **nunca** nas empresas da Edilse):
+  1. Lançar 3–4 saídas com complemento "REF 01/2026" na conta de luz e conferi-las; no
+     novo lançamento, digitar "REF 02/2026" e um valor parecido → a faixa sugere a conta
+     de luz com "como em N lançamentos conferidos"; **Usar** preenche titular + analítica.
+  2. (Só com `CAIXA_IA_SUGESTAO=ligada` e numa empresa de teste **sem** "identifica
+     pagador".) Digitar "conserto da cadeira" sem histórico → "Perguntar à IA" → sugestão
+     com selo IA, só entre as contas da empresa; conferir uma linha nova em `caixa_sugestoes`.
+     Numa empresa com "identifica pagador" o botão não aparece e o POST responde 403.
+  3. Lançar com a sugestão e depois corrigir a conta e conferir → a linha em
+     `caixa_sugestoes` fica `corrigida`.
+  4. Lançar o mesmo valor/data/conta duas vezes → selo "Duplicado?" na conferência;
+     ligar "Só os que pedem atenção" e "Maior risco primeiro". Confirmar um mês e editar
+     um lançamento dele → selo "Mudou após confirmar".
+  5. Entrar como **cliente** da empresa de teste: a faixa de sugestão aparece; a revisão
+     não (a rota responde 403); `GET /api/caixa/sugestao` de outra empresa → 403.
+- **Não verificado no navegador** nesta etapa (não há ambiente de teste local com banco;
+  o único `.env.local` aponta para produção). typecheck, lint, testes e build verdes.
+
+**Pendências / próximos passos:**
+- **[Aberto — jurídico/fundador]** privacidade + plano pago do Gemini antes de ligar
+  `CAIXA_IA_SUGESTAO` (acima). Para empresas de saúde, a IA continua fora até o jurídico
+  validar o tratamento de dado de saúde pelo Gemini.
+- **[Perguntas para a Edilse, do `contador`]** devolução de fornecedor vai para
+  "Recuperação de despesas" ou abate a despesa? No Carnê-Leão ela precisa do CPF de quem
+  pagou **e** do paciente atendido (campo "paciente, se diferente")? O alerta cita "DMED"
+  ou "Receita Saúde"? Até que dia o cliente costuma lançar (a carência de 10 dias)?
+- Recalibrar `AJUSTE_PADRAO` quando houver algumas centenas de conferidos (o script de
+  medição é o "deixa um de fora" descrito acima; os números saem de `caixa_sugestoes`
+  também: taxa de `aceita` e de `confirmada`).
+- `montarLivro` (PDF/.xlsx) e `saldoTransportado` leem lançamentos sem paginação — acima
+  de 1000 lançamentos num exercício o Supabase corta a resposta. Não é desta frente;
+  `paginado()` em `lib/caixaInteligente.ts` resolve se for preciso.
 
 ## Estado do banco
 
