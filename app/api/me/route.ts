@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { resolverModulos } from '@/lib/auth';
 import { sessaoDe } from '@/lib/acesso';
 import { lerEscritorio } from '@/lib/escritorios';
+import { situacaoDoEscritorio } from '@/lib/cobrancaServidor';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +12,13 @@ export async function GET(req: NextRequest) {
   if (!s) return Response.json({ autenticado: false }, { status: 401 });
   // O escritório alimenta o aviso de fim do teste no layout. Falha de leitura
   // não derruba a sessão — só some o aviso.
-  const escritorio = s.escritorioId ? await lerEscritorio(s.escritorioId).catch(() => null) : null;
+  const [escritorio, cobranca] = s.escritorioId
+    ? await Promise.all([
+        lerEscritorio(s.escritorioId).catch(() => null),
+        // Situação de cobrança: alimenta a faixa de somente leitura / carência.
+        situacaoDoEscritorio(s.escritorioId).catch(() => null),
+      ])
+    : [null, null];
   return Response.json({
     autenticado: true,
     email: s.email,
@@ -25,5 +32,6 @@ export async function GET(req: NextRequest) {
       id: escritorio.id, nome: escritorio.nome, plano: escritorio.plano,
       situacao: escritorio.situacao, testeAte: escritorio.testeAte,
     },
+    cobranca,
   });
 }

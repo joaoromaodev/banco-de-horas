@@ -4,12 +4,16 @@
 // alcança o que estiver em CLIENTE_PODE — todo o resto é do gestor.
 import { NextRequest, NextResponse } from 'next/server';
 import { lerSessao, temModulo, COOKIE_SESSAO } from '@/lib/auth';
+import { escritaBarrada } from '@/lib/cobranca';
+import { barreiraSomenteLeitura } from '@/lib/acesso';
 
 // Site público + `/criar-conta` (cadastro self-service do escritório, teste grátis).
 const PUBLICO = [
   '/login', '/api/login', '/api/logout',
   '/conheca', '/planos', '/termos', '/privacidade',
   '/criar-conta', '/api/criar-conta',
+  // Webhook do gateway: sem sessão, autenticado pelo token no header (ver a rota).
+  '/api/cobranca/webhook',
 ];
 // `/api/usuarios` NÃO entra aqui de propósito: ela agora atende master e contador
 // e faz o recorte fino por papel/dono internamente (ver a rota). O `cliente` já é
@@ -80,6 +84,17 @@ export async function proxy(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = temModulo(sessao, 'caixa') ? '/caixa' : '/';
       return NextResponse.redirect(url);
+    }
+  }
+
+  // Somente leitura (cobrança): teste vencido sem assinatura ou inadimplência
+  // além da carência → toda escrita em /api/* vira 402, para qualquer papel do
+  // escritório (inclusive o `cliente`). Leitura e exportação seguem livres;
+  // login, logout e /api/cobranca também. Regra em lib/cobranca.ts.
+  if (ehApi && escritaBarrada(req.method, pathname)) {
+    const barreira = await barreiraSomenteLeitura(sessao);
+    if (barreira) {
+      return NextResponse.json({ erro: barreira.erro, codigo: barreira.codigo, motivo: barreira.motivo }, { status: barreira.status });
     }
   }
 

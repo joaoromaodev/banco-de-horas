@@ -13,6 +13,8 @@ import { COOKIE_SESSAO, lerSessao, Sessao } from './auth';
 import { buscarUsuario, lerEmpresa, lerEmpresas } from './cadastro';
 import { empresaVisivel } from './visibilidade';
 import { Empresa } from './tipos';
+import { mensagemSomenteLeitura, type MotivoBloqueio } from './cobranca';
+import { situacaoDoEscritorio } from './cobrancaServidor';
 
 export type Guarda =
   | { ok: true; sessao: Sessao }
@@ -24,7 +26,7 @@ export type Guarda =
 const cacheVinculo = new Map<string, { em: number; escritorioId?: string; admin: boolean }>();
 const TTL_VINCULO_MS = 60_000;
 
-async function completarEscritorio(s: Sessao): Promise<Sessao> {
+export async function completarEscritorio(s: Sessao): Promise<Sessao> {
   if (s.role === 'master' || s.escritorioId) return s;
   const chave = s.email.toLowerCase();
   let v = cacheVinculo.get(chave);
@@ -109,4 +111,53 @@ export async function exigirEmpresa(req: NextRequest, empresaId: string): Promis
   if (!empresaId?.trim()) return negar('Informe a empresa.', 400);
   if (!(await podeAcessarEmpresa(sessao, empresaId))) return negar('Acesso restrito a esta empresa.', 403);
   return { ok: true, sessao };
+}
+
+/** Exige o administrador do escritório (contador com `adminEscritorio`) — cobrança e equipe. */
+export async function exigirAdminEscritorio(req: NextRequest): Promise<Guarda> {
+  const sessao = await sessaoDe(req);
+  if (!sessao) return negar('Não autenticado.', 401);
+  if (sessao.role !== 'usuario' || !sessao.escritorioId) return negar('Acesso restrito ao escritório.', 403);
+  if (!sessao.adminEscritorio) return negar('Só o administrador do escritório cuida da assinatura.', 403);
+  // O cookie vale 12 h: confere no banco se ainda é admin DESTE escritório
+  // (quem perdeu o papel não cancela nem troca o plano nesse intervalo).
+  try {
+    const u = await buscarUsuario(sessao.email.toLowerCase());
+    if (!u || u.role !== 'usuario' || !u.adminEscritorio || u.escritorioId !== sessao.escritorioId) {
+      return negar('Só o administrador do escritório cuida da assinatura.', 403);
+    }
+  } catch {
+    return negar('Não foi possível conferir o acesso agora.', 503);
+  }
+  return { ok: true, sessao };
+}
+
+// ---------------------------------------------------------------- Somente leitura
+export interface Barreira { status: 402; erro: string; codigo: 'somente_leitura'; motivo: MotivoBloqueio }
+
+/**
+ * Modo somente leitura (cobrança): o escritório da sessão está com o teste
+ * vencido sem assinatura, inadimplente além da carência, cancelado depois do
+ * período pago ou suspenso? Então a escrita é barrada com 402.
+ *
+ * Chamada pelo `proxy.ts` em toda escrita de `/api/*` (ver `escritaBarrada` em
+ * lib/cobranca.ts para a lista do que fica livre) — por isso cobre todas as
+ * rotas, inclusive as que vierem depois, e também o papel `cliente`, que herda
+ * a situação do escritório da contabilidade dele. O `master` nunca é barrado.
+ *
+ * Banco indisponível sem situação em cache: deixa passar (a própria rota vai
+ * falhar ao gravar; barrar aqui só trocaria um erro por outro).
+ */
+export async function barreiraSomenteLeitura(sessao: Sessao): Promise<Barreira | null> {
+  if (sessao.role === 'master') return null;
+  const s = await completarEscritorio(sessao);
+  if (!s.escritorioId) return null; // sem escritório a sessão não alcança dado nenhum
+  const situacao = await situacaoDoEscritorio(s.escritorioId);
+  if (!situacao?.somenteLeitura) return null;
+  return {
+    status: 402,
+    codigo: 'somente_leitura',
+    motivo: situacao.motivo,
+    erro: mensagemSomenteLeitura(situacao.motivo, s.role),
+  };
 }

@@ -2,6 +2,24 @@
 
 > Registro curto de decisões de produto tomadas sem consulta. Mais recente em cima.
 
+## 21/11/2026 — Cobrança (Sprint 2 / Frente A)
+
+- **Gateway: Asaas.** Consultor de cobrança confirmou: é o único entre Asaas, Iugu,
+  Pagar.me, Mercado Pago, Stripe BR e Efí que junta numa integração só assinatura
+  recorrente em que o cliente escolhe Pix, boleto ou cartão na própria fatura
+  (`billingType: UNDEFINED`), NFS-e automática por assinatura e régua de cobrança
+  pronta, com tarifa fixa por transação, sem mensalidade e com sandbox completo.
+  Para equipe minúscula e ticket de R$ 89–349 de contadores do Norte/Nordeste
+  (que preferem Pix e boleto), é o menor esforço de integração e manutenção.
+- **Carência de 7 dias** depois do vencimento antes do somente leitura; o pagamento
+  libera na hora.
+- **Troca de plano:** subida vale já, com cobrança proporcional dos dias restantes;
+  descida e troca mensal↔anual valem na renovação, sem crédito. Escrever nos termos.
+- **Cancelamento:** acesso até o fim do período pago; depois somente leitura.
+- **Teste sem limite de empresas;** limites valem nos planos pagos (10/40/∞).
+- **Sem gateway configurado, teste vencido não trava** (não haveria como pagar).
+- CPF/CNPJ do pagador vai só ao Asaas; não guardamos. Detalhes em `docs/cobranca.md`.
+
 ## 21/11/2026 — Cobrança e ponto reassumidos no notebook
 
 - O João pediu para tocar tudo nesta máquina, sem tarefa agendada nem espera do
