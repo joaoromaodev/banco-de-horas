@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Worktrees das sessões paralelas vivem dentro do repositório.
+    ".claude/**",
   ]),
 ]);
 
