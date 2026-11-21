@@ -969,6 +969,13 @@ reserva, `contarLeiturasDocumentoEmpresa`), `lib/tipos.ts` e
   avisa; converter no navegador seria a saída.
 - O ritmo por usuário é em memória (por instância); o que segura de verdade são a cota
   do escritório e a subcota da empresa, no banco.
+- A subcota do cliente (30/mês) conta **todas** as leituras de documento daquela empresa,
+  inclusive as que a contabilidade fez; e é conferida antes da reserva, não de novo depois
+  (uma rajada paralela passa 1 ou 2 do teto — a cota do escritório segura o resto).
+- Tirar o EXIF leva junto a orientação: foto tirada "deitada" chega girada à IA (piora a
+  leitura, não é risco). Se a precisão cair, recodificar a imagem já orientada.
+- Reconferido pelo `escudo` depois das correções: **aprovado com ressalvas**, nada no código
+  impede ligar; o que bloqueia é o jurídico (política e suboperadores) e o Gemini pago.
 
 ## Estado do banco
 
