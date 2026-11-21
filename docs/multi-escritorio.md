@@ -133,3 +133,45 @@ pendências (sem FK). Decisão (com o subagente `contador`): **a tela nunca apag
 - O aviso de teste ainda não tem link para `/planos` (página da Frente B) — pôr
   quando as branches se juntarem.
 - Mover usuário/empresa entre escritórios só por SQL; não há tela.
+
+## Configurações do escritório (Sprint 6, Frente A — migração 0019)
+
+Tela **Escritório** (`/escritorio`, item no menu de todo `usuario`). O administrador
+do escritório edita; os demais contadores só consultam; o `cliente` não alcança
+(fora de `CLIENTE_PODE` em `proxy.ts`). Regras puras (CNPJ, CRC, prazo, quem pode)
+em `lib/escritorioConfig.ts`; banco em `lib/escritorioServidor.ts`.
+
+- **Dados:** nome (obrigatório) e CNPJ (opcional, validado pelos dígitos; guardado só
+  com números).
+- **Responsável técnico:** `escritorios.contabilista_nome/_crc` (0017). É o padrão
+  das empresas **sem** contabilista — a leitura (`lerFiscal`) já cai nele. O botão
+  "Gravar nas empresas sem contabilista" (`POST /api/escritorio/responsavel`) escreve
+  o nome em `empresa_fiscal` só onde o campo está em branco ou não há linha; quem já
+  tem não é tocado. Pede confirmação e oferece **Desfazer** (`PATCH`), que só volta
+  as empresas que ainda estão com o nome aplicado (edição feita no meio tempo
+  fica) e só as do próprio escritório.
+- **Prazo padrão dos pedidos mensais:** `escritorios.prazo_pedidos_padrao` (1–28,
+  padrão 10 = o valor que era fixo). A tela "Pedidos mensais" usa como valor inicial
+  dos campos de dia (onde antes havia 10 fixo). Não altera pedidos já criados: cada
+  um guarda o seu `dia_prazo`.
+- **Aviso da agenda por e-mail:** a tela reaproveita `/api/agenda/avisos` e
+  `agenda_avisos` (ver `agenda.md`); nada novo no banco.
+- **Rotas:** `GET/PATCH /api/escritorio` (leitura: contador do escritório, master com
+  `?escritorio=`; gravação: `exigirAdminEscritorio`, sempre no escritório da
+  sessão — o corpo não escolhe qual escritório). O master só lê.
+
+### Para o integrador
+
+1. **Migração `0019_escritorio_preferencias.sql`** — aditiva (uma coluna com default
+   10). Aplicar antes ou depois de publicar: sem ela a tela abre e usa 10; salvar
+   responde "falta aplicar a migração 0019" (503) em vez de quebrar.
+2. **Testar em produção com conta de teste (nunca no escritório da Edilse):**
+   - admin de um escritório de teste abre `/escritorio`, salva nome/CNPJ/CRC/prazo;
+     CNPJ inválido e prazo 29 são recusados;
+   - contador não-admin vê tudo desabilitado; `PATCH /api/escritorio` com ele → 403;
+   - cliente (empresa) em `/escritorio` → volta para o caixa; `/api/escritorio` → 403;
+   - com 2 empresas de teste (uma com contabilista, uma sem), "Gravar nas empresas sem
+     contabilista" muda só a sem; "Desfazer" a devolve em branco;
+   - em Pedidos mensais, o campo de dia novo vem com o prazo salvo;
+   - ligar/desligar o resumo da agenda e trocar destinatários reflete em `agenda_avisos`.
+3. Sem variável de ambiente nova.

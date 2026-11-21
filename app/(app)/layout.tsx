@@ -99,6 +99,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           { href: '/fechamento', label: 'Pedidos mensais', icon: 'folha' },
           { href: '/cadastros', label: 'Cadastro', icon: 'cadastros' },
           // O administrador do escritório convida os outros contadores.
+          // Dados, responsável técnico e preferências do escritório (o admin edita; os demais consultam).
+          ...(me?.role === 'usuario' ? [{ href: '/escritorio', label: 'Escritório', icon: 'config' }] : []),
           ...(me?.role === 'usuario' && me.adminEscritorio ? [{ href: '/equipe', label: 'Equipe', icon: 'equipe' }] : []),
           // Plano e pagamento do escritório (o admin age; os demais contadores só veem).
           ...(VENDAS_ABERTAS && me?.role === 'usuario' ? [{ href: '/assinatura', label: 'Assinatura', icon: 'assinatura' }] : []),

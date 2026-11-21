@@ -60,6 +60,16 @@ export default function FechamentoPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial (o setState acontece depois do fetch)
   useEffect(() => { carregar(); }, [carregar]);
 
+  // Prazo padrão do escritório (tela "Escritório"): troca o 10 fixo dos campos de dia novos.
+  useEffect(() => {
+    chamar('/api/escritorio').then((d) => {
+      const dia = Number(d?.escritorio?.prazoPedidosPadrao);
+      if (!Number.isInteger(dia) || dia === DIA_PRAZO_PADRAO) return;
+      setItens((l) => l.map((i) => (i.diaPrazo === DIA_PRAZO_PADRAO ? { ...i, dia } : i)));
+      setOutro((o) => (o.dia === DIA_PRAZO_PADRAO ? { ...o, dia } : o));
+    }).catch(() => {});
+  }, []);
+
   const nomeEmpresa = useMemo(() => new Map(empresas.map((e) => [e.id, e.nome])), [empresas]);
   const porEmpresa = useMemo(() => {
     const m = new Map<string, Modelo[]>();
