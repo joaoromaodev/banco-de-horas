@@ -9,6 +9,8 @@ import { DadosContrato, normalizarDados, Situacao, validar } from '@/lib/contrat
 import {
   atualizarContrato, criarContrato, empresaDoContrato, ErroContrato, excluirContrato, listarContratos,
 } from '@/lib/contratosServidor';
+import { lerEmpresa } from '@/lib/cadastro';
+import { ligarEmpregadoDoContrato } from '@/lib/dpServidor';
 
 export const runtime = 'nodejs';
 
@@ -17,6 +19,12 @@ const SITUACOES: Situacao[] = ['experiencia', 'efetivado', 'encerrado'];
 function falha(e: unknown) {
   if (e instanceof ErroContrato) return Response.json({ erro: e.message }, { status: e.status });
   return Response.json({ erro: e instanceof Error ? e.message : 'Falha.' }, { status: 502 });
+}
+
+/** O contrato cria/liga o empregado no Departamento Pessoal (0021); falha sem derrubar o contrato. */
+async function ligarAoDp(empresa: string, contratoId: string, dados: DadosContrato, por: string) {
+  const escritorioId = (await lerEmpresa(empresa).catch(() => null))?.escritorioId;
+  if (escritorioId) await ligarEmpregadoDoContrato(escritorioId, empresa, contratoId, dados, por);
 }
 
 const negado = () => Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
@@ -59,6 +67,7 @@ export async function POST(req: NextRequest) {
     const empresa = String(body.empresa ?? '');
     if (!(await podeAcessarEmpresa(g.sessao, empresa))) return negado();
     const contrato = await criarContrato(empresa, dadosValidos(body.dados), g.sessao.email);
+    await ligarAoDp(empresa, contrato.id, contrato.dados, g.sessao.email);
     return Response.json({ contrato });
   } catch (e) { return falha(e); }
 }
@@ -83,6 +92,7 @@ export async function PATCH(req: NextRequest) {
     const contrato = await atualizarContrato(id, {
       dados: body.dados ? dadosValidos(body.dados) : undefined, situacao,
     }, g.sessao.email);
+    if (body.dados) await ligarAoDp(empresa, contrato.id, contrato.dados, g.sessao.email);
     return Response.json({ contrato });
   } catch (e) { return falha(e); }
 }

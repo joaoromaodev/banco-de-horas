@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Abas } from '@/components/ui';
 import { chaveConclusao, Conclusao, Obrigacao } from '@/lib/agenda';
 import type { ItemContrato } from '@/lib/agendaDerivada';
+import type { ItemDp } from '@/lib/dpAgenda';
 
 export function AbasAgenda({ ativa }: { ativa: 'visao' | 'obrigacoes' }) {
   return (
@@ -25,6 +26,7 @@ export function useAgenda() {
   const [empresas, setEmpresas] = useState<EmpresaLista[]>([]);
   const [equipe, setEquipe] = useState<Membro[]>([]);
   const [contratos, setContratos] = useState<ItemContrato[]>([]);
+  const [dp, setDp] = useState<ItemDp[]>([]);
   const [semTabela, setSemTabela] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -39,6 +41,7 @@ export function useAgenda() {
       setConclusoes(a.conclusoes ?? []);
       setEquipe(a.equipe ?? []);
       setContratos(a.contratos ?? []);
+      setDp(a.dp ?? []);
       setSemTabela(Boolean(a.semTabela));
       setEmpresas((e.empresas ?? []).map((x: EmpresaLista) => ({ id: x.id, nome: x.nome })));
     } catch (err) {
@@ -76,7 +79,7 @@ export function useAgenda() {
   }
 
   return {
-    obrigacoes, setObrigacoes, conclusoes, empresas, equipe, contratos, semTabela, carregando, erro, setErro,
+    obrigacoes, setObrigacoes, conclusoes, empresas, equipe, contratos, dp, semTabela, carregando, erro, setErro,
     feitas, nomeEmpresa, nomeMembro, recarregar, alternarFeita,
   };
 }

@@ -25,6 +25,9 @@ import { lerEscritorios } from '@/lib/escritorios';
 import { enviarEmail } from '@/lib/email';
 import { itensDeContratos } from '@/lib/agendaDerivada';
 import { listarEmExperiencia } from '@/lib/contratosServidor';
+import { antecedenciaNoResumo, itensDoDp } from '@/lib/dpAgenda';
+import { dadosDpParaAgenda } from '@/lib/dpServidor';
+import { conjuntoFeriados } from '@/lib/ferias';
 import { abrirPendenciasRecorrentes, ResultadoAbertura } from '@/lib/fechamentoServidor';
 
 export const runtime = 'nodejs';
@@ -116,6 +119,19 @@ export async function GET(req: NextRequest) {
             itens.push({ empresa: c.empresa, obrigacao: c.obrigacao, competencia: c.competencia, vencimento: c.vencimento, responsavel: null, avisoDias: 0 });
           }
         } catch (e) { console.error('[cron agenda] contratos:', id, e instanceof Error ? e.message : e); }
+
+        // Departamento Pessoal (0021): férias vencidas/vencendo/programadas e 13º, derivados
+        // do cadastro do empregado. Só nome do empregado no texto — nunca salário nem CPF.
+        try {
+          const idsEmpresas = empresas.filter((e) => e.escritorioId === id).map((e) => e.id);
+          const d = await dadosDpParaAgenda(id, idsEmpresas);
+          if (d) {
+            const ano = Number(hoje.slice(0, 4));
+            for (const c of itensDoDp({ ...d, feriados: conjuntoFeriados([ano, ano + 1]) }, nomeEmpresa, hoje, cal)) {
+              itens.push({ empresa: c.empresa, obrigacao: c.obrigacao, competencia: c.competencia, vencimento: c.vencimento, responsavel: null, avisoDias: antecedenciaNoResumo(c.tipo) });
+            }
+          }
+        } catch (e) { console.error('[cron agenda] dp:', id, e instanceof Error ? e.message : e); }
 
         const resumo = montarResumo(itens, hoje, janela);
         const total = resumo.atrasadas.length + resumo.hoje.length + resumo.proximas.length;

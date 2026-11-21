@@ -36,6 +36,8 @@ const ROTAS_PONTO = [
   '/api/folha', '/api/folha-lote', '/api/funcionarios', '/api/feriados', '/api/revisao-ponto',
   // Contrato de experiência: departamento pessoal, da mesma contadora do ponto.
   '/contratos', '/api/contratos',
+  // Departamento Pessoal (cadastro do empregado, férias, 13º) — mesma contadora.
+  '/dp', '/api/dp',
 ];
 /** Rotas do módulo Livro Caixa. */
 const ROTAS_CAIXA = ['/caixa', '/api/caixa'];

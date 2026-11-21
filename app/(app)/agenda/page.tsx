@@ -80,6 +80,7 @@ export default function AgendaPage() {
   }, [obrigacoes, ag.feitas, ano, mes, hoje, cal, porId]);
 
   const contratosVisiveis = useMemo(() => ag.contratos.filter((c) => !empresa || c.empresaId === empresa), [ag.contratos, empresa]);
+  const dpVisiveis = useMemo(() => ag.dp.filter((c) => !empresa || c.empresaId === empresa), [ag.dp, empresa]);
   const conta = (s: Situacao) => atencao.filter((l) => l.situacao === s).length;
   const nomeEmp = (id: string) => ag.nomeEmpresa.get(id) ?? 'Empresa';
   const rotuloLinha = (l: Linha) => `${l.obrigacao.nome} ${rotuloCompetencia(l.competencia)} · ${nomeEmp(l.empresaId)}`;
@@ -169,6 +170,30 @@ export default function AgendaPage() {
               </table>
             </div>
             <p className="mt-3"><a href="/contratos" className={botaoCls({ variante: 'secundaria', tamanho: 'sm' })}>Abrir contratos</a></p>
+          </Secao>
+        )}
+
+        {!ag.carregando && dpVisiveis.length > 0 && (
+          <Secao titulo="Departamento pessoal"
+            descricao="Férias vencidas e vencendo, marcos das férias programadas e os prazos do 13º, tirados do cadastro dos empregados — nada para cadastrar aqui.">
+            <div className={tb.moldura}>
+              <table className={tb.tabela}>
+                <thead className={tb.cabeca}>
+                  <tr><th className={tb.th}>Prazo</th><th className={tb.th}>Empresa</th><th className={tb.th}>O que fazer</th><th className={tb.th}>Situação</th></tr>
+                </thead>
+                <tbody className={tb.corpo}>
+                  {dpVisiveis.map((c) => (
+                    <tr key={c.id} className={tb.linha}>
+                      <td className={cx(tb.td, 'whitespace-nowrap tabular-nums')}>{br(c.vencimento)}</td>
+                      <td className={tb.td}>{nomeEmp(c.empresaId)}</td>
+                      <td className={tb.td}>{c.obrigacao}</td>
+                      <td className={tb.td}><Selo tom={c.tipo === 'ferias_vencida' || c.dias < 0 ? 'perigo' : c.dias <= 7 ? 'aviso' : 'primaria'}>{c.tipo === 'ferias_vencida' ? 'Vencidas' : rotuloDias(c.dias)}</Selo></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3"><a href={empresa ? `/dp?empresa=${encodeURIComponent(empresa)}` : '/dp'} className={botaoCls({ variante: 'secundaria', tamanho: 'sm' })}>Abrir Departamento Pessoal</a></p>
           </Secao>
         )}
 
