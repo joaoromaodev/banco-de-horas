@@ -24,8 +24,8 @@ Migrações numeradas de antemão para não colidir: A `0011`, B `0012`, C `0013
 |---|---|---|---|
 | A. Cobrança: assinatura (gateway escolhido por consultor), webhook, conta somente leitura ao fim do teste | `cobranca` | Opus alto | ⏳ |
 | B. Folha de Ponto do Sheets para o Postgres, por escritório + chave Gemini da plataforma + cota de OCR por plano | `ponto-postgres` | Opus alto | ⏳ |
-| C. Catálogo do Livro Caixa por escritório (base global + extensões) | `catalogo-caixa` | Sonnet médio | ⏳ |
-| D. Modo escuro e polimento visual (tokens, contraste, telas novas) | `modo-escuro` | Sonnet médio | ✅ branch `claude/modo-escuro-cc7676` (tokens escuros AA, seletor claro/escuro/auto, telas e gráficos varridos; falta integrar) |
+| C. Catálogo do Livro Caixa por escritório (base global + extensões) | `catalogo-caixa` | Sonnet médio | ✅ branch `claude/catalogo-caixa-859f94` pronta; integra depois da 0011 e 0012 (ordem das migrações) |
+| D. Modo escuro e polimento visual (tokens, contraste, telas novas) | `modo-escuro` | Sonnet médio | ✅ branch `claude/modo-escuro-cc7676` (tokens escuros AA, seletor claro/escuro/auto, telas e gráficos varridos; integrada e publicada em 21/11/2026) |
 
 ## Sprint 3 — Portal do Cliente e Agenda
 
