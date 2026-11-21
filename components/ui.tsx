@@ -233,10 +233,10 @@ export function Campo({ rotulo, dica, erro, className, children }: {
 }
 
 /** Checkbox ou radio com o texto ao lado. */
-export function Marcacao({ children, className, ...resto }: React.InputHTMLAttributes<HTMLInputElement>) {
+export function Marcacao({ children, className, type = 'checkbox', ...resto }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className={cx('inline-flex items-center gap-2 text-sm text-tinta', className)}>
-      <input {...resto} />
+      <input type={type} {...resto} />
       <span>{children}</span>
     </label>
   );
@@ -501,7 +501,7 @@ export function Indicador({ rotulo, valor, tom = 'neutro', destaque = false }: {
  */
 export const tb = {
   /** Envelope com rolagem horizontal — a tabela rola, a página não. */
-  moldura: 'overflow-x-auto rounded-xl border border-borda bg-superficie shadow-cartao',
+  moldura: 'relative overflow-x-auto rounded-xl border border-borda bg-superficie shadow-cartao',
   tabela: 'w-full border-collapse text-sm',
   cabeca: 'bg-superficie-suave text-left text-[11px] uppercase tracking-wider text-tinta-suave',
   th: 'whitespace-nowrap border-b border-borda px-3 py-2.5 font-semibold',

@@ -455,7 +455,7 @@ export default function ContratosPage() {
 
             <Secao titulo="Horário de trabalho"
               acoes={<Botao tamanho="sm" variante="fantasma" onClick={copiarSegunda}>Copiar segunda para os dias úteis</Botao>}>
-              <div className="overflow-x-auto">
+              <div className="relative overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-[11px] uppercase tracking-wider text-tinta-suave">
                     <tr>
