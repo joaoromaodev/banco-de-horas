@@ -156,6 +156,13 @@ Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/d
 
 Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal; lint subiu de 32 para 45 avisos (`set-state-in-effect`) — limpar.
 
+## Sprint 15 — Medir por dentro e arrumar a casa (🔄 em andamento)
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Medição própria: tempo de páginas e rotas e erros, sem dado pessoal, resumo para o master | `claude/medicao` | 🔄 subagente |
+| B. Arrumar a casa: avisos do lint (45 → 0 onde der), consulta de envios em empresa arquivada | `claude/arrumar-casa` | 🔄 subagente |
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
