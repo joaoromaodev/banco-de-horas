@@ -109,12 +109,17 @@ teste (empregado, férias, agenda); conta apagada.
 | A. Conferência entre módulos (ativo sem admissão, ponto sem vínculo, contrato encerrado com ponto, desligado com ponto, FÉRIAS sem programação, férias com ponto) no painel e no DP; 409 claro ao gravar em empresa arquivada; jornada única (revisão, planilha e resumo usam `jornadaDoEmpregado`) | `claude/conferencia-modulos` | ✅ publicada, sem migração. Nos dados reais: aponta os 9 empregados sem admissão |
 | B. Simulação de rescisão (9 tipos; aviso proporcional com projeção; 13º e férias; experiência arts. 479/480; FGTS como estimativa sobre saldo informado; prazos do art. 477), memória de cálculo com fonte legal por linha e PDF marcado "SIMULAÇÃO"; valores brutos | `claude/simulacao-rescisao` | ✅ publicada, sem migração. Exemplo conferido com o `contador`: R$ 10.822,23. Três pontos sem consenso para a Edilse decidir (ver `docs/departamento-pessoal.md`) |
 
-## Sprint 10 — Ponto pelo cliente e agilidade (em andamento)
+## Sprint 10 — Ponto pelo cliente e agilidade (✅ concluída e publicada em 21/11/2026)
 
-| Frente | Sessão | Status |
+| Frente | Branch | Status |
 |---|---|---|
-| A. Folha de ponto enviada pelo cliente (foto pelo celular → IA → rascunho → contadora confere e aplica) | `ponto-cliente` (Opus) | ⏳ migração 0026 reservada |
-| B. Edição em lote e importação no DP, notificações no app (sino), `/ponto?empresa=` | `agilidade` (Sonnet) | ⏳ migração 0027 reservada |
+| A. Folha de ponto enviada pelo cliente (`/enviar-ponto`): foto pelo celular → bucket privado `ponto` → leitura pela IA em fila (cota do escritório) → rascunho → a contadora confere ao lado da foto e aplica (com desfazer) ou devolve com motivo; o cliente acompanha o status | `claude/ponto-cliente-c3e04b` | ✅ publicada; 0028 aplicada. Na integração: avisos no sino (folha recebida, lida, falhou), sem nome de funcionário |
+| B. Edição em lote e importação por planilha no DP (com desfazer); sino de notificações no app; `/ponto?empresa=&ano=&mes=` | `claude/agilidade-1dcfee` | ✅ publicada; 0027 aplicada |
+
+Produção: migrações 0000–0028 (0024–0026 não usadas); próximo número livre **0029**.
+Teste de ponta a ponta da folha pelo cliente com conta de teste: envio, foto no bucket,
+leitura ("lida"), fila da contadora, 2 avisos no sino, cliente barrado na empresa da
+Edilse e na Timesheet; conta, foto e dados apagados.
 
 ## Próximas frentes (backlog priorizado)
 
