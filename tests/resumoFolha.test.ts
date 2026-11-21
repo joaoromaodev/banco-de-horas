@@ -205,3 +205,14 @@ describe('mês, assinatura, CSV e ligação com o cadastro', () => {
     expect(performance.now() - t0).toBeLessThan(500);
   });
 });
+
+describe('regrasDoEmpregado com o cadastro do DP', () => {
+  const empresa = { utilMin: 480, sabadoMin: 240, trabalhaSabado: false };
+  it('acordo de banco do cadastro liga o banco mesmo sem a marcação da tela', () => {
+    expect(regrasDoEmpregado(undefined, empresa, 'ANA', undefined, true).temBanco).toBe(true);
+  });
+  it('sem acordo no cadastro, vale a marcação da tela', () => {
+    expect(regrasDoEmpregado(undefined, empresa, 'ANA', new Set(['ANA']), false).temBanco).toBe(true);
+    expect(regrasDoEmpregado(undefined, empresa, 'ANA', new Set(), false).temBanco).toBe(false);
+  });
+});

@@ -12,6 +12,8 @@ import { NextRequest } from 'next/server';
 import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
 import { ErroBancoPendente, lerFeriados, lerFrequenciasParaRevisao, lerFuncionarios } from '@/lib/pontoDb';
 import { lerJornadaEmpresa } from '@/lib/cadastro';
+import { listarEmpregados } from '@/lib/dpServidor';
+import { temBancoDeHoras } from '@/lib/dp';
 import { regrasDoEmpregado, resumirMes, resumoParaCsv, textoAssinatura, tituloPeriodo, type ResumoFolhaMes } from '@/lib/resumoFolha';
 import { gerarPlanilhaResumo } from '@/lib/planilha';
 import { assinar, lerConferencia, removerConferencia, salvarConferencia } from '@/lib/resumoFolhaDb';
@@ -34,12 +36,16 @@ function pct(v: string | null): number | undefined {
 }
 
 async function calcular(g: { escritorioId: string; empresa: { id: string } }, ano: number, mes: number, p: URLSearchParams): Promise<ResumoFolhaMes> {
-  const [freqs, feriadosArr, funcs, jornadaEmpresa] = await Promise.all([
+  const [freqs, feriadosArr, funcs, jornadaEmpresa, empregados] = await Promise.all([
     lerFrequenciasParaRevisao(g.escritorioId, g.empresa.id, ano, mes),
     lerFeriados(g.escritorioId),
     lerFuncionarios(g.escritorioId, g.empresa.id),
     lerJornadaEmpresa(g.empresa.id),
+    // Cadastro do DP (0021): acordo de banco de horas. Sem a tabela, segue sem ele.
+    listarEmpregados(g.escritorioId, [g.empresa.id]).catch(() => []),
   ]);
+  const fimDoMes = `${ano}-${String(mes).padStart(2, '0')}-28`;
+  const empregadoPorNome = new Map(empregados.map((e) => [e.nome, e]));
   const feriados = new Set(feriadosArr.map((f) => f.data));
   const porNome = new Map(funcs.map((f) => [f.nome, f]));
   const banco = new Set(p.getAll('banco'));
@@ -49,7 +55,8 @@ async function calcular(g: { escritorioId: string; empresa: { id: string } }, an
     funcionario: f.funcionario,
     dias: f.dias,
     anteriores: freqs.anteriores.get(f.funcionario),
-    regras: regrasDoEmpregado(porNome.get(f.funcionario), jornadaEmpresa, f.funcionario, banco),
+    regras: regrasDoEmpregado(porNome.get(f.funcionario), jornadaEmpresa, f.funcionario, banco,
+      temBancoDeHoras(empregadoPorNome.get(f.funcionario), fimDoMes)),
   })), {
     ano, mes, feriados,
     percentuais: { extraUtil: pct(p.get('extra')), extraDomFeriado: pct(p.get('dom')), adicionalNoturno: pct(p.get('noturno')) },

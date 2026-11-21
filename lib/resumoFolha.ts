@@ -52,6 +52,8 @@ export function regrasDoEmpregado(
   empresa: Jornada,
   nome: string,
   banco?: ReadonlySet<string>,
+  /** Acordo de banco de horas vindo do cadastro do DP (`temBancoDeHoras`). */
+  bancoDoCadastro?: boolean,
 ): RegrasEmpregado {
   return {
     jornada: {
@@ -59,7 +61,7 @@ export function regrasDoEmpregado(
       sabadoMin: cad?.jornadaSabadoMin ?? empresa.sabadoMin,
       trabalhaSabado: empresa.trabalhaSabado,
     },
-    temBanco: Boolean(banco?.has(nome)),
+    temBanco: Boolean(bancoDoCadastro) || Boolean(banco?.has(nome)),
   };
 }
 
