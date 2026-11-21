@@ -8,7 +8,7 @@ import { dataBR } from '@/lib/data';
 import LupaImagem from './LupaImagem';
 import { AbasPonto } from './AbasPonto';
 import { IconeBaixar } from './icones';
-import { Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
+import { Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 
@@ -40,6 +40,15 @@ function mesclar(ano: number, mes: number, dias: DiaFreq[]): DiaFreq[] {
   return base.map((d) => ({ ...d, ...(porDia.get(d.dia) ?? {}) }));
 }
 
+/** Situação da cota mensal de leituras por IA (ver lib/cotaOcr.ts). */
+interface CotaOcr {
+  permitido: boolean;
+  nivel: 'ok' | 'aviso' | 'esgotada' | 'suspensa';
+  usadas: number;
+  limite: number;
+  mensagem: string | null;
+}
+
 export default function Home() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [empresa, setEmpresa] = useState('');
@@ -56,6 +65,8 @@ export default function Home() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [funcList, setFuncList] = useState<Funcionario[]>([]);
   const [feriadosCad, setFeriadosCad] = useState<string[]>([]);
+  const [cota, setCota] = useState<CotaOcr | null>(null);
+  const [bancoPendente, setBancoPendente] = useState(false);
 
   // Carrega cadastros (funciona mesmo se a planilha não estiver configurada).
   useEffect(() => {
@@ -65,17 +76,20 @@ export default function Home() {
         if (d.empresas.length) setEmpresa((prev) => prev || d.empresas[0].id);
       }
     }).catch(() => {});
-    fetch('/api/feriados').then((r) => r.json()).then((d) => {
-      if (Array.isArray(d.feriados)) setFeriadosCad(d.feriados.map((f: { data: string }) => f.data));
-    }).catch(() => {});
   }, []);
 
-  // Funcionários da empresa selecionada.
+  // Funcionários, feriados (do escritório da empresa) e cota de leituras por IA.
   useEffect(() => {
-    if (!empresa) { setFuncList([]); return; }
-    fetch(`/api/funcionarios?empresa=${encodeURIComponent(empresa)}`).then((r) => r.json()).then((d) => {
+    if (!empresa) { setFuncList([]); setFeriadosCad([]); setCota(null); return; }
+    const q = `empresa=${encodeURIComponent(empresa)}`;
+    fetch(`/api/funcionarios?${q}`).then((r) => r.json()).then((d) => {
+      setBancoPendente(Boolean(d.aguardandoBanco));
       if (Array.isArray(d.funcionarios)) setFuncList(d.funcionarios);
     }).catch(() => {});
+    fetch(`/api/feriados?${q}`).then((r) => r.json()).then((d) => {
+      if (Array.isArray(d.feriados)) setFeriadosCad(d.feriados.map((f: { data: string }) => f.data));
+    }).catch(() => {});
+    fetch(`/api/extrair?${q}`).then((r) => r.json()).then((d) => setCota(d.cota ?? null)).catch(() => {});
   }, [empresa]);
 
   const empresaSel = useMemo(() => empresas.find((e) => e.id === empresa), [empresas, empresa]);
@@ -125,7 +139,9 @@ export default function Home() {
       if (funcionario) fd.append('funcionario', funcionario);
       const res = await fetch('/api/extrair', { method: 'POST', body: fd });
       const data = await res.json();
+      if (data.cota) setCota(data.cota);
       if (!res.ok) throw new Error(data.erro ?? 'Falha na leitura.');
+      if (data.cota?.nivel === 'aviso' && data.cota.mensagem) setAviso(data.cota.mensagem);
       if (data.frequencia?.funcionario && !funcionario) setFuncionario(data.frequencia.funcionario);
       setDias(mesclar(ano, mes, data.frequencia.dias ?? []));
       setIncertos(new Set((data.incertos ?? []).map((c: { dia: number; campo: string }) => `${c.dia}:${c.campo}`)));
@@ -212,7 +228,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.erro ?? 'Falha ao salvar.');
-      setAviso(`Salvo no Google Sheets: ${data.dias} dia(s) de ${funcionario} (${MESES[mes]}/${ano}).`);
+      setAviso(`Salvo: ${data.dias} dia(s) de ${funcionario} (${MESES[mes]}/${ano}).`);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -262,6 +278,12 @@ export default function Home() {
       </Toasts>
 
       <Conteudo>
+        {bancoPendente && (
+          <Aviso tom="aviso" titulo="Aguardando o banco de dados">
+            A Folha de Ponto está mudando de casa. Enquanto a atualização não termina, não dá para salvar nem ler
+            folhas; tente de novo em alguns minutos.
+          </Aviso>
+        )}
         <Secao titulo="Folha do mês" descricao="Escolha a empresa, o funcionário e o mês; depois envie a foto da folha manuscrita ou preencha à mão.">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Selecao rotulo="Empresa" classeCampo="md:col-span-2" valor={empresa} placeholder="— cadastre uma empresa —"
@@ -286,6 +308,13 @@ export default function Home() {
             </Botao>
             <Botao onClick={preencherManual}>Preencher manualmente</Botao>
           </div>
+          {cota && (
+            <p className={`mt-3 text-[13px] ${cota.nivel === 'ok' ? 'text-tinta-suave' : 'font-medium text-tinta'}`} role="status">
+              {cota.permitido
+                ? `Leituras por IA neste mês: ${cota.usadas.toLocaleString('pt-BR')} de ${cota.limite.toLocaleString('pt-BR')}.`
+                : cota.mensagem}
+            </p>
+          )}
         </Secao>
 
         <Cartao className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3.5 sm:px-5">

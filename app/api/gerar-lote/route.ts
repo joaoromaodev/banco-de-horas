@@ -1,10 +1,11 @@
-// GET /api/gerar-lote?ano=&mes= — gera 1 .xlsx por funcionário do mês (dados do
-// Sheets) e devolve tudo num .zip.
+// GET /api/gerar-lote?empresa=&ano=&mes= — gera 1 .xlsx por funcionário do mês
+// (frequências salvas) e devolve tudo num .zip.
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
-import { exigirGestor, podeAcessarEmpresa } from '@/lib/acesso';
+import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
 import { gerarPlanilha } from '@/lib/planilha';
-import { lerFrequenciasDoMes, lerFeriados, lerFuncionarios, lerJornadaEmpresa, lerEmpresa } from '@/lib/sheets';
+import { lerFeriados, lerFrequenciasDoMes, lerFuncionarios } from '@/lib/pontoDb';
+import { lerJornadaEmpresa } from '@/lib/cadastro';
 import { MESES } from '@/lib/calendario';
 
 export const runtime = 'nodejs';
@@ -15,29 +16,24 @@ function slug(s: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const g = await exigirGestor(req);
-  if (!g.ok) return g.resposta;
   const { searchParams } = new URL(req.url);
-  const empresa = (searchParams.get('empresa') || '').trim();
+  const g = await exigirEmpresaPonto(req, searchParams.get('empresa'));
+  if (!g.ok) return g.resposta;
   const ano = Number(searchParams.get('ano'));
   const mes = Number(searchParams.get('mes'));
-  if (!empresa) {
-    return Response.json({ erro: 'Informe a empresa.' }, { status: 400 });
-  }
-  if (!(await podeAcessarEmpresa(g.sessao, empresa))) return Response.json({ erro: 'Acesso restrito a esta empresa.' }, { status: 403 });
   if (!ano || !mes || mes < 1 || mes > 12) {
     return Response.json({ erro: 'Parâmetros ano/mes inválidos.' }, { status: 400 });
   }
+  const empresa = g.empresa.id;
+  const nomeEmpresa = g.empresa.nome;
 
   try {
-    const [freqs, feriadosArr, funcs, jornadaEmpresa, emp] = await Promise.all([
-      lerFrequenciasDoMes(empresa, ano, mes),
-      lerFeriados(),
-      lerFuncionarios(empresa),
+    const [freqs, feriadosArr, funcs, jornadaEmpresa] = await Promise.all([
+      lerFrequenciasDoMes(g.escritorioId, empresa, ano, mes),
+      lerFeriados(g.escritorioId),
+      lerFuncionarios(g.escritorioId, empresa),
       lerJornadaEmpresa(empresa),
-      lerEmpresa(empresa),
     ]);
-    const nomeEmpresa = emp?.nome ?? '';
     if (!freqs.length) {
       return Response.json({ erro: `Nenhuma frequência salva para ${nomeEmpresa || 'a empresa'} em ${MESES[mes]}/${ano}.` }, { status: 404 });
     }
@@ -68,6 +64,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao gerar lote.' }, { status: 502 });
+    return respostaErroPonto(e, 'Falha ao gerar o lote.');
   }
 }

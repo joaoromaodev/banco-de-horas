@@ -99,8 +99,8 @@ código **novo** depende dela. Por isso a ordem importa.
   cria conta/analítica "nova" a põe no catálogo que a Edilce também vê. Não vaza
   dado de empresa, mas polui. Próximo passo: catálogo base + extensões por
   escritório.
-- **Feriados globais** até a Folha de Ponto ir para o Postgres (Sprint 2).
-- **Chave do Gemini** ainda é da instalação (Configurações do master).
+- ~~Feriados globais~~ — por escritório desde a Sprint 2 (`docs/folha-de-ponto.md`).
+- ~~Chave do Gemini da instalação~~ — da plataforma (`GEMINI_API_KEY`) desde a Sprint 2.
 - **Rate-limit por instância** (memória). Se o cadastro virar alvo, mover para
   o Postgres.
 - O aviso de teste ainda não tem link para `/planos` (página da Frente B) — pôr

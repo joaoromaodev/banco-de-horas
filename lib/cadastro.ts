@@ -1,9 +1,7 @@
 // Cadastro — empresas e usuários — no Supabase (Postgres).
 //
-// Migrado do Google Sheets (Fase 6). Estes dados vivem agora no mesmo banco do
-// Livro Caixa; funcionários, feriados e config (Folha de Ponto) seguem no Sheets.
-// As assinaturas e tipos são idênticos aos de antes — `lib/sheets.ts` reexporta
-// estas funções, então os call sites (login, acesso, rotas, ponto) não mudam.
+// Migrado do Google Sheets (Fase 6). Estes dados vivem no mesmo banco do Livro
+// Caixa; a Folha de Ponto veio para o Postgres na Sprint 2 (lib/pontoDb.ts).
 //
 // Autorização não é por RLS: as rotas usam a secret key (ignora RLS) e aplicam a
 // checagem em lib/acesso.ts, igual ao resto do módulo caixa. Empresas e usuários
@@ -16,8 +14,8 @@ import { Papel, Modulo, MODULOS } from './auth';
 import { Jornada, JORNADA_PADRAO } from './calendario';
 import { ESCRITORIO_FUNDADOR_ID } from './escritorios';
 
-// Id/empresa das linhas legadas (antes do multiempresa). Mantidos para a
-// resolução de vínculos antigos em lib/sheets.ts (funcionários/frequências).
+// Id/empresa das linhas legadas (antes do multiempresa). A importação do ponto
+// (lib/pontoImportacao.ts) resolve esse vínculo antigo para a empresa atual.
 export const EMPRESA_PADRAO = 'VAZ E VOUZELA';
 export const EMPRESA_PADRAO_ID = 'empresa-vaz-e-vouzela';
 

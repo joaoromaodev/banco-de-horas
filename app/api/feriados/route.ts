@@ -1,38 +1,53 @@
-// GET/POST /api/feriados — lista e salva o cadastro de feriados.
+// GET/POST /api/feriados?empresa=<id> — feriados do ESCRITÓRIO (Postgres, 0012).
 //
-// A lista ainda é GLOBAL (aba do Google Sheets, a de Belém, da Edilce) — sai para
-// o Postgres por escritório na Sprint 2. Até lá, ler é livre para a
-// contabilidade, mas gravar fica com o master e o escritório fundador: um
-// escritório novo não pode reescrever o calendário da Edilce.
+// Cada escritório tem a sua lista (antes era uma só, global, na planilha). O
+// escritório vem da empresa informada; sem empresa, do contador logado. O master
+// não tem escritório: precisa informar a empresa.
 import { NextRequest } from 'next/server';
 import { exigirGestor } from '@/lib/acesso';
-import { ESCRITORIO_FUNDADOR_ID } from '@/lib/escritorios';
-import { lerFeriados, salvarFeriados, Feriado } from '@/lib/sheets';
+import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
+import { lerFeriados, salvarFeriados, Feriado } from '@/lib/pontoDb';
 
 export const runtime = 'nodejs';
 
-export async function GET(req: NextRequest) {
+type Alvo = { ok: true; escritorioId: string } | { ok: false; resposta: Response };
+
+async function escritorioAlvo(req: NextRequest, empresa: string | null | undefined): Promise<Alvo> {
+  if (empresa) {
+    const g = await exigirEmpresaPonto(req, empresa);
+    return g.ok ? { ok: true, escritorioId: g.escritorioId } : g;
+  }
   const g = await exigirGestor(req);
-  if (!g.ok) return g.resposta;
+  if (!g.ok) return g;
+  if (!g.sessao.escritorioId) {
+    return { ok: false, resposta: Response.json({ erro: 'Escolha a empresa para ver os feriados do escritório dela.' }, { status: 400 }) };
+  }
+  return { ok: true, escritorioId: g.sessao.escritorioId };
+}
+
+export async function GET(req: NextRequest) {
+  const alvo = await escritorioAlvo(req, new URL(req.url).searchParams.get('empresa'));
+  if (!alvo.ok) return alvo.resposta;
   try {
-    return Response.json({ feriados: await lerFeriados() });
+    return Response.json({ feriados: await lerFeriados(alvo.escritorioId) });
   } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao ler.' }, { status: 502 });
+    return respostaErroPonto(e, 'Falha ao ler os feriados.');
   }
 }
 
 export async function POST(req: NextRequest) {
-  const g = await exigirGestor(req);
-  if (!g.ok) return g.resposta;
-  if (g.sessao.role !== 'master' && g.sessao.escritorioId !== ESCRITORIO_FUNDADOR_ID) {
-    return Response.json({ erro: 'Os feriados ainda são compartilhados e só o administrador da plataforma os altera.' }, { status: 403 });
-  }
+  let body: { empresa?: string; feriados?: Feriado[] };
   try {
-    const body = await req.json();
-    const lista: Feriado[] = body.feriados ?? [];
-    const n = await salvarFeriados(lista);
+    body = await req.json();
+  } catch {
+    return Response.json({ erro: 'JSON inválido.' }, { status: 400 });
+  }
+  const alvo = await escritorioAlvo(req, body?.empresa);
+  if (!alvo.ok) return alvo.resposta;
+  try {
+    const n = await salvarFeriados(alvo.escritorioId, Array.isArray(body.feriados) ? body.feriados : []);
     return Response.json({ ok: true, total: n });
   } catch (e) {
-    return Response.json({ erro: e instanceof Error ? e.message : 'Falha ao salvar.' }, { status: 502 });
+    return respostaErroPonto(e, 'Falha ao salvar os feriados.');
   }
 }

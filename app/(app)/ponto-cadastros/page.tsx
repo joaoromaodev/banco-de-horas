@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Empresa, Funcionario } from '@/lib/tipos';
 import { IconeExcluir, IconeMais } from '../icones';
-import { Alternador, Botao, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Secao, tb } from '@/components/ui';
+import { Alternador, Aviso, Botao, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Secao, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { AbasPonto } from '../AbasPonto';
@@ -23,6 +23,7 @@ export default function PontoCadastros() {
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [bancoPendente, setBancoPendente] = useState(false);
 
   async function carregarEmpresas() {
     setErro(null);
@@ -41,22 +42,27 @@ export default function PontoCadastros() {
     try {
       const r = await fetch(`/api/funcionarios?empresa=${encodeURIComponent(empresa)}`);
       const d = await r.json();
+      setBancoPendente(Boolean(d.aguardandoBanco));
+      if (d.aguardandoBanco) { setFuncs([]); return; }
       if (!r.ok) throw new Error(d.erro);
       setFuncs(d.funcionarios ?? []);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
-  async function carregarFeriados() {
+  // Feriados são do escritório dono da empresa selecionada.
+  async function carregarFeriados(empresa: string) {
+    if (!empresa) { setFeriados([]); return; }
     try {
-      const r = await fetch('/api/feriados');
+      const r = await fetch(`/api/feriados?empresa=${encodeURIComponent(empresa)}`);
       const d = await r.json();
+      if (d.aguardandoBanco) { setFeriados([]); return; }
       if (!r.ok) throw new Error(d.erro);
       setFeriados(d.feriados ?? []);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
-  useEffect(() => { carregarEmpresas(); carregarFeriados(); }, []);
-  useEffect(() => { carregarFuncs(empresaSel); }, [empresaSel]);
+  useEffect(() => { carregarEmpresas(); }, []);
+  useEffect(() => { carregarFuncs(empresaSel); carregarFeriados(empresaSel); }, [empresaSel]);
 
   async function salvarEmpresas() {
     setMsg(null); setErro(null);
@@ -82,16 +88,17 @@ export default function PontoCadastros() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.erro);
-      setMsg(`${d.total} funcionário(s) salvos em ${empresaSel}.`);
+      setMsg(`${d.total} funcionário(s) salvos em ${empresas.find((e) => e.id === empresaSel)?.nome ?? 'a empresa'}.`);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
   async function salvarFeriados() {
     setMsg(null); setErro(null);
+    if (!empresaSel) { setErro('Selecione uma empresa primeiro.'); return; }
     try {
       const res = await fetch('/api/feriados', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feriados }),
+        body: JSON.stringify({ empresa: empresaSel, feriados }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.erro);
@@ -128,6 +135,12 @@ export default function PontoCadastros() {
       </Toasts>
 
       <Conteudo largura="media">
+        {bancoPendente && (
+          <Aviso tom="aviso" titulo="Aguardando o banco de dados">
+            Os funcionários e feriados estão mudando de casa. Enquanto a atualização não termina, eles não
+            aparecem aqui; tente de novo em alguns minutos.
+          </Aviso>
+        )}
         {/* Jornada por empresa */}
         <Secao titulo="Jornada das empresas"
           descricao="Marque se a empresa trabalha aos sábados e defina a jornada padrão (em minutos). O funcionário pode sobrescrever a jornada individualmente abaixo.">
@@ -218,9 +231,9 @@ export default function PontoCadastros() {
           </div>
         </Secao>
 
-        {/* Feriados — globais */}
+        {/* Feriados — do escritório */}
         <Secao titulo="Feriados"
-          descricao="Valem para todas as empresas (usados na coluna “a cumprir” e na validação).">
+          descricao="Valem para todas as empresas do escritório (usados na coluna “a cumprir” e na validação).">
           <div className={`${tb.moldura} shadow-none`}>
             <table className={tb.tabela}>
               <thead className={tb.cabeca}>
