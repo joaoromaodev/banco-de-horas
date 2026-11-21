@@ -44,3 +44,10 @@ cobrança, designer) — não com o João. Ao João só vai o que é fato que s�
    numerar (já houve colisão).
 6. Toda tela segue o design system; excluir sempre com confirmação **e** desfazer.
 7. Ao fim, atualizar `docs/empresa/roadmap.md` e o doc do módulo.
+8. **Ciclo de vida das sessões (o dono é o gestor):** abrir com brief fechado e
+   migração reservada → a frente termina com commit e `git push origin HEAD` →
+   o dono revisa, integra numa branch `integracao/<sprint>`, aplica migração com
+   backup, publica e testa → **arquiva a sessão** e remove a worktree dela →
+   apaga as branches `integracao/*` já incorporadas ao `main`. Ficam só as
+   branches `claude/*` no GitHub, como histórico. Ninguém precisa pedir: é rotina
+   do fim de cada integração.
