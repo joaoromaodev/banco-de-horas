@@ -217,4 +217,15 @@ describe('isolamento nas rotas do envio (guardas reais)', () => {
     expect(envios.get(id)).toMatchObject({ situacao: 'lida', excluidoEm: null });
     expect(aplicadas).toHaveLength(0);
   });
+
+  it('empresa arquivada: a contabilidade CONSULTA a fila de envios e a foto (só leitura)', async () => {
+    const id = envioSemeado('emp-arq');
+    const r = await listar('contadorA', 'emp-arq');
+    expect(r.status).toBe(200);
+    expect((await r.json()).envios.map((e: { id: string }) => e.id)).toEqual([id]);
+    expect((await foto.GET(await pedido('contadorA', `/api/envio-ponto/foto?id=${id}`))).status).toBe(302);
+    // Outro escritório continua sem enxergar.
+    expect((await listar('contadorB', 'emp-arq')).status).toBe(403);
+    expect(envios.get(id)).toMatchObject({ situacao: 'lida', excluidoEm: null });
+  });
 });

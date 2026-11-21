@@ -54,6 +54,7 @@ export default function LupaImagem({
       onMouseMove={onMove}
       onMouseLeave={() => setAtivo(false)}
     >
+      {/* eslint-disable-next-line @next/next/no-img-element -- foto local (blob:/URL assinada) medida pelo ref para a lupa; next/image não otimiza blob nem expõe o <img> do mesmo jeito */}
       <img
         ref={imgRef}
         src={src}

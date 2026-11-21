@@ -76,6 +76,7 @@ export default function CaixaCadastros() {
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { carregarFiscal(empresaSel); }, [empresaSel]);
 
   async function salvarFiscal() {

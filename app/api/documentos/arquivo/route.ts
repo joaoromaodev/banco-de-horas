@@ -4,7 +4,7 @@
 // 60 s (com `download` = nome original, que força anexo) e redireciona. A URL
 // não fica em lugar nenhum da tela; cada clique gera outra.
 import { NextRequest } from 'next/server';
-import { exigirSessao } from '@/lib/acesso';
+import { exigirSessao, respostaNegadaEmpresa } from '@/lib/acesso';
 import { podeVerRegistro } from '@/lib/documentos';
 import { lerDocumento, urlDownload } from '@/lib/documentosServidor';
 import { falha, naoEncontrado } from '../comum';
@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
   try {
     const d = await lerDocumento(req.nextUrl.searchParams.get('id') ?? '');
     if (!d || d.excluidoEm || (d.status !== 'recebido' && d.status !== 'conferido') || !podeVerRegistro(g.sessao, d)) return naoEncontrado('Documento');
+    // Mesma regra das outras rotas (lib/acesso.ts): a contabilidade baixa de empresa
+    // arquivada (consulta); o cliente de empresa arquivada não (403).
+    { const r = await respostaNegadaEmpresa(g.sessao, d.empresaId); if (r) return r; }
     const url = await urlDownload(d);
     return new Response(null, {
       status: 302,

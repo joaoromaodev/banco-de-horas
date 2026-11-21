@@ -71,6 +71,7 @@ export function CompletarCadastro({ empresaId, empresaNome, somenteLeitura, hoje
       setLinhas((x.empregados as Linha[]).filter((e) => e.situacao !== 'desligado').sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha ao carregar.'); setLinhas([]); }
   }, [empresaId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; o estado só muda quando a resposta chega
   useEffect(() => { carregar(); }, [carregar]);
 
   const planos = useMemo(() => {

@@ -61,7 +61,9 @@ export default function PontoCadastros() {
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- carga da API só na montagem; zerar o erro antes do fetch é intencional
   useEffect(() => { carregarEmpresas(); }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { carregarFuncs(empresaSel); carregarFeriados(empresaSel); }, [empresaSel]);
 
   async function salvarEmpresas() {

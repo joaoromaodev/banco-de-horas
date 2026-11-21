@@ -105,6 +105,7 @@ export function FolhasEnviadas({ empresa, ano, mes, envioAberto, versao, onAbrir
   }, [empresa]);
 
   // A tela remonta este componente ao trocar de empresa (key), então a lista começa vazia.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; o estado só muda quando a resposta chega
   useEffect(() => { consultas.current = 0; carregar(); }, [carregar, versao]);
 
   // Enquanto a IA lê, atualiza de tempos em tempos (no máximo ~5 min por abertura).

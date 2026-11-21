@@ -1,6 +1,6 @@
 # Testes e CI
 
-Última atualização: **21/11/2026** (Sprint 14, Frente B — testes de guarda e de rota).
+Última atualização: **21/11/2026** (Sprint 15, Frente B — arrumar a casa: lint e arquivada no portal).
 
 Rede de segurança das regras puras de `lib/` e, desde a Sprint 14, das **guardas
 das rotas de API**, do **proxy do cliente** e dos **fluxos críticos** pelas rotas.
@@ -147,12 +147,45 @@ Os itens 1–5 estão como `it.todo` em `tests/auth.test.ts` e `tests/caixa.test
 - **Nenhuma API da contabilidade alcançável pelo cliente.** Sob os prefixos do
   cliente, as rotas sem tela do cliente (`/api/caixa/de-para`, `/api/caixa/seed`)
   exigem gestor/master; `/api/envio-ponto/foto` é compartilhada por decisão.
-- **Observação (não é vazamento):** a contabilidade recebe 403 ao **listar** os
-  envios de ponto de uma empresa arquivada (`GET /api/envio-ponto?empresa=`):
-  `escritorioDaEmpresa` (lib/pontoAcesso.ts) usa `lerEmpresa`, que esconde
-  arquivadas. As outras rotas deixam a arquivada ser consultada. Decidir se a fila
-  de envios entra no "arquivada só consulta".
+- ~~Observação: a contabilidade recebe 403 ao listar os envios de ponto de uma
+  empresa arquivada.~~ **Resolvido na Sprint 15 (frente B)** — ver abaixo.
+
+## Sprint 15, frente B — "Arrumar a casa"
+
+**Empresa arquivada nos envios de ponto e no portal.** O 403 da Sprint 14 era do
+**teste**, não da produção: o `cadastroFalso` de `tests/rotaTeste.ts` escondia as
+arquivadas também em `lerEmpresa(id)`, enquanto o `lerEmpresa` real (lib/cadastro.ts)
+as inclui desde a consulta de arquivadas. Em produção, `guardaEmpresa` →
+`exigirEmpresa` → `motivoNegado` já lê o cadastro com as arquivadas. O fake agora
+segue a produção (listas sem arquivadas; `lerEmpresa` com elas). Achado real de
+verdade: `GET /api/documentos/arquivo` não passava por `respostaNegadaEmpresa`, então
+o **cliente de empresa arquivada** (com cookie ainda válido) baixava documento —
+corrigido; a contabilidade segue baixando (consulta).
+
+| Teste | Garante |
+|---|---|
+| `envioPontoFluxoRotas.test.ts` (caso novo) | contabilidade lista a fila de envios e abre a foto da arquivada (200/302); outro escritório 403; nada muda |
+| `documentosArquivadaRotas.test.ts` (novo) | Documentos e Pendências com guardas reais: contabilidade lista e baixa a arquivada; criar pendência, enviar, conferir, fechar e excluir dão **409** com a mensagem de reativar e nada é gravado; cliente da arquivada **403** (lista, pendências, download, envio); outro escritório 403/404 sem saber que ela está arquivada |
+
+**Lint: de 45 avisos para 2.** Corrigidos de verdade: `BotaoTema` (components/tema.tsx)
+lê a preferência com `useSyncExternalStore` (servidor = automático; o evento `storage`
+e o próprio clique avisam); o "desfazer exclusão" do caixa some ao trocar
+empresa/mês/ano por **ajuste durante a renderização**, sem efeito; a lista de
+funcionários de `/folhas` é zerada no `onChange` da empresa; variáveis sem uso
+(`contratos`, teste do pedido na visita). Os demais ficaram com
+`// eslint-disable-next-line <regra> -- motivo`, em três motivos só:
+
+- **carga da API** (o efeito busca ao montar ou ao trocar o filtro; zerar
+  erro/espera antes do fetch é o que mantém `FalhaCarregamento` e "Tentar de novo"
+  como estão) — trocar por outro padrão de carga é refatoração de tela, não de lint;
+- **localStorage/URL após hidratar** (ano, empresa, formato, menu recolhido, lidas do
+  sino): no `useState` inicial o HTML do servidor divergiria do navegador;
+- **relógio** (`/inicio`, saudação pela hora de Belém), pelo mesmo motivo.
+
+Ficaram **2 avisos** em `app/(app)/configuracoes/page.tsx` (carga da API), de
+propósito: outra frente da Sprint 15 está mexendo nessa tela. Quem fechar a frente
+dela põe o mesmo comentário de "carga da API".
 
 ## Lint
 
-`eslint.config.mjs` (do main) ignora `.claude/**` e rebaixa `react-hooks/set-state-in-effect` a aviso (telas antigas carregam dados em efeito). O lint é bloqueante no CI.
+`eslint.config.mjs` (do main) ignora `.claude/**` e rebaixa `react-hooks/set-state-in-effect` a aviso (telas antigas carregam dados em efeito). O lint é bloqueante no CI. Aviso novo precisa de correção ou de `eslint-disable-next-line <regra> -- motivo` (ver Sprint 15 acima).

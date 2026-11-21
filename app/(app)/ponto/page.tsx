@@ -120,6 +120,7 @@ export default function Home() {
   // `?ano=&mes=` da URL (só na montagem); depois a URL acompanha a escolha.
   useEffect(() => {
     const { ano: a, mes: m } = anoMesDaUrl(window.location.search);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     if (a) setAno(a);
     if (m) setMes(m);
   }, []);
@@ -149,10 +150,12 @@ export default function Home() {
       }
     }).catch((e) => setFalhaEmpresas(mensagemDeCarga(e)));
   }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
   useEffect(() => { carregarEmpresas(); }, [carregarEmpresas]);
 
   // Funcionários, feriados (do escritório da empresa) e cota de leituras por IA.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     if (!empresa) { setFuncList([]); setFeriadosCad([]); setCota(null); return; }
     const q = `empresa=${encodeURIComponent(empresa)}`;
     setFalhaCadastros(null);

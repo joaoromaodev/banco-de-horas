@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AlertaConsolidado, avisos, br, ContratoSalvo, DadosContrato, dadosVazios, Dia, DIAS, diasEntre, Documento,
-  formatarValor, horarioPadrao, HorarioDia, hojeBelem, lerValor, minutosSemana, reaisExtenso,
+  formatarValor, horarioPadrao, HorarioDia, lerValor, minutosSemana, reaisExtenso,
   retornoSugerido, Situacao, Trajeto, validar, vencimento1, vencimento2,
 } from '@/lib/contratos';
 import { DialogoConfirmacao } from '../Dialogo';
@@ -159,6 +159,7 @@ export default function ContratosPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
     try { if (localStorage.getItem('contratos.formato') === 'pdf') setFormato('pdf'); } catch {}
     carregarEmpresas();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
@@ -307,7 +308,6 @@ export default function ContratosPage() {
   }
 
   // ------------------------------------------------------------------ derivados
-  const hoje = hojeBelem();
   const v1 = d.admissao ? vencimento1(d) : '';
   const v2 = d.admissao ? vencimento2(d) : null;
   const sem = minutosSemana(d.horario);

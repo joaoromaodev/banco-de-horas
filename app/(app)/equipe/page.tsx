@@ -58,6 +58,7 @@ export default function Equipe() {
       setMe(d);
       setNovo(novoVazio(d.modulos.includes('caixa') ? ['caixa'] : d.modulos));
     }).catch(() => {}); // lerMe nunca rejeita
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API; zerar erro/espera/dados antigos antes do fetch é intencional
     carregarInicial();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
   }, []);

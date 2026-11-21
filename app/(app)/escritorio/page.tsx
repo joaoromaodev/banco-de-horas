@@ -68,7 +68,7 @@ export default function EscritorioPage() {
     }).catch((err) => setErro(err instanceof TypeError ? MENSAGEM_SEM_REDE : err instanceof Error && err.message ? err.message : 'Não foi possível carregar.'))
       .finally(() => setCarregando(false));
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect -- carga da API só na montagem; zerar erro/espera antes do fetch é intencional
   useEffect(() => { carregar(); }, []);
 
   const erros = useMemo(() => {
