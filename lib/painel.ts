@@ -38,6 +38,19 @@ export interface Bloco {
   itens: ItemPainel[];
   /** A lista foi cortada pelo teto da consulta: o número é "pelo menos". */
   truncado?: boolean;
+  /** Blocos agrupados por empresa (caixa, documentos): quantas empresas ficaram
+   *  fora da lista. Nos demais, o que falta mostrar é `total - itens.length`. */
+  empresasOcultas?: number;
+}
+
+/** Texto do "e mais…" no rodapé do bloco; vazio quando nada ficou de fora. */
+export function textoRestante(b: Bloco): string {
+  if (b.empresasOcultas != null) {
+    const n = b.empresasOcultas;
+    return n > 0 ? `e mais ${n} ${n === 1 ? 'empresa' : 'empresas'}` : '';
+  }
+  const n = b.total - b.itens.length;
+  return n > 0 ? `e mais ${n}${b.truncado ? ' ou mais' : ''}` : '';
 }
 
 export const LIMITE_ITENS = 5;
@@ -138,7 +151,7 @@ export function blocoDocumentos(
     .sort((a, b) => b.dias - a.dias || b.n - a.n || porNome(nomes.get(a.empresaId)!, nomes.get(b.empresaId)!));
   const total = itens.reduce((s, g) => s + g.n, 0);
   return {
-    ...blocoVazio('documentos'), total, conferir: total,
+    ...blocoVazio('documentos'), total, conferir: total, empresasOcultas: Math.max(0, itens.length - limite),
     itens: itens.slice(0, limite).map((g) => ({
       id: g.empresaId,
       titulo: g.n === 1 ? '1 documento' : `${g.n} documentos`,
@@ -208,7 +221,7 @@ export function blocoCaixa(
     .sort((a, b) => b.n - a.n || porNome(nomes.get(a.empresaId)!, nomes.get(b.empresaId)!));
   const total = itens.reduce((s, g) => s + g.n, 0);
   return {
-    ...blocoVazio('caixa'), total, conferir: total,
+    ...blocoVazio('caixa'), total, conferir: total, empresasOcultas: Math.max(0, itens.length - limite),
     itens: itens.slice(0, limite).map((g) => ({
       id: g.empresaId, titulo: g.n === 1 ? '1 lançamento' : `${g.n} lançamentos`,
       empresa: nomes.get(g.empresaId)!, quando: g.ultimo.slice(0, 10), rotuloPrazo: 'aguardando conferência', tom: 'neutro',

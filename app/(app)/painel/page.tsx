@@ -6,7 +6,7 @@
 // indisponível. Ver docs/painel.md.
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { fraseResumo, Bloco, ItemPainel, ResumoPainel } from '@/lib/painel';
+import { fraseResumo, textoRestante, Bloco, ItemPainel, ResumoPainel } from '@/lib/painel';
 import { br } from '@/lib/agenda';
 import {
   Aviso, Botao, botaoCls, CabecalhoPagina, Carregando, Conteudo, cx, EstadoVazio, Indicador, Secao, Selo, Tom,
@@ -53,7 +53,6 @@ function Itens({ bloco }: { bloco: Bloco }) {
 
 function CartaoBloco({ bloco }: { bloco: Bloco }) {
   const indisponivel = bloco.estado !== 'ok';
-  const restante = bloco.total - bloco.itens.length;
   const contagem = bloco.chave === 'documentos' || bloco.chave === 'caixa' ? bloco.conferir : bloco.total;
   return (
     <Secao titulo={bloco.titulo}
@@ -83,7 +82,7 @@ function CartaoBloco({ bloco }: { bloco: Bloco }) {
           <Itens bloco={bloco} />
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[13px] text-tinta-suave">
-              {restante > 0 ? `e mais ${restante}${bloco.truncado ? ' ou mais' : ''}` : ''}
+              {textoRestante(bloco)}
             </span>
             <Link href={bloco.href} className={botaoCls({ variante: 'secundaria', tamanho: 'sm' })}>Abrir tela</Link>
           </div>

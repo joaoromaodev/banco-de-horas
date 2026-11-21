@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Obrigacao } from '@/lib/agenda';
 import {
   blocoAgenda, blocoCaixa, blocoContratos, blocoDocumentos, blocoPendencias, blocoVazio, ehTabelaAusente,
-  fraseResumo, isolar, ordenarBlocos, resumir, rotuloDias,
+  fraseResumo, isolar, ordenarBlocos, resumir, rotuloDias, textoRestante,
 } from '@/lib/painel';
 
 const HOJE = '2026-11-23'; // segunda
@@ -113,6 +113,13 @@ describe('blocoCaixa', () => {
     expect(b.total).toBe(3);
     expect(b.itens[0].empresa).toBe('NÉLIO');
     expect(b.itens[0].quando).toBe('2026-11-05');
+  });
+
+  it('"e mais" conta empresas fora da lista, não lançamentos', () => {
+    const tres = [{ empresaId: 'e2', criadoEm: '2026-11-02T00:00:00Z' }, { empresaId: 'e2', criadoEm: '2026-11-03T00:00:00Z' }];
+    expect(textoRestante(blocoCaixa(tres, nomes))).toBe('');
+    const duas = blocoCaixa([...tres, { empresaId: 'e1', criadoEm: '2026-11-01T00:00:00Z' }], nomes, 1);
+    expect(textoRestante(duas)).toBe('e mais 1 empresa');
   });
 });
 
