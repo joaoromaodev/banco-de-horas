@@ -78,14 +78,25 @@ Produção: migrações 0000–0020; próximo número livre **0021**. Backup ant
 recusado, responsável aplicado só à empresa de teste, escritório e empresas da Edilse
 intactos); conta apagada.
 
+## Sprint 7 — Revisão do ponto e arquivadas (✅ concluída e publicada em 21/11/2026)
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Revisão inteligente da Folha de Ponto: regras da CLT explicáveis (jornada acima de 8h+2h, intervalo intrajornada, interjornada de 11h, semana acima de 44h, domingo/feriado, marcações faltando, horário ilegível, dias copiados), selo por dia, resumo por funcionário, filtro e lista por risco; só alerta | `claude/revisao-ponto-853f4d` | ✅ publicada, sem migração. Nos 183 dias reais: 9 achados, todos concretos (`12>54`, 10h13 numa jornada, 3 dias sem intervalo, 1 intervalo de 30 min, 2 faltas) |
+| B. Empresa arquivada consultável sem reativar (caixa, livro, ponto, contratos, documentos; escrita barrada); pedido mensal sem dia usa o prazo do escritório; desempenho medido de novo com as funções em São Paulo | `claude/arquivadas-acabamentos-632774` | ✅ publicada, sem migração |
+
+Produção: migrações 0000–0020 (0021 e 0022 não foram usadas; próximo número livre
+**0021**). Testes: revisão do ponto nos dados reais da Edilse (só leitura) e arquivada
+com conta de teste (consulta e livro ok; gravação barrada); conta apagada.
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
 |---|---|---|
 | Carnê-Leão e recibos (PF) | Opus alto | respostas da Edilse (beneficiário ≠ pagador; layout do Carnê-Leão Web) |
 | Documento → lançamento sugerido por IA | Opus alto | aceite da Edilse (opção por empresa) e Gemini pago |
-| Leitura de empresa arquivada sem reativar | Sonnet | — |
-| Medir de novo o desempenho com as funções em São Paulo | Sonnet | — |
+| Mensagem clara ao gravar em empresa arquivada (hoje sai o 403 genérico "Acesso restrito"; a guarda está certa, só o texto) | Sonnet | — |
+| Ver no painel de logs da Vercel a duração das funções depois de uso real (ganho da região) | João/dono | acesso à Vercel |
 
 ## Antes de ir ao mercado (adiado por decisão do João)
 
