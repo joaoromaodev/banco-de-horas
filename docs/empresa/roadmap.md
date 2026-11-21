@@ -140,6 +140,13 @@ Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/d
 | B. Acabamentos das ressalvas do QA visual | `claude/acabamentos-qa` | ✅ publicada em 21/11 (KPIs lado a lado no celular, Demonstrativo abre no último mês confirmado — `mesInicial`, contratos em duas linhas, gráfico do resumo em 12 px). Falta: gráfico do Demonstrativo no celular |
 | C. Teste logado em produção de `/inicio` e da rescisão (conta de teste, só relatório) | — | ✅ feito em 21/11: tudo passou (isolamento do cliente em 12 telas e 8 APIs, rescisão conferida à mão com R$ 3.000 e R$ 9.000, PDF "SIMULAÇÃO"); contagens iguais antes e depois. Corrigido na main: menu da contadora piscava para o cliente |
 
+## Sprint 13 — Avisos ao cliente e acabamentos de IA (🔄 em andamento)
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Sino do cliente: folha devolvida, pedido da contabilidade, Demonstrativo pronto | `claude/avisos-cliente` | 🔄 subagente |
+| B. Foto girada antes da IA, limite do cliente só com leituras dele, gráfico do Demonstrativo no celular | `claude/acabamentos-ia` | 🔄 subagente |
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |

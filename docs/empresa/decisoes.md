@@ -128,3 +128,12 @@ backlog restante depende de terceiros. Decisões:
 - **Teste logado em produção da Sprint 11** (`/inicio` e rescisão) com conta de teste,
   que ficou faltando na integração.
 - Carnê-Leão e convenção coletiva continuam esperando a Edilse.
+
+## 21/11/2026 — Sprint 13, decidida pelo dono
+
+- **Avisos ao cliente pelo sino** (folha devolvida, pedido da contabilidade, Demonstrativo
+  pronto): o e-mail depende do Resend, mas o aviso dentro do app não depende de ninguém
+  e fecha o ciclo "a contadora pede → o cliente vê".
+- **Acabamentos de IA e tela:** foto chega girada à IA (rotação perdida ao limpar os
+  dados do celular), limite de 30 leituras do cliente contando também as da
+  contabilidade, gráfico do Demonstrativo encolhendo no celular.
