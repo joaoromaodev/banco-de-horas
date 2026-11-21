@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Empresa } from '@/lib/tipos';
+import { lerMe } from '@/lib/meCliente';
 import { IconeExcluir, IconeMais } from '../icones';
 import { Alternador, Botao, BotaoIcone, CabecalhoPagina, celulaCls, Conteudo, Entrada, EstadoVazio, Secao, Selo, tb } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
@@ -83,7 +84,7 @@ export default function Cadastro() {
   }
 
   useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+    lerMe().then((d) => {
       if (d) setEhMaster(d.role === 'master');
     }).catch(() => {});
     carregarEmpresas();

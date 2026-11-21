@@ -7,7 +7,7 @@
 //
 // Se a 0012 ainda não foi aplicada, as funções lançam `ErroBancoPendente` e as
 // rotas respondem 503 "aguardando o banco" em vez de quebrar.
-import { getDb } from './db';
+import { getDb, lerTudo } from './db';
 import { DiaFreq, Frequencia, Funcionario, Marcador, MARCADORES } from './tipos';
 import { RESERVA_VALIDA_MIN, RITMO } from './cotaOcr';
 
@@ -54,12 +54,14 @@ function linhaParaFuncionario(r: any): Funcionario {
  * `escritorioId` null = todos os escritórios (só o master chega aqui assim).
  */
 export async function lerFuncionarios(escritorioId: string | null, empresaId?: string): Promise<Funcionario[]> {
-  let q = getDb().from('ponto_funcionarios').select('*');
-  if (escritorioId) q = q.eq('escritorio_id', escritorioId);
-  if (empresaId) q = q.eq('empresa_id', empresaId);
-  const { data, error } = await q.order('ordem', { ascending: true, nullsFirst: false }).order('nome');
-  if (error) falhar(error);
-  return (data ?? []).map(linhaParaFuncionario);
+  const db = getDb();
+  const data = await lerTudo<any>((de, ate) => {
+    let q = db.from('ponto_funcionarios').select('*');
+    if (escritorioId) q = q.eq('escritorio_id', escritorioId);
+    if (empresaId) q = q.eq('empresa_id', empresaId);
+    return q.order('ordem', { ascending: true, nullsFirst: false }).order('nome').order('id').range(de, ate);
+  }, { falhar });
+  return data.map(linhaParaFuncionario);
 }
 
 const minutos = (v: unknown): number | null => {
@@ -120,12 +122,14 @@ const hora = (v: unknown): string | null => {
 
 /** Frequências de uma empresa num mês, agrupadas por funcionário. */
 export async function lerFrequenciasDoMes(escritorioId: string, empresaId: string, ano: number, mes: number): Promise<Frequencia[]> {
-  const { data, error } = await getDb().from('ponto_frequencias').select('*')
+  const db = getDb();
+  // Funcionários × até 31 dias: passa de 1.000 linhas com ~33 funcionários.
+  const data = await lerTudo<any>((de, ate) => db.from('ponto_frequencias')
+    .select('funcionario, dia, entrada_manha, saida_almoco, retorno_almoco, saida_tarde, marcador')
     .eq('escritorio_id', escritorioId).eq('empresa_id', empresaId).eq('ano', ano).eq('mes', mes)
-    .order('funcionario').order('dia');
-  if (error) falhar(error);
+    .order('funcionario').order('dia').range(de, ate), { falhar });
   const porFunc = new Map<string, Frequencia>();
-  for (const r of data ?? []) {
+  for (const r of data) {
     const nome = String(r.funcionario);
     if (!porFunc.has(nome)) porFunc.set(nome, { empresa: empresaId, funcionario: nome, ano, mes, dias: [] });
     porFunc.get(nome)!.dias.push({
@@ -201,10 +205,10 @@ export async function salvarFrequencia(escritorioId: string, freq: Frequencia, a
 
 // ---------------------------------------------------------------- Feriados
 export async function lerFeriados(escritorioId: string): Promise<Feriado[]> {
-  const { data, error } = await getDb().from('ponto_feriados').select('data, descricao')
-    .eq('escritorio_id', escritorioId).order('data');
-  if (error) falhar(error);
-  return (data ?? []).map((r: any) => ({ data: String(r.data), descricao: String(r.descricao ?? '') }));
+  const db = getDb();
+  const data = await lerTudo<any>((de, ate) => db.from('ponto_feriados').select('data, descricao')
+    .eq('escritorio_id', escritorioId).order('data').range(de, ate), { falhar });
+  return data.map((r: any) => ({ data: String(r.data), descricao: String(r.descricao ?? '') }));
 }
 
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;

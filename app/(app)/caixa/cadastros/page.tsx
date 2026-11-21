@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Empresa } from '@/lib/tipos';
+import { lerMe } from '@/lib/meCliente';
 import { AbasCaixa } from '../AbasCaixa';
 import { Botao, CabecalhoPagina, Conteudo, Entrada, EstadoVazio, Secao } from '@/components/ui';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
@@ -50,7 +51,7 @@ export default function CaixaCadastros() {
   }
 
   useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+    lerMe().then((d) => {
       if (d && d.role === 'cliente') { router.replace('/caixa'); return; }
       carregarEmpresas();
     }).catch(() => {});

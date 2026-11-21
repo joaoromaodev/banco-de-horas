@@ -7,11 +7,13 @@
 import { NextRequest } from 'next/server';
 import { empresaVisivelPara, exigirGestor } from '@/lib/acesso';
 import { ErroCaixa } from '@/lib/caixa';
-import { getDb } from '@/lib/db';
+import { emLotes, getDb, lerAteTeto } from '@/lib/db';
 import { lerEmpresas } from '@/lib/cadastro';
 
 export const runtime = 'nodejs';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- linha crua do PostgREST
+type Linha = Record<string, any>;
 const TETO = 500; // ~5 empresas × 40 lançamentos/mês: dois meses de fila cabem aqui
 
 export async function GET(req: NextRequest) {
@@ -22,19 +24,26 @@ export async function GET(req: NextRequest) {
     const ano = Number(req.nextUrl.searchParams.get('ano'));
     if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new ErroCaixa('Ano inválido.');
 
-    const { data, error } = await getDb()
+    // O recorte pelas empresas visíveis vai na PRÓPRIA consulta. Antes lia as 500 mais
+    // novas da plataforma inteira e só depois filtrava: com vários escritórios, as de
+    // outros ocupavam o teto e a fila do contador saía incompleta (e o banco lia à toa).
+    const visiveis = new Set((await lerEmpresas()).filter((e) => empresaVisivelPara(g.sessao, e)).map((e) => e.id));
+    const db = getDb();
+    const partes = await emLotes([...visiveis], async (lote) => (await lerAteTeto<Linha>((de, ate) => db
       .from('lancamentos')
       .select('id, mes, historico, criado_em, criado_por, exercicios!inner(empresa_id, ano)')
       .is('conferido_em', null)
       .eq('exercicios.ano', ano)
-      .order('criado_em', { ascending: false })
-      .limit(TETO);
-    if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
+      .in('exercicios.empresa_id', lote)
+      .order('criado_em', { ascending: false }).order('id').range(de, ate), TETO,
+    { falhar: (e) => new ErroCaixa(`lancamentos: ${e.message}`, 502) })).linhas);
+    partes.sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+    const data = partes.slice(0, TETO);
 
     // Agrupa por empresa mantendo o mais recente de cada uma (a lista já vem
     // em ordem decrescente, então o primeiro que aparece é o mais novo).
     const porEmpresa = new Map<string, { empresaId: string; pendentes: number; meses: number[]; ultimo: { historico: string; criadoEm: string; criadoPor: string; mes: number } }>();
-    for (const l of data ?? []) {
+    for (const l of data) {
       const ex = (Array.isArray(l.exercicios) ? l.exercicios[0] : l.exercicios) as { empresa_id: string };
       const atual = porEmpresa.get(ex.empresa_id);
       if (atual) {
@@ -48,15 +57,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Cada contador só é avisado das suas empresas (o master vê todas).
-    const visiveis = new Set((await lerEmpresas()).filter((e) => empresaVisivelPara(g.sessao, e)).map((e) => e.id));
     const empresas = [...porEmpresa.values()]
-      .filter((e) => visiveis.has(e.empresaId))
       .map((e) => ({ ...e, meses: e.meses.sort((a, b) => a - b) }));
     return Response.json({
       empresas,
       total: empresas.reduce((s, e) => s + e.pendentes, 0),
-      truncado: (data?.length ?? 0) >= TETO,
+      truncado: partes.length > TETO,
     });
   } catch (e) {
     if (e instanceof ErroCaixa) return Response.json({ erro: e.message }, { status: e.status });

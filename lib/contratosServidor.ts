@@ -3,7 +3,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 import JSZip from 'jszip';
-import { getDb } from './db';
+import { emLotes, getDb, lerTudo } from './db';
 import {
   camposDoDocumento, ContratoSalvo, DadosContrato, Documento, normalizarDados, Situacao,
 } from './contratos';
@@ -74,12 +74,12 @@ const colunas = (d: DadosContrato) => ({
 });
 
 export async function listarContratos(empresa: string): Promise<ContratoSalvo[]> {
-  const { data, error } = await getDb().from(TABELA)
+  const db = getDb();
+  const data = await lerTudo<Linha>((de, ate) => db.from(TABELA)
     .select('id, empresa_id, situacao, dados, criado_por, criado_em, atualizado_em')
     .eq('empresa_id', empresa).is('excluido_em', null)
-    .order('admissao', { ascending: false }).order('criado_em', { ascending: false });
-  if (error) traduzir(error);
-  return (data as Linha[]).map(deLinha);
+    .order('admissao', { ascending: false }).order('criado_em', { ascending: false }).order('id').range(de, ate), { falhar: traduzir });
+  return data.map(deLinha);
 }
 
 export async function empresaDoContrato(id: string): Promise<string | null> {
@@ -121,9 +121,9 @@ export async function excluirContrato(id: string, restaurar = false): Promise<vo
  */
 export async function listarEmExperiencia(empresas: string[]): Promise<ContratoSalvo[]> {
   if (!empresas.length) return [];
-  const { data, error } = await getDb().from(TABELA)
+  const db = getDb();
+  const data = await emLotes(empresas, (lote) => lerTudo<Linha>((de, ate) => db.from(TABELA)
     .select('id, empresa_id, situacao, dados, criado_por, criado_em, atualizado_em')
-    .in('empresa_id', empresas).eq('situacao', 'experiencia').is('excluido_em', null);
-  if (error) traduzir(error);
-  return (data as Linha[]).map(deLinha);
+    .in('empresa_id', lote).eq('situacao', 'experiencia').is('excluido_em', null).order('id').range(de, ate), { falhar: traduzir }));
+  return data.map(deLinha);
 }

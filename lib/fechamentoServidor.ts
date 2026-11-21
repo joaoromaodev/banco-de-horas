@@ -3,7 +3,7 @@
 // Nenhuma função aqui decide QUEM pode: isso é das rotas (lib/acesso.ts). Aqui só
 // se lê/grava o que a rota ou o cron já autorizou. As leituras do checklist são
 // só leitura e cada fonte falha sozinha (devolve `{ ok: false }`).
-import { getDb } from './db';
+import { emLotes, getDb, lerAteTeto, lerTudo } from './db';
 import { Calendario, Obrigacao } from './agenda';
 import { listarConclusoes, listarObrigacoes } from './agendaServidor';
 import {
@@ -35,6 +35,8 @@ const modelo = (l: any): ModeloRecorrente & { escritorioId: string } => ({
   categoria: l.categoria, diaPrazo: Number(l.dia_prazo), ativa: Boolean(l.ativa), criadoEm: l.criado_em, excluidoEm: l.excluido_em ?? null,
 });
 /* eslint-enable @typescript-eslint/no-explicit-any */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- linha crua do PostgREST
+type LinhaBanco = any;
 
 export type ModeloComEscritorio = ModeloRecorrente & { escritorioId: string };
 
@@ -43,11 +45,13 @@ export type ModeloComEscritorio = ModeloRecorrente & { escritorioId: string };
 /** Modelos de uma empresa (ou de várias). `escritorioId` null = master. */
 export async function listarRecorrentes(empresaIds: string[], escritorioId: string | null): Promise<ModeloComEscritorio[]> {
   if (!empresaIds.length) return [];
-  let q = getDb().from('pendencias_recorrentes').select(COLS).in('empresa_id', empresaIds).is('excluido_em', null);
-  if (escritorioId) q = q.eq('escritorio_id', escritorioId);
-  const { data, error } = await q.order('empresa_id').order('criado_em').limit(TETO);
-  if (error) traduzir(error);
-  return (data ?? []).map(modelo);
+  const db = getDb();
+  const partes = await emLotes(empresaIds, (lote) => lerAteTeto<LinhaBanco>((de, ate) => {
+    let q = db.from('pendencias_recorrentes').select(COLS).in('empresa_id', lote).is('excluido_em', null);
+    if (escritorioId) q = q.eq('escritorio_id', escritorioId);
+    return q.order('empresa_id').order('criado_em').order('id').range(de, ate);
+  }, TETO, { falhar: traduzir }).then((r) => r.linhas));
+  return partes.slice(0, TETO).map(modelo);
 }
 
 export async function lerRecorrente(id: string, incluirExcluido = false): Promise<ModeloComEscritorio | null> {
@@ -107,18 +111,18 @@ export interface ResultadoAbertura { modelos: number; abertas: number; ja_existi
  */
 export async function abrirPendenciasRecorrentes(hoje: string, empresasAtivas: Map<string, string>): Promise<ResultadoAbertura> {
   const db = getDb();
-  const { data, error } = await db.from('pendencias_recorrentes').select(COLS).eq('ativa', true).is('excluido_em', null).limit(TETO * 5);
-  if (error) traduzir(error);
-  const modelos = (data ?? []).map(modelo).filter((m) => empresasAtivas.get(m.empresaId) === m.escritorioId);
+  // Todos os modelos ativos da plataforma, por páginas (um `.limit(10000)` voltava 1.000).
+  const data = await lerTudo<LinhaBanco>((de, ate) => db.from('pendencias_recorrentes').select(COLS)
+    .eq('ativa', true).is('excluido_em', null).order('id').range(de, ate), { falhar: traduzir });
+  const modelos = data.map(modelo).filter((m) => empresasAtivas.get(m.empresaId) === m.escritorioId);
   const r: ResultadoAbertura = { modelos: modelos.length, abertas: 0, ja_existiam: 0, falhas: 0 };
   if (!modelos.length) return r;
 
   const comp = pedidosAAbrir(modelos, new Set(), hoje)[0]?.competencia;
   if (!comp) return r; // nenhum modelo elegível ainda (todos criados neste mês)
-  const { data: feitos, error: eF } = await db.from('pendencias').select('modelo_id, competencia')
-    .eq('competencia', comp).in('modelo_id', modelos.map((m) => m.id)).limit(TETO * 5);
-  if (eF) traduzir(eF);
-  const ja = new Set((feitos ?? []).map((l: { modelo_id: string; competencia: string }) => chavePedido(l.modelo_id, l.competencia)));
+  const feitos = await emLotes(modelos.map((m) => m.id), (lote) => lerTudo<LinhaBanco>((de, ate) => db.from('pendencias')
+    .select('id, modelo_id, competencia').eq('competencia', comp).in('modelo_id', lote).order('id').range(de, ate), { falhar: traduzir }));
+  const ja = new Set(feitos.map((l: { modelo_id: string; competencia: string }) => chavePedido(l.modelo_id, l.competencia)));
   const abrir = pedidosAAbrir(modelos, ja, hoje);
   r.ja_existiam = modelos.length - abrir.length;
 
@@ -186,34 +190,44 @@ async function lerCaixa(empresaIds: string[], ano: number, mes: number): Promise
   const r = new Map<string, DadosCaixa>();
   for (const id of empresaIds) r.set(id, { lancamentos: 0, naoConferidos: 0, confirmado: false });
   if (!empresaIds.length) return r;
-  const { data: ex, error } = await db.from('exercicios').select('id, empresa_id').eq('ano', ano).in('empresa_id', empresaIds);
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  const lista = (ex ?? []) as { id: string; empresa_id: string }[];
+  const lista = await emLotes(empresaIds, (lote) => lerTudo<{ id: string; empresa_id: string }>((de, ate) =>
+    db.from('exercicios').select('id, empresa_id').eq('ano', ano).in('empresa_id', lote).order('id').range(de, ate)));
   if (!lista.length) return r;
-  const { data: conf, error: eC } = await db.from('meses_confirmados').select('exercicio_id')
-    .eq('mes', mes).in('exercicio_id', lista.map((e) => e.id));
-  if (eC) throw Object.assign(new Error(eC.message), { code: eC.code });
-  const confirmados = new Set((conf ?? []).map((c: { exercicio_id: string }) => c.exercicio_id));
-  // Contagens exatas (head) por exercício: o limite de linhas do PostgREST cortaria a soma.
-  await Promise.all(lista.map(async (e) => {
-    const base = () => db.from('lancamentos').select('id', { count: 'exact', head: true }).eq('exercicio_id', e.id).eq('mes', mes);
-    const [t, n] = await Promise.all([base(), base().is('conferido_em', null)]);
-    if (t.error) throw Object.assign(new Error(t.error.message), { code: t.error.code });
-    if (n.error) throw Object.assign(new Error(n.error.message), { code: n.error.code });
-    r.set(e.empresa_id, { lancamentos: t.count ?? 0, naoConferidos: n.count ?? 0, confirmado: confirmados.has(e.id) });
-  }));
+  const ids = lista.map((e) => e.id);
+  // Meses confirmados e lançamentos do mês em consultas por lote — antes eram 2 consultas
+  // de contagem POR EMPRESA (N+1). Aqui só vêm 2 colunas estreitas, paginadas.
+  const [conf, lancs] = await Promise.all([
+    emLotes(ids, (lote) => lerTudo<{ exercicio_id: string }>((de, ate) => db.from('meses_confirmados')
+      .select('exercicio_id').eq('mes', mes).in('exercicio_id', lote).order('exercicio_id').range(de, ate))),
+    emLotes(ids, (lote) => lerTudo<{ id: string; exercicio_id: string; conferido_em: string | null }>((de, ate) => db.from('lancamentos')
+      .select('id, exercicio_id, conferido_em').eq('mes', mes).in('exercicio_id', lote).order('id').range(de, ate))),
+  ]);
+  const confirmados = new Set(conf.map((c) => c.exercicio_id));
+  const total = new Map<string, { t: number; n: number }>();
+  for (const l of lancs) {
+    const c = total.get(l.exercicio_id) ?? { t: 0, n: 0 };
+    c.t++;
+    if (!l.conferido_em) c.n++;
+    total.set(l.exercicio_id, c);
+  }
+  for (const e of lista) {
+    const c = total.get(e.id);
+    r.set(e.empresa_id, { lancamentos: c?.t ?? 0, naoConferidos: c?.n ?? 0, confirmado: confirmados.has(e.id) });
+  }
   return r;
 }
 
 async function lerDocumentosPedidos(rec: Recorte, competencia: string): Promise<Map<string, DadosDocumentos>> {
   const r = new Map<string, DadosDocumentos>();
   if (!rec.empresaIds.length) return r;
-  let q = getDb().from('pendencias').select('empresa_id, status')
-    .eq('competencia', competencia).is('excluido_em', null).in('empresa_id', rec.empresaIds);
-  if (rec.escritorioId) q = q.eq('escritorio_id', rec.escritorioId);
-  const { data, error } = await q.limit(TETO);
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  for (const l of (data ?? []) as { empresa_id: string; status: string }[]) {
+  const db = getDb();
+  const data = await emLotes(rec.empresaIds, (lote) => lerTudo<{ empresa_id: string; status: string }>((de, ate) => {
+    let q = db.from('pendencias').select('id, empresa_id, status')
+      .eq('competencia', competencia).is('excluido_em', null).in('empresa_id', lote);
+    if (rec.escritorioId) q = q.eq('escritorio_id', rec.escritorioId);
+    return q.order('id').range(de, ate);
+  }));
+  for (const l of data) {
     const d = r.get(l.empresa_id) ?? { pedidos: 0, abertos: 0 };
     d.pedidos++;
     if (l.status === 'aberta') d.abertos++;
@@ -252,11 +266,13 @@ export async function fontesDoFechamento(
 export async function lerRegimes(empresaIds: string[], escritorioId: string | null): Promise<Map<string, RegimeCadastro>> {
   const r = new Map<string, RegimeCadastro>();
   if (!empresaIds.length) return r;
-  let q = getDb().from('empresa_regime').select('empresa_id, regime').in('empresa_id', empresaIds);
-  if (escritorioId) q = q.eq('escritorio_id', escritorioId);
-  const { data, error } = await q;
-  if (error) traduzir(error);
-  for (const l of (data ?? []) as { empresa_id: string; regime: RegimeCadastro }[]) r.set(l.empresa_id, l.regime);
+  const db = getDb();
+  const data = await emLotes(empresaIds, (lote) => lerTudo<{ empresa_id: string; regime: RegimeCadastro }>((de, ate) => {
+    let q = db.from('empresa_regime').select('empresa_id, regime').in('empresa_id', lote);
+    if (escritorioId) q = q.eq('escritorio_id', escritorioId);
+    return q.order('empresa_id').range(de, ate);
+  }, { falhar: traduzir }));
+  for (const l of data) r.set(l.empresa_id, l.regime);
   return r;
 }
 

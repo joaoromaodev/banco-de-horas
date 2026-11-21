@@ -8,7 +8,7 @@
 // pertencem a um escritório (`escritorio_id`, migração 0010) — `lerEmpresas` e
 // `lerUsuarios` devolvem tudo; o recorte por escritório é de quem chama.
 import { randomUUID } from 'crypto';
-import { getDb } from './db';
+import { getDb, lerTudo } from './db';
 import { Empresa } from './tipos';
 import { Papel, Modulo, MODULOS } from './auth';
 import { Jornada, JORNADA_PADRAO } from './calendario';
@@ -50,7 +50,18 @@ export class ErroEmailEmUso extends Error {
 // de contador e uma tela do caixa dispara várias rotas de uma vez. `salvarEmpresas`
 // invalida na hora.
 let cacheEmpresas: { em: number; lista: Empresa[] } | null = null;
+// Leitura em andamento: requisições simultâneas (a tela dispara várias rotas de uma
+// vez, e cada uma checa a empresa) compartilham UMA ida ao banco em vez de uma cada.
+let leituraEmpresas: Promise<Empresa[]> | null = null;
+// Sobe a cada invalidação: uma leitura que começou ANTES de uma gravação não repõe o cache velho.
+let geracaoEmpresas = 0;
 const TTL_EMPRESAS_MS = 8_000;
+
+function invalidarEmpresas(): void {
+  cacheEmpresas = null;
+  leituraEmpresas = null;
+  geracaoEmpresas++;
+}
 
 function linhaParaEmpresa(r: any): Empresa {
   return {
@@ -78,12 +89,22 @@ function linhaParaEmpresa(r: any): Empresa {
  */
 export async function lerEmpresasComArquivadas(): Promise<Empresa[]> {
   if (cacheEmpresas && Date.now() - cacheEmpresas.em < TTL_EMPRESAS_MS) return cacheEmpresas.lista;
+  if (leituraEmpresas) return leituraEmpresas;
   const db = getDb();
-  const { data, error } = await db.from('empresas').select('*').order('ordem', { ascending: true });
-  if (error) throw new Error(error.message);
-  const lista = (data ?? []).map(linhaParaEmpresa).filter((e) => e.nome);
-  cacheEmpresas = { em: Date.now(), lista };
-  return lista;
+  const geracao = geracaoEmpresas;
+  const leitura = (async () => {
+    // Paginado: a tabela é da plataforma inteira (todos os escritórios) e passa de 1.000 linhas.
+    const data = await lerTudo<any>((de, ate) =>
+      db.from('empresas').select('*').order('ordem', { ascending: true }).order('id').range(de, ate));
+    const lista = data.map(linhaParaEmpresa).filter((e) => e.nome);
+    if (geracao === geracaoEmpresas) cacheEmpresas = { em: Date.now(), lista };
+    return lista;
+  })();
+  leituraEmpresas = leitura;
+  // Libera a trava ao terminar (com sucesso ou erro) para a próxima leitura tentar de novo.
+  const soltar = () => { if (leituraEmpresas === leitura) leituraEmpresas = null; };
+  leitura.then(soltar, soltar);
+  return leitura;
 }
 
 /** As empresas ativas (arquivadas ficam de fora de toda lista e guarda). */
@@ -136,7 +157,7 @@ export async function salvarEmpresas(lista: Empresa[], escopo: EscopoEmpresas): 
     const { error } = await db.from('empresas').upsert(linhas, { onConflict: 'id' });
     if (error) throw new Error(error.message);
   }
-  cacheEmpresas = null; // cadastro mudou: força releitura
+  invalidarEmpresas(); // cadastro mudou: força releitura
   return linhas.length;
 }
 
@@ -150,7 +171,7 @@ export async function definirArquivamento(
       : { arquivada_em: null, arquivada_por: null, arquivada_motivo: null },
   ).eq('id', id);
   if (error) throw new Error(error.message);
-  cacheEmpresas = null;
+  invalidarEmpresas();
 }
 
 /** Jornada de uma empresa (por id; inclui "trabalha aos sábados"). */
@@ -187,9 +208,8 @@ function linhaParaUsuario(r: any): UsuarioRec {
 
 export async function lerUsuarios(): Promise<UsuarioRec[]> {
   const db = getDb();
-  const { data, error } = await db.from('usuarios').select('*');
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(linhaParaUsuario).filter((u) => u.email);
+  const data = await lerTudo<any>((de, ate) => db.from('usuarios').select('*').order('email').range(de, ate));
+  return data.map(linhaParaUsuario).filter((u) => u.email);
 }
 
 export async function buscarUsuario(email: string): Promise<UsuarioRec | null> {

@@ -45,6 +45,7 @@ em todo push e pull request, no Node 20.
 | `auth.test.ts` | `lib/auth.ts` | `resolverModulos`, `temModulo`, sessão assinada (ida e volta, expiração em 12h, **token adulterado/forjado/outro segredo rejeitado**), PBKDF2 |
 | `cobranca.test.ts` | `lib/cobranca.ts` | situação efetiva (fundador nunca bloqueia, teste, carência de 7 dias, pendente só com folga para quem assinou no teste, cancelada até o pago), `escritaBarrada` (falha fechada, exportações e cobrança livres), limites, troca proporcional, recálculo insensível à ordem, CPF/CNPJ |
 | `gatewayAsaas.test.ts` | `lib/gatewayAsaas.ts` | config por env (sandbox por padrão), token do webhook, tradução de status e eventos, link só do Asaas, payload sem cartão |
+| `paginacao.test.ts` | `lib/db.ts` (+ livro, saldo, empresas) | banco falso que corta em 1.000 linhas: `lerTudo`, `lerAteTeto`, `emLotes`, livro com 2.500 lançamentos, mês de 1.500, 1.300 empresas, saldo por 1 linha. Ver [`desempenho.md`](desempenho.md) |
 | `proxySomenteLeitura.test.ts` | `proxy.ts` + `lib/acesso.ts` | 402 para contador e cliente do escritório bloqueado; leitura, exportação, login/logout e cobrança livres; master e escritório em dia passam; webhook público |
 
 **Atenção para a Frente A:** `auth.test.ts` testa o comportamento *atual* (sessão

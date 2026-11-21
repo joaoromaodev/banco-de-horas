@@ -11,6 +11,7 @@ import {
 import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
 import { SENHA_MIN } from '@/lib/auth';
+import { lerMe } from '@/lib/meCliente';
 
 type Modulo = 'ponto' | 'caixa';
 interface Usuario { email: string; nome: string; role: 'master' | 'usuario' | 'cliente'; modulos: Modulo[]; adminEscritorio: boolean; }
@@ -48,7 +49,7 @@ export default function Equipe() {
   const carregar = () => lerEquipe().then(setEquipe).catch(falhou);
 
   useEffect(() => {
-    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((d: Me | null) => {
+    lerMe().then((d: Me | null) => {
       if (!d) return;
       setMe(d);
       setNovo(novoVazio(d.modulos.includes('caixa') ? ['caixa'] : d.modulos));
