@@ -8,3 +8,12 @@ export const BRAND = {
   chamada: 'Do ponto ao livro caixa,\na rotina do contador em um só lugar.',
   descricao: 'Folha de ponto, banco de horas e livro caixa — leitura assistida, conferência e relatórios num único painel.',
 };
+
+/**
+ * Chave central da venda. Com `false` o site não anuncia preço, teste grátis,
+ * planos nem cadastro (/planos redireciona para /conheca) e o app esconde o menu
+ * "Assinatura". O código de cobrança, os preços e o /criar-conta continuam
+ * existindo (usados em testes). Para abrir a venda, troque para `true`.
+ * Decisão de 21/11/2026: primeiro o produto fica pronto, depois vai ao mercado.
+ */
+export const VENDAS_ABERTAS = false;

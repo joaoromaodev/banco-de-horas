@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Selo } from '@/components/ui';
+import { VENDAS_ABERTAS } from '@/lib/brand';
+import { PLANOS } from '@/lib/cobranca';
 import { Secao, linkCls, meta, ROTAS, TESTE } from '../_partes';
 
 export const metadata = meta(
   'O cliente lança, a IA lê, o contador confere',
-  'Livro Caixa, Folha de Ponto com leitura por IA e Contrato de Experiência para escritórios contábeis pequenos. Teste grátis por 14 dias, sem cartão.',
+  `Livro Caixa, Folha de Ponto com leitura por IA e Contrato de Experiência para escritórios contábeis pequenos.${VENDAS_ABERTAS ? ' Teste grátis por 14 dias, sem cartão.' : ''}`,
   '/conheca',
 );
 
@@ -152,16 +154,16 @@ export default function Conheca() {
             O ClickContas é a camada entre o seu cliente e o seu sistema contábil: coleta, conferência e documentos prontos — para escritórios pequenos que cansaram de redigitar.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href={ROTAS.criarConta} className={linkCls('claro', 'lg')}>{TESTE}</Link>
-            <Link href={ROTAS.entrar} className={linkCls('vazado', 'lg')}>Entrar</Link>
+            {VENDAS_ABERTAS && <Link href={ROTAS.criarConta} className={linkCls('claro', 'lg')}>{TESTE}</Link>}
+            <Link href={ROTAS.entrar} className={linkCls(VENDAS_ABERTAS ? 'vazado' : 'claro', 'lg')}>Entrar</Link>
           </div>
-          <p className="mt-4 text-[13px] text-petroleo-200">Sem cartão de crédito. Planos a partir de R$ 89/mês.</p>
+          {VENDAS_ABERTAS && <p className="mt-4 text-[13px] text-petroleo-200">Sem cartão de crédito. Planos a partir de R$ {PLANOS.essencial.mensal}/mês.</p>}
         </div>
       </section>
 
       {/* módulos */}
       <Secao id="modulos" titulo="Três ferramentas, uma rotina só"
-        subtitulo="Todos os módulos em todos os planos. Cada um nasceu de uma tarefa que consumia horas no escritório.">
+        subtitulo={`${VENDAS_ABERTAS ? 'Todos os módulos em todos os planos. ' : ''}Cada um nasceu de uma tarefa que consumia horas no escritório.`}>
         <div className="space-y-14">
           {MODULOS.map((m, i) => (
             <div key={m.nome} className="grid items-center gap-8 md:grid-cols-2 md:gap-12">
@@ -210,6 +212,7 @@ export default function Conheca() {
       </Secao>
 
       {/* CTA final */}
+      {VENDAS_ABERTAS && (
       <section className="hero">
         <div className="mx-auto max-w-6xl px-4 py-14 text-center sm:px-6 sm:py-16">
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Teste com os seus clientes por 14 dias</h2>
@@ -220,6 +223,7 @@ export default function Conheca() {
           </div>
         </div>
       </section>
+      )}
     </>
   );
 }

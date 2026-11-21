@@ -75,3 +75,50 @@ sem ganho.
 - App mobile nativo (a web responsiva resolve).
 - Escrituração contábil / SPED (é do ERP).
 - Integração bancária (Open Finance) — só depois de 10 pagantes.
+
+## Antes de ir ao mercado
+
+Em 21/11/2026 o João decidiu: o produto **não é vendido ainda**. A venda está
+escondida atrás de `VENDAS_ABERTAS` em `lib/brand.ts` (`false`): sem preços, teste
+grátis, `/planos` (redireciona para `/conheca`), cadastro anunciado nem menu
+"Assinatura". `/criar-conta` segue funcionando para testes. Para religar: trocar a
+chave para `true`, **depois de cumprir a lista abaixo**.
+
+### O que os termos de uso (`app/(site)/termos`) precisam ter
+
+- Troca de plano: subida vale já, com cobrança proporcional dos dias restantes;
+  descida e troca mensal↔anual valem na renovação, sem crédito.
+- Carência de 7 dias após o vencimento; depois, somente leitura (consulta e
+  exportação continuam). Pagamento libera na hora.
+- Fim do teste sem assinar = somente leitura, nada apagado.
+- Cancelamento a qualquer momento, acesso até o fim do período pago; exportação por
+  90 dias após cancelamento (proposta a validar).
+- Limite de empresas por plano (10/40/sem limite): passar do limite barra só o
+  cadastro de novas; descer de plano não apaga nada.
+- Cota mensal de leituras de IA por plano, limite de ritmo e uso justo do Ilimitado.
+- Arrependimento (art. 49 do CDC) e reembolso do plano anual — validar com advogado.
+- Revisar limitação de responsabilidade e suspensão contra cláusula abusiva.
+- Preços **não** vão escritos nos termos: remeter a `/planos`.
+
+### O que a política de privacidade (`app/(site)/privacidade`) precisa ter
+
+- Suboperadores com finalidade, dados e país: Supabase (banco e arquivos), Vercel
+  (hospedagem), **Asaas** (pagamento; CPF/CNPJ do pagador vai só a ele, não guardamos
+  nem dados de cartão), **Google/Gemini** (foto da folha de ponto e nomes lidos por IA;
+  exige API em nível pago, sem treino com o conteúdo — confirmar), Resend (e-mail).
+- Documentos enviados pelo cliente: bucket privado, 10 MB, URL assinada de curta
+  duração, quem acessa (equipe do escritório e a empresa-cliente que enviou).
+- Leitura por IA das folhas: o que vai ao Google, revisão humana obrigatória, sem
+  decisão automatizada.
+- Tabela de retenção (propor prazos, marcar o que depende de validação jurídica):
+  ponto/folha (guarda trabalhista — jurídico), `ponto_leituras_ocr` (sugestão 13
+  meses), documentos enviados (vigência + 90 dias; excluídos pelo usuário: definir),
+  fiscal/cobrança (5 anos), backups (30 dias). Hoje falta rotina que aplique esses
+  prazos (ver `docs/documentos.md`, "Faxina e retenção").
+- Transferência internacional e regiões dos projetos (Supabase, Vercel).
+- Dados da empresa `[entre colchetes]`: razão social, CNPJ, DPO, e-mail, foro.
+
+### Outras travas do lançamento
+
+Razão social e CNPJ, depoimento real aprovado pela Edilse, revisão jurídica dos dois
+textos, Asaas configurado, Gemini em nível pago.

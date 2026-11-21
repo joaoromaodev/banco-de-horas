@@ -51,9 +51,10 @@ Só o João consegue (contas e painéis que o Claude não acessa):
 - [ ] Razão social e CNPJ da ClickContas (termos, NFS-e do Asaas).
 
 O time faz (próxima sprint):
-- Termos e privacidade: Asaas e Google como suboperadores, carência de 7 dias,
+- Termos e privacidade (**adiado**: venda fechada, ver `estrategia.md` → "Antes de ir ao mercado"): Asaas e Google como suboperadores, carência de 7 dias,
   troca de plano proporcional, retenção do ponto e das leituras de IA.
-- Unificar a tabela de preços do site (`app/(site)/planos/Precos.tsx`) com `PLANOS` de `lib/cobranca.ts`.
+- [x] Unificar a tabela de preços do site (`app/(site)/planos/Precos.tsx`) com `PLANOS` de `lib/cobranca.ts` (teste em `tests/precosSite.test.ts`).
+- [x] Esconder a venda do site e do app atrás de `VENDAS_ABERTAS` (`lib/brand.ts`).
 - Excluir empresa com ponto: mensagem clara (hoje sai o erro cru do banco) ou arquivar.
 - Decidir se o `/painel` vira a página inicial do contador.
 - Teste de ponta a ponta da cobrança no sandbox quando a chave existir.

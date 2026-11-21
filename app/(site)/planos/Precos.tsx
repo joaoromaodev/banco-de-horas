@@ -3,13 +3,24 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Selo } from '@/components/ui';
+import { PLANOS, PLANOS_PAGOS, type PlanoPago } from '@/lib/cobranca';
+import { limiteDoPlano } from '@/lib/cotaOcr';
 import { linkCls, ROTAS, TESTE } from '../_partes';
 
-const PLANOS = [
-  { id: 'essencial', nome: 'Essencial', para: 'Para quem está começando a digitalizar o escritório.', limite: 'até 10 empresas-clientes', mensal: 89, anual: 890 },
-  { id: 'escritorio', nome: 'Escritório', para: 'Para o escritório com carteira em crescimento.', limite: 'até 40 empresas-clientes', mensal: 189, anual: 1890, destaque: true },
-  { id: 'ilimitado', nome: 'Ilimitado', para: 'Para quem não quer pensar em limite.', limite: 'empresas-clientes sem limite', mensal: 349, anual: 3490 },
-];
+/** Textos de venda por plano. Preço, limite e cota vêm de `lib/cobranca.ts` e `lib/cotaOcr.ts` (fonte única). */
+const PARA: Record<PlanoPago, string> = {
+  essencial: 'Para quem está começando a digitalizar o escritório.',
+  escritorio: 'Para o escritório com carteira em crescimento.',
+  ilimitado: 'Para quem não quer pensar em limite.',
+};
+
+const limiteTexto = (limite: number | null) =>
+  limite === null ? 'empresas-clientes sem limite' : `até ${limite} empresas-clientes`;
+
+const CARDS = PLANOS_PAGOS.map((id) => ({
+  id, ...PLANOS[id], para: PARA[id], limite: limiteTexto(PLANOS[id].limite),
+  cota: limiteDoPlano(id), destaque: id === 'escritorio',
+}));
 
 const brl = (v: number, casas = 0) =>
   v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
@@ -30,7 +41,7 @@ export function Precos() {
       <span className="ml-3 inline-block align-middle"><Selo tom="sucesso">Anual: 2 meses grátis</Selo></span>
 
       <div className="mt-8 grid gap-4 md:grid-cols-3">
-        {PLANOS.map((p) => (
+        {CARDS.map((p) => (
           <div key={p.id} className={`flex flex-col rounded-xl border bg-superficie p-6 shadow-cartao ${p.destaque ? 'border-primaria ring-1 ring-primaria' : 'border-borda'}`}>
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-lg font-semibold text-tinta">{p.nome}</h3>
@@ -48,7 +59,7 @@ export function Precos() {
             <ul className="mt-2 space-y-1.5 text-[13px] text-tinta-suave">
               <li>Livro Caixa, Folha de Ponto e Contratos</li>
               <li>Cliente com acesso ao próprio caixa</li>
-              <li>Leitura por IA com cota mensal</li>
+              <li>{brl(p.cota)} folhas lidas por IA por mês</li>
             </ul>
             <Link href={ROTAS.criarConta} className={linkCls(p.destaque ? 'primaria' : 'secundaria', 'lg', 'mt-6 w-full')}>{TESTE}</Link>
           </div>

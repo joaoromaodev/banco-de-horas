@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BRAND } from '@/lib/brand';
+import { BRAND, VENDAS_ABERTAS } from '@/lib/brand';
 import { Aviso, Botao, Entrada } from '@/components/ui';
 import { PainelMarca } from './PainelMarca';
 
@@ -67,10 +67,12 @@ export default function Login() {
             {carregando ? 'Entrando…' : 'Entrar no painel'}
           </Botao>
 
-          <p className="mt-6 text-center text-sm text-tinta-suave">
-            Ainda não usa o {BRAND.nome}?{' '}
-            <a href="/criar-conta" className="font-medium text-primaria-texto underline-offset-4 hover:underline">Criar conta grátis</a>
-          </p>
+          {VENDAS_ABERTAS && (
+            <p className="mt-6 text-center text-sm text-tinta-suave">
+              Ainda não usa o {BRAND.nome}?{' '}
+              <a href="/criar-conta" className="font-medium text-primaria-texto underline-offset-4 hover:underline">Criar conta grátis</a>
+            </p>
+          )}
         </form>
       </main>
     </div>
