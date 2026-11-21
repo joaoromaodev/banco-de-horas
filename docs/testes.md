@@ -39,6 +39,7 @@ em todo push e pull request, no Node 20.
 | `caixa.test.ts` | `lib/caixa.ts`, `planoContasPadrao.ts`, `app/(app)/caixa/formato.ts` | `paraValor`, `validarLancamento` (entrada xor saída, juros/multa = saída, ano do exercício), `saidaEfetiva`, depósito = saída e retirada = entrada no catálogo, CPF/CNPJ |
 | `livroCaixa.test.ts` | `lib/livroCaixa.ts` | saldo transportado encadeado, saída efetiva, cheque neutro, PDF gerado (nº de folhas, paginação, pessoa física) |
 | `formatoLivro.test.ts` | `lib/formatoLivro.ts`, `lib/data.ts` | meses, `isoParaBR`, `dataBR` |
+| `agenda.test.ts` | `lib/agenda.ts` | Páscoa/feriados nacionais (20/11, Carnaval, Corpus Christi), dia útil, antecipa/prorroga, n-ésimo e último dia útil, mensal/trimestral/anual/única, "acompanhar a partir de", catálogo e modelos, validação, resumo e e-mail (HTML escapado) |
 | `auth.test.ts` | `lib/auth.ts` | `resolverModulos`, `temModulo`, sessão assinada (ida e volta, expiração em 12h, **token adulterado/forjado/outro segredo rejeitado**), PBKDF2 |
 | `cobranca.test.ts` | `lib/cobranca.ts` | situação efetiva (fundador nunca bloqueia, teste, carência de 7 dias, pendente só com folga para quem assinou no teste, cancelada até o pago), `escritaBarrada` (falha fechada, exportações e cobrança livres), limites, troca proporcional, recálculo insensível à ordem, CPF/CNPJ |
 | `gatewayAsaas.test.ts` | `lib/gatewayAsaas.ts` | config por env (sandbox por padrão), token do webhook, tradução de status e eventos, link só do Asaas, payload sem cartão |
