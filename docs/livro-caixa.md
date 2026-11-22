@@ -4,8 +4,8 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **21/11/2026** (Sprint 12, Frente A — documento → lançamento
-sugerido por IA, desligado atrás de duas travas, migração 0029)
+Última atualização: **21/11/2026** (Sprint 17, Frente B — nota e boleto sem IA:
+XML de NF-e/NFS-e, linha digitável e PDF com texto lidos no servidor, migração 0033)
 
 ## Por que este módulo existe
 
@@ -964,8 +964,8 @@ reserva, `contarLeiturasDocumentoDoCliente`), `lib/tipos.ts` e
   aceite da Edilse (acima) antes de ligar.
 - Releitura do mesmo documento conta de novo na cota (sem aviso "já lido"). Se virar
   custo, guardar a última proposta por documento.
-- XML de NF-e não passa pela IA (fica fora da lista); um leitor determinístico do XML
-  (sem IA, sem dado saindo) seria o próximo passo natural para notas eletrônicas.
+- ~~XML de NF-e não passa pela IA (fica fora da lista); um leitor determinístico do XML
+  seria o próximo passo~~ → **feito na Sprint 17** ("Nota e boleto sem IA", abaixo).
 - HEIC fora da IA (metadados). Se o iPhone mandar HEIC pelo seletor de arquivo, a tela
   avisa; converter no navegador seria a saída (o `sharp` pré-compilado não abre HEIC).
 - O ritmo por usuário é em memória (por instância); o que segura de verdade são a cota
@@ -1036,6 +1036,133 @@ ano vai em janeiro e no primeiro rótulo visível. Teste em `tests/graficosResum
   `cliente-documento:`); (c) `/caixa/demonstrativo` a 375 px nos dois temas — eixo e
   meses legíveis, meses alternados, o mês do demonstrativo em negrito.
 - **Não verificado no navegador** (sem banco local). typecheck, lint, testes e build verdes.
+
+### ✅ Nota e boleto sem IA (0033) — 21/11/2026 (Sprint 17, Frente B)
+
+Decisão do dono (`docs/empresa/ia-gratuita.md`, item 2): **documentos primeiro sem IA** —
+o que dá resultado exato é lido no servidor, custo zero, nada sai. É a ideia 4 de
+`docs/empresa/concorrentes.md`. Mesmo fluxo de rascunho da Sprint 12: **nada grava
+sozinho**, quem lança confere e clica em **Lançar**, há **Desfazer**, e o lançamento fica
+ligado ao documento.
+
+**Como funciona.** No Livro Caixa, botão **Ler nota ou boleto** (secundário, no cabeçalho;
+aparece para o cliente e para a contabilidade sempre que dá para lançar — empresa não
+arquivada; **sem as travas da IA**). O diálogo (`app/(app)/caixa/LerNota.tsx`) oferece:
+**arquivo da nota** (XML ou PDF, enviado ao portal pelo mesmo fluxo da Sprint 12 —
+`enviarAoPortal`, exportado de `LerDocumento.tsx`), **já enviado em Documentos** (XML/PDF
+de nota, recibo ou outros) ou **código do boleto** (digitado/colado). E "pagamento,
+recebimento ou descobrir pelo documento". A rota devolve a proposta no formato da IA
+(`PropostaDocumento` + `fonte`, `titulo`, `chave`, `detalhes`, pagador); a tela aplica com
+`aplicarProposta` (o mesmo rascunho) e um aviso próprio: "Rascunho de NF-e 1234 — confira
+antes de lançar", com o que foi lido (chave, série, vencimento, banco, de onde veio a
+conta) e o que pede atenção.
+
+| Fonte | Arquivo | O que lê | Entrada × saída |
+|---|---|---|---|
+| NF-e 55 / NFC-e 65 (layout 4.00, com ou sem `nfeProc`) | `lib/notaFiscalXml.ts` | `dhEmi`, `vNF`, emitente/destinatário (CNPJ/CPF, nome), número, série, chave (Id ou `chNFe`, DV conferido), parcelas (`dup`), `tPag 90`, `finNFe 4` | **pelo CNPJ/CPF da empresa** (`papelDaEmpresa`): emitiu = venda = entrada; recebeu = compra = saída; `tpNF 0` inverte; mesma raiz de CNPJ = matriz/filial (com detalhe) |
+| NFS-e padrão nacional (`NFSe/infNFSe` + `DPS`) | idem | `dhEmi` da DPS, `vLiq` (líquido; `vServ` vai no detalhe se houver retenção), prestador (`emit`), tomador (`toma`), `nNFSe`, chave de 50 | prestou = entrada; tomou = saída |
+| NFS-e ABRASF 1.0/2.0x (`CompNfse/Nfse/InfNfse`) | idem | `Numero`, `DataEmissao` (ou `Competencia`), `ValorLiquidoNfse` (ou `ValorServicos`), `PrestadorServico`/`Prestador`, `Tomador(Servico)`; `NfseCancelamento` = aviso | idem |
+| Boleto bancário (47 / 44) e arrecadação (48 / 44, começa por 8) | `lib/boleto.ts` | todos os DVs (campos em módulo 10, geral em módulo 11; arrecadação em 10 ou 11 conforme o 3º número), valor, **vencimento pelo fator com a regra de 2025** (9999 = 21/02/2025, reinicia em 1000 = 22/02/2025; ciclo de 9.000 dias, vale o mais perto de hoje), banco (tabela COMPE) ou segmento | saída (ou o que quem lança marcou) |
+| PDF com texto (`unpdf`, 3 primeiras páginas) | `lib/leituraSemIa.ts` + `lib/leituraSemIaServidor.ts` | 1º linha digitável válida → boleto; 2º chave de acesso válida (DANFE) → nota (mesma chave do XML); senão data e valor por **rótulos** ("Data do pagamento" > "emissão" > "Data:" > "vencimento"; "Valor total da nota/pago/importância de" > "Total" > "Valor"); sem rótulo, só se houver **um** valor com R$ e **uma** data no exercício | DANFE pelo CNPJ da chave; recibo: o que quem lança marcou (senão aviso) |
+
+Regras de "não inventar": um dígito errado no boleto → 422 "o código não confere (campo 2…)
+— confira o que foi digitado"; valor em aberto, fator 0 ou arrecadação sem vencimento →
+campo em branco com aviso; data fora do exercício → em branco com aviso; duas datas ou
+vários valores sem rótulo → em branco ("achei 01/03 e 05/03 e não sei qual é a do
+pagamento — preencha"); PDF sem texto (escaneado) → `proposta: null` e "não dá para ler sem
+IA, preencha à mão"; PDF com senha ou torto → 415. Confiança: XML e boleto 1; PDF 0,7 (0,5
+se faltou data ou valor).
+
+**Conta (nunca IA).** `comContaSugerida` roda `sugerirConta` (lib/sugestaoConta.ts) **no
+servidor** com os exemplos de `exemplosDaEmpresa` e as contas/analíticas do recorte da
+sessão — as mesmas fontes (a) analítica citada e (b) histórico da empresa. O complemento é
+montado para casar com o histórico ("NF 1234 — Fornecedor LTDA"); sem sugestão segura (ou
+sem direção) a conta fica em branco com "Escolha a conta". A faixa de sugestão da tela
+continua valendo depois.
+
+**Privacidade no complemento.** O nome da outra parte só entra quando ela é **empresa
+(CNPJ)**. Pessoa física (CPF — cliente, paciente) fica fora do complemento; em empresa que
+**identifica pagador** e numa entrada, o nome e o CPF vão para os campos de **pagador**
+(Carnê-Leão/DMED). O complemento ainda passa por `mascararTexto`.
+
+**Duplicidade (apontada antes de gravar).** A proposta traz `chave`: `nfe:<44>`,
+`nfse:<50>`, `nfse:<CNPJ prestador>:<número>` (ABRASF) ou `boleto:<44>`. O POST de
+lançamentos recebe `chaveDocumento` (só no formato `FORMATO_CHAVE`; o resto é ignorado) e
+grava em `lancamentos.chave_documento` (0033). A rota de leitura procura, **só nos
+exercícios da mesma empresa**, lançamentos com a mesma chave **ou** o mesmo `documento_id`
+(`lancamentosDoDocumento`) e devolve `duplicados` + `duplicidadeVerificada`. A tela mostra o
+aviso em tom de atenção (com data, complemento e valor do que já está no livro) e, ao clicar
+em Lançar, pede confirmação ("Lançar mesmo assim", foco no Cancelar). Só aponta, não
+bloqueia. A mesma nota no XML e no DANFE em PDF tem a mesma chave.
+
+**Isolamento.** `POST /api/caixa/documento-leitura` (única rota nova, sob `/api/caixa`, que o
+cliente já alcança — **sem mudança no `proxy.ts`**): `exigirSessao` + `motivoNegado` (cliente
+só a própria empresa; contador só do escritório; arquivada barrada), e o documento tem que
+ser da **mesma empresa**, passar em `podeVerRegistro` (escritório gravado = o da sessão),
+estar recebido/conferido e não excluído — senão 404. Extrato e folha → 415; foto → 415
+("lance à mão ou pela IA, se ligada"). Ritmo de 40 leituras/10 min por usuário (memória).
+**Não usa** cota de IA, `CAIXA_IA_DOCUMENTO`, a opção da empresa nem a regra de saúde —
+nada sai do servidor (o teste de rota vigia `fetch` e falha se houver chamada de rede).
+
+**Leitor de XML** próprio, sem dependência: recusa `<!DOCTYPE`/`<!ENTITY` (sem XXE nem
+expansão de entidades), limite de 5 MB, 100 mil nós e 64 níveis; ignora prefixos de
+namespace.
+
+**Arquivos.** Novos: `lib/boleto.ts`, `lib/notaFiscalXml.ts`, `lib/leituraSemIa.ts` (puros),
+`lib/leituraSemIaServidor.ts` (texto do PDF e duplicidade),
+`app/api/caixa/documento-leitura/route.ts`, `app/(app)/caixa/LerNota.tsx`,
+`supabase/migrations/0033_lancamento_chave_documento.sql`, `tests/leituraSemIa.test.ts`
+(boleto com as contas à mão nos comentários; XMLs e PDFs gerados no teste) e
+`tests/leituraSemIaRotas.test.ts`. Alterados: `app/api/caixa/lancamentos/route.ts`
+(`chaveDocumento`), `app/(app)/caixa/page.tsx` (botão, rascunho de duas origens,
+confirmação de duplicado, pagador no rascunho), `app/(app)/caixa/LerDocumento.tsx`
+(`enviarAoPortal` e `lerJson` exportados, sem mudar o comportamento), `lib/medicaoRotas.ts`
+(rota nova na lista fechada), `next.config.ts` (`serverExternalPackages: ["unpdf"]`) e
+`package.json`.
+
+#### Para o integrador
+
+- **Migração `0033_lancamento_chave_documento.sql`** (só o arquivo; **não aplicada**).
+  Aditiva: `lancamentos.chave_documento text` (check de formato) + índice parcial
+  `(chave_documento, exercicio_id)`. Depende só da 0002. **Ordem livre:** sem ela o POST de
+  lançamentos detecta a coluna ausente (42703) e grava de novo **sem a chave**; a leitura
+  devolve `duplicidadeVerificada: false` quando não pôde procurar pela chave (o mesmo
+  documento do portal continua sendo achado pela `documento_id` da 0029). Reversão no
+  cabeçalho. `supabase migration list` antes do push.
+- **Dependência nova:** `unpdf` **1.4.0** (MIT, fixada sem `^`: as 1.8+ pedem Node ≥ 22 e o
+  CI roda Node 20). Embute o pdf.js, sem binário nativo; `serverExternalPackages` o deixa
+  fora do bundle e o trace da Vercel o inclui (`route.js.nft.json`). `npm ci` depois do merge.
+- **Sem variável nova**, sem mudança no `proxy.ts` e sem cota.
+- **Conflitos prováveis:** `app/(app)/caixa/page.tsx` (cabeçalho, `Rascunho`, `lancar`,
+  `aplicarProposta`), `app/api/caixa/lancamentos/route.ts` (bloco do documento e o insert),
+  `lib/medicaoRotas.ts` (lista de rotas) e `package.json`/lock. Não toquei em
+  `app/(app)/documentos/**`, `lib/documentos*`, `/inicio`, sino, `meses_confirmados` nem ponto.
+- **O que testar com conta de teste** (empresa de teste com CNPJ no cadastro; **nunca**
+  documento real de cliente):
+  1. Como cliente: **Ler nota ou boleto** → enviar um XML de NF-e de teste em que a empresa
+     é destinatária → rascunho de **saída** com data de emissão, valor total e "NF nº —
+     Nome"; **Desfazer** volta o formulário. Lançar → ícone de anexo no lançamento.
+  2. Ler o mesmo XML de novo → aviso "já foi lançado" com a data e, ao Lançar, a
+     confirmação. `select chave_documento from lancamentos order by criado_em desc limit 1;`
+     → `nfe:…`.
+  3. Um XML em que a empresa é **emitente** → entrada. Um XML de outra empresa → aviso "o
+     CNPJ/CPF da empresa não aparece nesta nota".
+  4. Colar a linha digitável de um boleto de teste → valor, vencimento e banco; trocar um
+     número → "o código não confere".
+  5. PDF de recibo gerado num editor (com "Valor pago" e "Data do pagamento") → data e
+     valor; PDF escaneado → "não dá para ler sem IA".
+  6. Isolamento: logado em outro escritório, `POST /api/caixa/documento-leitura` com a
+     empresa de teste → 403; com uma empresa sua e o id do documento de teste → 404.
+- **Não verificado no navegador** (sem banco local; o único `.env.local` aponta para
+  produção). typecheck, lint, testes e build verdes.
+
+**Pendências / próximos passos:**
+- NFS-e de prefeituras fora do ABRASF (layouts próprios) não são reconhecidas — o XML
+  responde "não é de nota fiscal". Somar o layout quando aparecer um real.
+- Nota com várias parcelas vira **um** rascunho com o total e um aviso; propor uma parcela
+  por vez (com o vencimento) seria o passo seguinte, se a contadora quiser.
+- O código de barras desenhado (imagem) no PDF não é lido — só a linha digitável em texto.
+- Foto de nota/recibo continua precisando de IA (decisão do dono: Workers AI, a fazer).
 
 ## Estado do banco
 

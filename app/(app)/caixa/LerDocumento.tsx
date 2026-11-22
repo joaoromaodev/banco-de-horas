@@ -22,10 +22,36 @@ interface DocumentoLista { id: string; nome: string; tipo: string; categoria: Ca
 const ACCEPT_IA = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
 const CATEGORIAS_IA: Categoria[] = ['nota', 'recibo', 'outros'];
 
-async function lerJson(r: Response) {
+export async function lerJson(r: Response) {
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.erro || 'Falha na operação.');
   return d;
+}
+
+/**
+ * Envia o arquivo ao portal (fica em Documentos, na competência do mês aberto):
+ * POST (URL assinada) → PUT no Storage → PATCH confirmar. Usado pela leitura por
+ * IA e pela leitura sem IA (LerNota.tsx).
+ */
+export async function enviarAoPortal(f: File, p: {
+  empresaId: string; competencia: string; categoria: Categoria; aceita: (mime: string) => boolean; erroTipo: string;
+}): Promise<DocumentoLido> {
+  const v = validarArquivo({ nome: f.name, tamanho: f.size, tipo: f.type });
+  if (!v.ok) throw new Error(v.erro);
+  if (!p.aceita(v.tipo.mime)) throw new Error(p.erroTipo);
+  const ini = await fetch('/api/documentos', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ empresa: p.empresaId, competencia: p.competencia, categoria: p.categoria, nome: f.name, tamanho: f.size, tipo: f.type, observacao: 'Enviado pelo Livro Caixa' }),
+  }).then(lerJson);
+  const corpo = new FormData();
+  corpo.append('cacheControl', '3600');
+  corpo.append('', new File([f], v.nome, { type: ini.mime }));
+  const up = await fetch(ini.url, { method: 'PUT', body: corpo, headers: { 'x-upsert': 'false' } });
+  if (!up.ok) throw new Error('O arquivo não subiu. Confira a conexão e tente de novo.');
+  await fetch('/api/documentos', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: ini.id, acao: 'confirmar' }),
+  }).then(lerJson);
+  return { id: ini.id, nome: v.nome };
 }
 
 export default function LerDocumento({ empresaId, ano, mes, onLido, onFechar }: {
@@ -54,24 +80,9 @@ export default function LerDocumento({ empresaId, ano, mes, onLido, onFechar }: 
   const competencia = `${ano}-${String(mes).padStart(2, '0')}`;
 
   /** Envia o arquivo ao portal (fica em Documentos, na competência do mês aberto). */
-  async function enviar(f: File): Promise<DocumentoLido> {
-    const v = validarArquivo({ nome: f.name, tamanho: f.size, tipo: f.type });
-    if (!v.ok) throw new Error(v.erro);
-    if (!tipoLidoPelaIa(v.tipo.mime)) throw new Error('A IA lê foto (JPG, PNG, WEBP) ou PDF.');
-    const ini = await fetch('/api/documentos', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ empresa: empresaId, competencia, categoria, nome: f.name, tamanho: f.size, tipo: f.type, observacao: 'Enviado pelo Livro Caixa' }),
-    }).then(lerJson);
-    const corpo = new FormData();
-    corpo.append('cacheControl', '3600');
-    corpo.append('', new File([f], v.nome, { type: ini.mime }));
-    const up = await fetch(ini.url, { method: 'PUT', body: corpo, headers: { 'x-upsert': 'false' } });
-    if (!up.ok) throw new Error('O arquivo não subiu. Confira a conexão e tente de novo.');
-    await fetch('/api/documentos', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: ini.id, acao: 'confirmar' }),
-    }).then(lerJson);
-    return { id: ini.id, nome: v.nome };
-  }
+  const enviar = (f: File) => enviarAoPortal(f, {
+    empresaId, competencia, categoria, aceita: tipoLidoPelaIa, erroTipo: 'A IA lê foto (JPG, PNG, WEBP) ou PDF.',
+  });
 
   async function ler() {
     setErro(null);
