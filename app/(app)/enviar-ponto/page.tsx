@@ -8,12 +8,12 @@
 // contabilidade confere na Timesheet; aqui o cliente acompanha a situação de
 // cada envio e vê o motivo quando a folha volta. Quem decide de verdade são as
 // rotas (/api/envio-ponto).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { MESES } from '@/lib/calendario';
 import { competenciaPadrao, competenciasRecentes } from '@/lib/documentos';
 import { hojeBelem } from '@/lib/contratos';
 import { lerMe } from '@/lib/meCliente';
-import { ACCEPT_FOTO, CLIENTE_EXCLUI, LIMITE_FOTO_TEXTO, situacaoParaCliente, type SituacaoEnvio, validarFoto } from '@/lib/envioPonto';
+import { ACCEPT_FOTO, CLIENTE_EXCLUI, conferirEnvioFolha, type ErrosEnvioFolha, LIMITE_FOTO_TEXTO, situacaoParaCliente, type SituacaoEnvio, validarFoto } from '@/lib/envioPonto';
 import { DialogoConfirmacao } from '../Dialogo';
 import { IconeCamera, IconeDesfazer, IconeExcluir, IconeMais } from '../icones';
 import { Aviso, Botao, BotaoIcone, botaoCls, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, FalhaCarregamento, Secao, Selo } from '@/components/ui';
@@ -83,6 +83,11 @@ export default function EnviarPontoPage() {
   const [desfazer, setDesfazer] = useState<{ id: string; texto: string } | null>(null);
   const [excluindo, setExcluindo] = useState<EnvioCliente | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  // O que falta no formulário, por campo: a mensagem fica embaixo do campo e ligada a ele.
+  const [errosCampo, setErrosCampo] = useState<ErrosEnvioFolha>({});
+  const idErroFotos = useId();
+  const idFuncionario = useId();
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -136,6 +141,7 @@ export default function EnviarPontoPage() {
       };
     });
     setItens((atual) => [...atual.filter((x) => x.estado !== 'ok'), ...novos].slice(-12));
+    setErrosCampo((e) => ({ ...e, fotos: undefined }));
   }
 
   function remover(chave: string) {
@@ -168,9 +174,13 @@ export default function EnviarPontoPage() {
 
   async function enviar() {
     setErro(null);
-    if (!funcionario) { setErro('Escolha o funcionário da folha.'); return; }
     const pendentes = itens.filter((i) => i.estado === 'esperando' || (i.estado === 'erro' && validarFoto({ nome: i.arquivo.name, tamanho: 1, tipo: i.arquivo.type }).ok));
-    if (!pendentes.length) { setErro('Tire uma foto ou escolha a imagem da folha.'); return; }
+    // O botão fica sempre ativo: em vez de um botão apagado sem explicação, a mensagem
+    // aparece no campo que falta (e o foco vai até ele).
+    const faltando = conferirEnvioFolha({ funcionario, fotosProntas: pendentes.length });
+    setErrosCampo(faltando);
+    if (faltando.funcionario) { document.getElementById(idFuncionario)?.focus(); return; }
+    if (faltando.fotos) { cameraRef.current?.focus(); return; }
     setEnviando(true);
     let ok = 0;
     for (const item of pendentes) {
@@ -197,6 +207,8 @@ export default function EnviarPontoPage() {
     setCompetencia(`${e.ano}-${String(e.mes).padStart(2, '0')}`);
     if (funcionarios.includes(e.funcionario)) setFuncionario(e.funcionario);
     formRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    // Quem usa teclado ou leitor de tela vai junto: o foco cai no "Tirar foto".
+    cameraRef.current?.focus({ preventScroll: true });
   }
 
   async function excluir(e: EnvioCliente) {
@@ -293,7 +305,9 @@ export default function EnviarPontoPage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Selecao rotulo="Mês da folha" busca={false} valor={competencia} onChange={setCompetencia}
                       opcoes={competencias.map((c) => ({ valor: c, rotulo: mesNome(Number(c.slice(0, 4)), Number(c.slice(5, 7))) }))} />
-                    <Selecao rotulo="Funcionário" valor={funcionario} onChange={setFuncionario} placeholder="Escolha o funcionário"
+                    <Selecao id={idFuncionario} rotulo="Funcionário" valor={funcionario} placeholder="Escolha o funcionário"
+                      erro={errosCampo.funcionario}
+                      onChange={(v) => { setFuncionario(v); setErrosCampo((e) => ({ ...e, funcionario: undefined })); }}
                       opcoes={funcionarios.map((n) => ({ valor: n, rotulo: n }))} />
                   </div>
 
@@ -302,20 +316,25 @@ export default function EnviarPontoPage() {
                     <label className={`${botaoCls({ variante: 'tonal' })} cursor-pointer has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-foco`}>
                       <IconeCamera />
                       Tirar foto
-                      <input type="file" accept="image/*" capture="environment" className="sr-only"
+                      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="sr-only"
+                        aria-describedby={errosCampo.fotos ? idErroFotos : undefined} aria-invalid={errosCampo.fotos ? true : undefined}
                         onChange={(e) => { adicionar(e.target.files); e.target.value = ''; }} />
                     </label>
                     <label className={`${botaoCls()} cursor-pointer has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-foco`}>
                       <IconeMais />
                       Escolher arquivo
                       <input type="file" accept={ACCEPT_FOTO} multiple className="sr-only"
+                        aria-describedby={errosCampo.fotos ? idErroFotos : undefined} aria-invalid={errosCampo.fotos ? true : undefined}
                         onChange={(e) => { adicionar(e.target.files); e.target.value = ''; }} />
                     </label>
                   </div>
+                  {errosCampo.fotos && (
+                    <p id={idErroFotos} role="alert" className="mt-1.5 text-xs font-medium text-perigo">{errosCampo.fotos}</p>
+                  )}
 
                   {itens.length > 0 && (
                     <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Fotos para enviar">
-                      {itens.map((i) => (
+                      {itens.map((i, n) => (
                         <li key={i.chave} className="overflow-hidden rounded-lg border border-borda bg-superficie-suave">
                           {/* eslint-disable-next-line @next/next/no-img-element -- prévia local (blob:) */}
                           <img src={i.previa} alt={`Prévia de ${i.arquivo.name || 'foto'}`} className="aspect-[3/4] w-full object-cover" />
@@ -327,7 +346,7 @@ export default function EnviarPontoPage() {
                               {i.estado === 'erro' && <span className="text-perigo">{i.erro}</span>}
                             </span>
                             {i.estado !== 'enviando' && i.estado !== 'ok' && (
-                              <BotaoIcone rotulo="Tirar da lista" tom="apagado" onClick={() => remover(i.chave)}><IconeExcluir size={14} /></BotaoIcone>
+                              <BotaoIcone rotulo={`Tirar a foto ${n + 1} da lista`} tom="apagado" onClick={() => remover(i.chave)}><IconeExcluir size={14} /></BotaoIcone>
                             )}
                           </div>
                         </li>
@@ -336,7 +355,7 @@ export default function EnviarPontoPage() {
                   )}
 
                   <div className="mt-5">
-                    <Botao variante="primaria" onClick={enviar} carregando={enviando} disabled={!aEnviar || !funcionario}>
+                    <Botao variante="primaria" tamanho="lg" className="w-full sm:w-auto" onClick={enviar} carregando={enviando}>
                       {enviando ? 'Enviando…' : aEnviar > 1 ? `Enviar ${aEnviar} fotos` : 'Enviar folha'}
                     </Botao>
                   </div>
@@ -364,17 +383,20 @@ export default function EnviarPontoPage() {
                             <div className="min-w-0">
                               <p className="font-medium text-tinta">{e.funcionario}</p>
                               <p className="text-xs text-tinta-suave">Enviada em {quandoBR(e.enviadoEm)}</p>
+                              {/* A explicação da situação à vista: no celular não há "passar o mouse". */}
+                              <p className="mt-0.5 text-xs text-tinta-suave">{s.explicacao}</p>
                               {e.situacao === 'devolvida' && e.motivo && (
                                 <p className="mt-1 text-[13px] text-perigo"><span className="font-medium">Motivo:</span> {e.motivo}</p>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
-                              <span data-dica={s.explicacao}><Selo tom={s.tom}>{s.rotulo}</Selo></span>
+                              <Selo tom={s.tom}>{s.rotulo}</Selo>
                               {(e.situacao === 'devolvida' || e.situacao === 'rejeitada') && (
-                                <Botao tamanho="sm" variante="tonal" onClick={() => reenviar(e)}>Enviar de novo</Botao>
+                                <Botao tamanho="sm" variante="tonal" aria-label={`Enviar de novo a folha de ${e.funcionario}`}
+                                  onClick={() => reenviar(e)}>Enviar de novo</Botao>
                               )}
                               {podeExcluir && (
-                                <BotaoIcone rotulo="Excluir envio" tom="perigo" onClick={() => setExcluindo(e)}><IconeExcluir /></BotaoIcone>
+                                <BotaoIcone rotulo={`Excluir o envio de ${e.funcionario}`} tom="perigo" onClick={() => setExcluindo(e)}><IconeExcluir /></BotaoIcone>
                               )}
                             </div>
                           </li>

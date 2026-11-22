@@ -10,7 +10,7 @@
 // A tela só esconde botões; quem decide de verdade são as rotas.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  ACCEPT, CATEGORIAS, Categoria, competenciaBR, competenciaPadrao, competenciasRecentes, LIMITE_TEXTO,
+  ACCEPT, CATEGORIAS, Categoria, competenciaBR, competenciaPadrao, competenciasRecentes, conferirEnvioDocumentos, type ErrosEnvioDocumentos, LIMITE_TEXTO,
   ROTULO_CATEGORIA, situacaoPrazo, StatusDocumento, StatusPendencia, tamanhoBR, TIPOS_TEXTO, validarArquivo,
 } from '@/lib/documentos';
 import { hojeBelem } from '@/lib/contratos';
@@ -87,6 +87,9 @@ export default function DocumentosPage() {
   const [fila, setFila] = useState<ItemFila[]>([]);
   const [enviando, setEnviando] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  // O que falta no formulário de envio, por campo (mensagem embaixo do campo, ligada a ele).
+  const [errosCampo, setErrosCampo] = useState<ErrosEnvioDocumentos>({});
+  const idCategoria = useId();
 
   const gestor = me?.role === 'master' || me?.role === 'usuario';
   const empresaId = gestor ? empresaSel : (me?.empresa ?? '');
@@ -157,6 +160,7 @@ export default function DocumentosPage() {
       } as ItemFila;
     });
     setFila((f) => [...f.filter((x) => x.estado !== 'ok'), ...novos].slice(-20));
+    setErrosCampo((e) => ({ ...e, arquivos: undefined }));
   }
 
   /** Atender uma pendência: o formulário vem preenchido com o que o escritório sugeriu. */
@@ -164,8 +168,10 @@ export default function DocumentosPage() {
     setPendenciaSel(p.id);
     if (p.categoria) setCategoria(p.categoria);
     if (p.competencia) setCompetencia(p.competencia);
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    formRef.current?.querySelector<HTMLElement>('[data-zona-envio]')?.focus();
+    setErrosCampo({});
+    formRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    // O foco vai para o campo de arquivo (o leitor de tela anuncia "Escolher arquivos").
+    formRef.current?.querySelector<HTMLElement>('[data-zona-envio] input')?.focus({ preventScroll: true });
   }
 
   async function enviarUm(item: ItemFila): Promise<void> {
@@ -193,9 +199,12 @@ export default function DocumentosPage() {
   }
 
   async function enviar() {
-    if (!categoria) { setErro('Escolha a categoria antes de enviar.'); return; }
     const pendentes = fila.filter((f) => f.estado === 'esperando' || (f.estado === 'erro' && validarArquivo({ nome: f.arquivo.name, tamanho: f.arquivo.size, tipo: f.arquivo.type }).ok));
-    if (!pendentes.length) { setErro('Escolha ao menos um arquivo válido.'); return; }
+    // O botão fica sempre ativo: o que faltar aparece no próprio campo, e o foco vai até ele.
+    const faltando = conferirEnvioDocumentos({ categoria, arquivosProntos: pendentes.length });
+    setErrosCampo(faltando);
+    if (faltando.categoria) { document.getElementById(idCategoria)?.focus(); return; }
+    if (faltando.arquivos) { formRef.current?.querySelector<HTMLElement>('[data-zona-envio] input')?.focus(); return; }
     setEnviando(true); setErro(null);
     let ok = 0;
     for (const item of pendentes) {
@@ -340,12 +349,15 @@ export default function DocumentosPage() {
             <div ref={formRef}>
               <Secao titulo="Enviar documentos"
                 descricao={`${TIPOS_TEXTO}. Até ${LIMITE_TEXTO} por arquivo.`}>
-                <div className="space-y-4 p-4 sm:p-5">
+                {/* A Secao já dá o respiro: sem um segundo padding (no celular apertava os campos). */}
+                <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Selecao rotulo="Competência (mês de referência)" valor={competencia} onChange={setCompetencia}
+                    <Selecao rotulo="Mês de referência" valor={competencia} onChange={setCompetencia}
+                      dica="O mês a que os documentos se referem."
                       opcoes={competencias.map((c) => ({ valor: c, rotulo: competenciaBR(c) }))} />
-                    <Selecao rotulo="Categoria" valor={categoria} onChange={(v) => setCategoria(v as Categoria)}
-                      placeholder="Escolha…" opcoes={opcoesCategoria} />
+                    <Selecao id={idCategoria} rotulo="Tipo de documento" valor={categoria}
+                      onChange={(v) => { setCategoria(v as Categoria); setErrosCampo((e) => ({ ...e, categoria: undefined })); }}
+                      placeholder="Escolha o tipo" erro={errosCampo.categoria} opcoes={opcoesCategoria} />
                     {abertas.length > 0 && (
                       <Selecao rotulo="Atende a pendência" valor={pendenciaSel} onChange={setPendenciaSel} classeCampo="sm:col-span-2"
                         opcoes={[{ valor: '', rotulo: 'Nenhuma — envio avulso' }, ...abertas.map((p) => ({ valor: p.id, rotulo: p.titulo }))]} />
@@ -354,13 +366,12 @@ export default function DocumentosPage() {
                       placeholder="Ex.: notas de compra da filial" onChange={(e) => setObservacao(e.target.value)} />
                   </div>
 
-                  <ZonaEnvio onArquivos={adicionarArquivos} desabilitado={enviando} />
+                  <ZonaEnvio onArquivos={adicionarArquivos} desabilitado={enviando} erro={errosCampo.arquivos} />
 
                   {fila.length > 0 && <FilaEnvio fila={fila} onRemover={(k) => setFila((f) => f.filter((x) => x.chave !== k))} enviando={enviando} />}
 
                   <div>
-                    <Botao variante="primaria" carregando={enviando} onClick={enviar}
-                      disabled={!fila.some((f) => f.estado !== 'ok')}>
+                    <Botao variante="primaria" tamanho="lg" className="w-full sm:w-auto" carregando={enviando} onClick={enviar}>
                       Enviar ao escritório
                     </Botao>
                   </div>
@@ -381,6 +392,7 @@ export default function DocumentosPage() {
               ) : (
                 <div className="relative overflow-x-auto">
                   <table className={tb.tabela}>
+                    <caption className="sr-only">{gestor ? 'Documentos recebidos' : 'Documentos que você já enviou'}</caption>
                     <thead className={tb.cabeca}>
                       <tr>
                         <th className={tb.th}>Arquivo</th>
@@ -396,7 +408,7 @@ export default function DocumentosPage() {
                         <tr key={d.id} className={tb.linha}>
                           <td className={tb.td}>
                             <a href={`/api/documentos/arquivo?id=${encodeURIComponent(d.id)}`}
-                              className="inline-flex max-w-[18rem] items-center gap-1.5 font-medium text-primaria-texto hover:underline">
+                              className="inline-flex min-h-11 max-w-[18rem] items-center gap-1.5 font-medium text-primaria-texto hover:underline sm:min-h-0">
                               <IconeBaixar size={14} className="shrink-0" />
                               <span className="truncate">{d.nome}</span>
                             </a>
@@ -426,7 +438,7 @@ export default function DocumentosPage() {
                               </BotaoIcone>
                             ))}
                             {(gestor || d.status === 'recebido') && (
-                              <BotaoIcone rotulo="Excluir" tom="perigo" onClick={() => setExcluindoDoc(d)}>
+                              <BotaoIcone rotulo={`Excluir ${d.nome}`} title="Excluir" tom="perigo" onClick={() => setExcluindoDoc(d)}>
                                 <IconeExcluir />
                               </BotaoIcone>
                             )}
@@ -498,7 +510,7 @@ function ListaPendencias({ abertas, atendidas, hoje, gestor, onAtender, onEditar
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {p.status === 'aberta' && !gestor && (
-            <Botao tamanho="sm" variante="tonal" onClick={() => onAtender(p)}>Enviar agora</Botao>
+            <Botao tamanho="sm" variante="tonal" aria-label={`Enviar agora: ${p.titulo}`} onClick={() => onAtender(p)}>Enviar agora</Botao>
           )}
           {gestor && p.status === 'aberta' && (
             <>
@@ -520,7 +532,7 @@ function ListaPendencias({ abertas, atendidas, hoje, gestor, onAtender, onEditar
       {atendidas.length > 0 && (
         <div className={cx(abertas.length > 0 && 'border-t border-borda')}>
           <button type="button" onClick={() => setVerAtendidas((v) => !v)} aria-expanded={verAtendidas}
-            className="w-full px-4 py-2.5 text-left text-[13px] font-medium text-primaria-texto hover:bg-superficie-realce sm:px-5">
+            className="min-h-11 w-full px-4 py-2.5 text-left text-[13px] font-medium text-primaria-texto hover:bg-superficie-realce sm:min-h-0 sm:px-5">
             {verAtendidas ? 'Esconder atendidas' : `Ver atendidas (${atendidas.length})`}
           </button>
           {verAtendidas && <ul className="divide-y divide-borda/70 border-t border-borda">{atendidas.map(linha)}</ul>}
@@ -531,8 +543,9 @@ function ListaPendencias({ abertas, atendidas, hoje, gestor, onAtender, onEditar
 }
 
 /** Área de envio: clicar, arrastar (vários arquivos) ou, no celular, tirar foto. */
-function ZonaEnvio({ onArquivos, desabilitado }: { onArquivos: (f: FileList | null) => void; desabilitado: boolean }) {
+function ZonaEnvio({ onArquivos, desabilitado, erro }: { onArquivos: (f: FileList | null) => void; desabilitado: boolean; erro?: string }) {
   const id = useId();
+  const idErro = `${id}-erro`;
   const [sobre, setSobre] = useState(false);
   const camera = useRef<HTMLInputElement>(null);
   return (
@@ -543,15 +556,21 @@ function ZonaEnvio({ onArquivos, desabilitado }: { onArquivos: (f: FileList | nu
         onDrop={(e) => { e.preventDefault(); setSobre(false); if (!desabilitado) onArquivos(e.dataTransfer.files); }}
         className={cx(
           'flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-foco',
-          sobre ? 'border-primaria bg-primaria-suave' : 'border-borda-forte bg-superficie hover:border-primaria hover:bg-superficie-realce',
+          sobre ? 'border-primaria bg-primaria-suave' : erro ? 'border-perigo bg-superficie' : 'border-borda-forte bg-superficie hover:border-primaria hover:bg-superficie-realce',
           desabilitado && 'pointer-events-none opacity-60',
         )}>
         <input id={id} type="file" multiple accept={ACCEPT} className="sr-only" disabled={desabilitado}
+          aria-describedby={erro ? idErro : undefined} aria-invalid={erro ? true : undefined}
           onChange={(e) => { onArquivos(e.target.files); e.target.value = ''; }} />
         <IconeBaixar size={22} className="rotate-180 text-primaria-texto" />
-        <span className="font-medium text-tinta">Arraste os arquivos aqui ou clique para escolher</span>
+        {/* No celular não há arrastar nem clicar: o texto fala em tocar. */}
+        <span className="font-medium text-tinta">
+          <span className="sm:hidden">Toque aqui para escolher os arquivos</span>
+          <span className="max-sm:hidden">Arraste os arquivos aqui ou clique para escolher</span>
+        </span>
         <span className="text-xs text-tinta-suave">Pode mandar vários de uma vez.</span>
       </label>
+      {erro && <p id={idErro} role="alert" className="text-xs font-medium text-perigo">{erro}</p>}
       <div className="sm:hidden">
         <input ref={camera} type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1}
           aria-hidden="true" onChange={(e) => { onArquivos(e.target.files); e.target.value = ''; }} />
@@ -575,7 +594,7 @@ function FilaEnvio({ fila, onRemover, enviando }: { fila: ItemFila[]; onRemover:
           </div>
           <Selo tom={selo[f.estado][0]}>{selo[f.estado][1]}</Selo>
           {f.estado !== 'enviando' && f.estado !== 'ok' && (
-            <BotaoIcone rotulo="Tirar da lista" tom="apagado" tamanho="sm" disabled={enviando} onClick={() => onRemover(f.chave)}>
+            <BotaoIcone rotulo={`Tirar ${f.arquivo.name} da lista`} title="Tirar da lista" tom="apagado" tamanho="sm" disabled={enviando} onClick={() => onRemover(f.chave)}>
               <IconeExcluir size={14} />
             </BotaoIcone>
           )}

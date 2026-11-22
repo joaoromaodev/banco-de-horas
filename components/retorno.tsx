@@ -65,7 +65,7 @@ export function Toast({ tom = 'sucesso', acao, onFechar, duracao, children }: {
         {acao && <div className="mt-2">{acao}</div>}
       </div>
       <button type="button" onClick={onFechar} aria-label="Fechar notificação"
-        className="-mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-tinta-fraca transition-colors hover:bg-superficie-realce hover:text-tinta">
+        className="-my-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-tinta-fraca transition-colors hover:bg-superficie-realce hover:text-tinta sm:-mt-0.5 sm:mb-0 sm:h-7 sm:w-7">
         <IconeExcluir size={14} />
       </button>
     </div>

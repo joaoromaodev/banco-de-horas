@@ -152,3 +152,87 @@ meses alternados a partir do fim (o mês do demonstrativo sempre aparece). Ver
   regra.
 - Contratos: formulário aberto e botão "Salvar contrato" vistos; geração do `.docx`
   não conferida.
+
+## Sprint 16, frente A — acessibilidade e celular nas telas do cliente
+
+Data: 21/11/2026. Passada em `/inicio`, `/caixa` (lançar movimento), `/documentos`,
+`/enviar-ponto` e no sino, pensando em quem tem pouca familiaridade digital num celular de
+375 px. **Conferido por leitura de código e testes** — o app não foi aberto no navegador
+(o `.env` aponta para produção e as telas do cliente exigem login real). Vale um olhar em
+375 px, nos dois temas, no próximo QA com conta de teste.
+
+Nenhuma regra nem rota mudou. Telas da contabilidade herdam as mudanças das primitivas
+(só abaixo de 640 px).
+
+### Corrigido
+
+1. **Alvo de toque de 44 px no celular** (abaixo de `sm`): `Botao` (todos os tamanhos),
+   `BotaoIcone` (44 × 44), campos (`Entrada`, `Selecao`, `CampoArquivo`), opções e busca da
+   `Selecao`, fechar do `Toast`, `Marcacao` (a linha inteira), abas (`Abas`), botões da barra
+   do topo e da gaveta (menu, sino, tema, sair) e itens do menu. No caixa: botões dos meses,
+   campos do formulário do celular, seletores de conta e o ícone do documento anexo; em
+   documentos, o link do arquivo e o "Ver atendidas". A partir de `sm` volta tudo à escala densa.
+   [`components/ui.tsx`](../components/ui.tsx), [`components/selecao.tsx`](../components/selecao.tsx),
+   [`components/retorno.tsx`](../components/retorno.tsx), [`app/(app)/layout.tsx`](../app/(app)/layout.tsx)
+2. **Erro ligado ao campo e anunciado.** `Selecao` ganhou `erro` (borda, `aria-invalid`,
+   `aria-describedby`, `role="alert"`), como a `Entrada` já tinha.
+   - `/enviar-ponto`: "Enviar folha" não fica mais apagado sem explicação; ao tocar, o que
+     falta (funcionário, foto) aparece **no campo**, ligado a ele, e o foco vai até lá.
+     Regra pura `conferirEnvioFolha` em `lib/envioPonto.ts`.
+   - `/documentos`: idem para "Tipo de documento" e arquivos (`conferirEnvioDocumentos` em
+     `lib/documentos.ts`); antes era um aviso solto no topo.
+   - `/caixa`: o erro da rota (data, conta titular/analítica, valor, cheque) continua no aviso
+     do topo e agora também **marca o campo** (`aria-invalid` + `aria-describedby`; no celular a
+     mensagem aparece embaixo do campo) e leva o foco até ele (`campoDoErro` em
+     `caixa/formato.ts`). Digitar no formulário tira a marca.
+3. **Rótulos de verdade no formulário do caixa no celular**: o rótulo virou `<label for>`
+   (tocar nele leva ao campo). Textos mais simples: "Entrada (recebi)", "Saída (paguei)",
+   "Complemento (o que foi)" com exemplo. Os seletores de conta dizem o que são e o que está
+   escolhido ("Conta titular: 1.01 · Vendas" / "nenhuma escolhida") — antes o leitor de tela
+   ouvia só "Escolher conta…".
+4. **Nomes de botão com contexto**: "Excluir" e "Tirar da lista" dizem qual arquivo/foto;
+   "Excluir envio" e "Enviar de novo" dizem de quem é a folha; "Enviar agora" diz a pendência.
+   O texto visível continua no começo do nome (quem usa comando de voz acha o botão).
+5. **Celular sem "passar o mouse"**: em `/enviar-ponto` a explicação da situação de cada folha
+   ("A contabilidade recebeu a foto e vai conferir.") saiu do balão e ficou à vista; em
+   `/documentos` a área de envio diz "Toque aqui para escolher os arquivos" no celular.
+6. **`/documentos`, formulário de envio**: padding duplo (Secao + div interna) apertava os
+   campos no celular — tirado. "Competência (mês de referência)" → "Mês de referência" (com
+   dica) e "Categoria" → "Tipo de documento". Tabela ganhou `caption` para o leitor de tela.
+7. **Foco**: a gaveta do menu leva o foco para "Fechar menu" ao abrir e devolve ao "Abrir
+   menu" ao fechar; o sino devolve o foco a quem o abriu e ganhou botão **Fechar** à vista
+   (no celular não há Esc). "Enviar de novo"/"Enviar agora" levam o foco ao campo de foto/arquivo.
+8. **Sino pedia as notificações em laço enquanto aberto**: o efeito do painel dependia de
+   `onFechar`/`recarregar`, que mudam a cada render — cada resposta re-renderizava, refazia o
+   efeito, pedia de novo e devolvia o foco ao painel. Agora os dois ficam em ref e o efeito
+   roda só ao abrir/fechar. [`app/(app)/Sino.tsx`](../app/(app)/Sino.tsx)
+9. **Teclado numérico**: os valores do caixa já usavam `inputMode="decimal"` e o CPF/CNPJ
+   `numeric`; agora o teste garante. Data usa o campo nativo (calendário do celular).
+
+### Contraste
+
+Os pares de papéis usados nas telas do cliente passam AA nos dois temas (texto 4,5:1,
+contorno de campo e foco 3:1) — conferido pelo teste, que lê `app/globals.css`. Nenhum
+ajuste de cor foi necessário.
+
+### Testes
+
+- [`tests/acessibilidadeCliente.test.ts`](../tests/acessibilidadeCliente.test.ts) — varre as
+  telas do cliente (seguindo os imports, como `proxyCliente.test.ts`) e acusa botão/link sem
+  nome, `BotaoIcone` sem `rotulo`, campo/lista sem rótulo, `<img>` sem `alt`, valor em dinheiro
+  sem `inputMode="decimal"`, `alert/confirm/prompt`/`<select>`; confere os 44 px das primitivas
+  e o contraste dos papéis nos dois temas. Tem um autoteste com um arquivo de mentira para
+  provar que acusa de verdade.
+- [`tests/formularioCliente.test.ts`](../tests/formularioCliente.test.ts) — `campoDoErro`,
+  `conferirEnvioFolha`, `conferirEnvioDocumentos`.
+
+### Pendências (para a próxima rodada)
+
+1. **Editar um lançamento no celular** continua na linha da tabela (campos de 32 px, rolagem
+   lateral). O certo é abrir o formulário empilhado (o mesmo do "Novo lançamento") num
+   diálogo ou no lugar do cartão. Não mexi: muda o fluxo da tela.
+2. **Lista de documentos do cliente no celular** é uma tabela que rola de lado; para o
+   cliente, cartões (nome, situação, excluir) leriam melhor.
+3. Termos do caixa ("Conta Titular", "Conta Analítica", "Complemento") seguem os da
+   contadora; vale perguntar a ela se o cliente pode ver nomes mais simples.
+4. Conferir no navegador, com conta de teste, em 375 px claro/escuro (ver acima).
