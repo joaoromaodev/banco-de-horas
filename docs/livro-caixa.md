@@ -1354,6 +1354,20 @@ recusado. Limite diário da IA → 429 com "O limite diário da IA foi atingido.
 amanhã…" (não conta na cota mensal). Detalhes, cota de neurônios e integrador em
 [`folha-de-ponto.md`](folha-de-ponto.md), seção "IA plugável".
 
+### ✅ Sprint 18 · Frente A — acabamentos do caixa
+
+- **Extrato em empresa nova (achado no teste em produção):** sem nenhuma conta analítica, a coluna
+  "Conta analítica" ficava vazia e não dava para lançar. Agora toda lista termina em **"Criar conta
+  analítica…"**, que abre um diálogo (nome + conta titular da natureza da linha) e grava pelo cadastro de
+  sempre (`POST /api/caixa/historicos`: só a contabilidade, natureza vinda da titular, já vinculada à
+  empresa); a analítica criada fica escolhida na linha. Sem titular da natureza certa, o diálogo leva ao
+  Plano de Contas em `/caixa/cadastros`. Com a empresa sem nenhuma analítica, um aviso explica os dois
+  caminhos. Arquivos: `app/(app)/caixa/extrato/page.tsx`, `app/(app)/caixa/extrato/NovaAnalitica.tsx` (novo).
+- **Editar lançamento no celular:** num diálogo com o formulário empilhado (ver qa-visual.md).
+- Para o integrador: sem migração e sem rota nova. Testar com conta de teste: empresa recém-criada →
+  Extrato → importar um OFX → na linha, "Criar conta analítica…" → criar → a linha fica com a conta →
+  "Lançar". Conferir que o cliente continua sem acesso ao extrato.
+
 ## Estado do banco
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e

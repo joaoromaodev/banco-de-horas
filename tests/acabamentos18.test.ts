@@ -20,6 +20,20 @@ describe('dica de foto da folha', () => {
   });
 });
 
+describe('extrato em empresa sem conta analítica', () => {
+  it('oferece criar a analítica na linha, pelo cadastro de sempre, e aponta para Cadastros', () => {
+    const tela = ler('caixa', 'extrato', 'page.tsx');
+    expect(tela).toMatch(/rotulo: 'Criar conta analítica…'/);
+    expect(tela).toMatch(/if \(v === NOVA_ANALITICA\) \{ onCriar\(\); return; \}/);
+    expect(tela).toMatch(/analiticas\.length === 0 &&/);
+    expect(tela).toMatch(/href="\/caixa\/cadastros"/);
+    const dialogo = ler('caixa', 'extrato', 'NovaAnalitica.tsx');
+    // Reaproveita a rota que já existe (só a contabilidade; natureza vem da titular).
+    expect(dialogo).toMatch(/lerJson<[^>]+>\('\/api\/caixa\/historicos', \{\s*method: 'POST'/);
+    expect(dialogo).toMatch(/href="\/caixa\/cadastros"/);
+  });
+});
+
 describe('celular', () => {
   it('documentos do cliente: cartões abaixo de 640 px e a tabela só a partir de sm', () => {
     const src = ler('documentos', 'page.tsx');

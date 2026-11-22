@@ -861,3 +861,11 @@ deixou de mostrar o motivo.
    um escritório de teste, "Ler folha (OCR)" responde a mensagem do escritório e a Timesheet mostra o
    aviso; outro escritório de teste continua lendo até o limite do dia.
    `select dia, escritorio_id, sum(neuronios) from ia_uso group by 1, 2 order by 1 desc;`
+
+### Mês inicial da Timesheet (achado no teste em produção)
+
+A Timesheet (`/ponto`) e o "Gerar em lote" (`/folhas`) abriam sempre em **junho/2026** (valor fixo no
+`useState`). Agora abrem no **mês de hoje em Belém**; `?ano=&mes=` da URL continua mandando (o que faltar vem
+de hoje). Regra pura `mesInicialPonto` em `lib/pontoUrl.ts`, testada em `tests/pontoUrl.test.ts` (inclusive a
+virada do mês em Belém e uma guarda contra mês fixo nas duas telas). "Último mês com folha" não entrou: exigiria
+uma leitura a mais por empresa e muda o que a contadora vê ao abrir — fica para decidir com ela.

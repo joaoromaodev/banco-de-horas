@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Empresa, Funcionario } from '@/lib/tipos';
 import { MESES } from '@/lib/calendario';
+import { hojeBelem } from '@/lib/agenda';
+import { mesInicialPonto } from '@/lib/pontoUrl';
 import { AbasPonto } from '../AbasPonto';
 import { IconeBaixar } from '../icones';
 import { Botao, CabecalhoPagina, Cartao, Conteudo, Entrada, FalhaCarregamento, Secao } from '@/components/ui';
@@ -15,8 +17,9 @@ export default function Folhas() {
   const [empresa, setEmpresa] = useState('');
   const [funcList, setFuncList] = useState<Funcionario[]>([]);
   const [funcionario, setFuncionario] = useState('');
-  const [ano, setAno] = useState(2026);
-  const [mes, setMes] = useState(6);
+  // Mês de hoje (Belém), como a Timesheet — antes ficava fixo em junho/2026.
+  const [ano, setAno] = useState(() => mesInicialPonto('', hojeBelem()).ano);
+  const [mes, setMes] = useState(() => mesInicialPonto('', hojeBelem()).mes);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 

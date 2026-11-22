@@ -9,6 +9,7 @@
 // diferença. Nada grava sozinho: ela escolhe linha a linha e confirma EM LOTE —
 // com Desfazer. Mês fechado não recebe lançamento (a linha vem travada).
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AbasCaixa } from '../AbasCaixa';
 import { dinheiro } from '../formato';
@@ -20,13 +21,17 @@ import { Toast, Toasts } from '@/components/retorno';
 import { lerMe } from '@/lib/meCliente';
 import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { competenciaBR } from '@/lib/documentos';
+import { NovaAnalitica, type AnaliticaCriada } from './NovaAnalitica';
 import type {
   Conciliacao, InfoCsv, ItemConciliacao, LancamentoConciliacao, MapaCsv, ModoExtrato, PernaSugerida,
 } from '@/lib/extratoBancario';
 
 interface Empresa { id: string; nome: string }
 interface Analitica { id: string; texto: string; contaId: string | null; natureza: 'receita' | 'despesa'; daEmpresa: boolean }
-interface Conta { id: string; codigo: string; nome: string }
+interface Conta { id: string; codigo: string; nome: string; natureza?: 'receita' | 'despesa' }
+
+/** Opção da lista de analíticas que abre o cadastro ali mesmo (Sprint 18 · A). */
+const NOVA_ANALITICA = '__nova';
 interface DocumentoLista { id: string; nome: string; tipo: string; competencia: string }
 
 interface Resultado extends Conciliacao {
@@ -87,6 +92,8 @@ export default function ExtratoCaixa() {
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [desfazer, setDesfazer] = useState<{ lote: string; ids: string[]; texto: string } | null>(null);
+  /** Linha que pediu "Criar conta analítica" (empresa nova não tem nenhuma). */
+  const [criandoPara, setCriandoPara] = useState<ItemConciliacao | null>(null);
 
   // A tela é da contabilidade: o cliente volta para os lançamentos.
   const carregarEmpresas = useCallback(() => {
@@ -114,6 +121,20 @@ export default function ExtratoCaixa() {
     setResultado(null); setEscolhas({}); setCsv(null); setMapa(null); setDocumentoId(''); setDesfazer(null);
   }
 
+  const carregarContas = useCallback((empresa: string) => lerJson<{ contas: Conta[]; historicos: Analitica[] }>(
+    `/api/caixa/contas?empresa=${encodeURIComponent(empresa)}`,
+  ).then((d) => { setContas(d.contas ?? []); setAnaliticas(d.historicos ?? []); }).catch(() => {}), []);
+
+  /** A analítica criada no diálogo entra na lista e já fica escolhida na linha que a pediu. */
+  function analiticaCriada(a: AnaliticaCriada) {
+    const linha = criandoPara;
+    setCriandoPara(null);
+    setAnaliticas((l) => [...l.filter((x) => x.id !== a.id), { ...a, daEmpresa: true }]);
+    if (linha) escolher(linha.chave, { historico: a.texto, historicoId: a.id, contaId: a.contaId });
+    setMsg(`Conta analítica "${a.texto}" criada.`);
+    void carregarContas(empresaSel);
+  }
+
   // Opcionais da tela: o modo, as contas e os extratos do portal. Falha de um não
   // trava a importação (o modo cai no padrão; sem contas, a conta fica para escolher).
   useEffect(() => {
@@ -121,11 +142,10 @@ export default function ExtratoCaixa() {
     const q = encodeURIComponent(empresaSel);
     lerJson<{ modo: ModoExtrato; instalada: boolean }>(`/api/caixa/extrato?empresa=${q}`)
       .then((d) => { setModo(d.modo); setInstalada(d.instalada); }).catch(() => {});
-    lerJson<{ contas: Conta[]; historicos: Analitica[] }>(`/api/caixa/contas?empresa=${q}`)
-      .then((d) => { setContas(d.contas ?? []); setAnaliticas(d.historicos ?? []); }).catch(() => {});
+    carregarContas(empresaSel);
     lerJson<{ documentos: DocumentoLista[] }>(`/api/documentos?empresa=${q}`)
       .then((d) => setDocs((d.documentos ?? []).filter((x) => TIPOS_EXTRATO.includes(x.tipo)).slice(0, 40))).catch(() => setDocs([]));
-  }, [empresaSel]);
+  }, [empresaSel, carregarContas]);
 
   const contaPorId = useMemo(() => new Map(contas.map((c) => [c.id, c])), [contas]);
   const opcoesPorNatureza = useMemo(() => {
@@ -419,6 +439,12 @@ export default function ExtratoCaixa() {
                 <EstadoVazio moldura={false} titulo="Tudo o que está no extrato já está no caixa." />
               ) : (
                 <div className="space-y-4">
+                  {analiticas.length === 0 && (
+                    <Aviso tom="info" titulo="Esta empresa ainda não tem contas analíticas">
+                      Na coluna “Conta analítica”, escolha <strong>Criar conta analítica…</strong> para cadastrar ali mesmo, ou
+                      cadastre várias de uma vez em <Link href="/caixa/cadastros" className="font-medium text-primaria-texto underline">Cadastros</Link>.
+                    </Aviso>
+                  )}
                   <div className={tb.moldura}>
                     <table className={`${tb.tabela} text-[13px]`}>
                       <caption className="sr-only">Linhas do extrato que não estão no caixa</caption>
@@ -436,7 +462,7 @@ export default function ExtratoCaixa() {
                         {aLancar.map((it) => (
                           <LinhaLancar key={it.chave} it={it} escolha={escolhas[it.chave]} faltaConta={faltaConta.has(it.chave)}
                             opcoes={principalDe(it)?.direcao === 'entrada' ? opcoesPorNatureza.receita : opcoesPorNatureza.despesa}
-                            analiticas={analiticas} onEscolher={(m) => escolher(it.chave, m)} />
+                            analiticas={analiticas} onEscolher={(m) => escolher(it.chave, m)} onCriar={() => setCriandoPara(it)} />
                         ))}
                       </tbody>
                     </table>
@@ -510,19 +536,32 @@ export default function ExtratoCaixa() {
           </>
         )}
       </Conteudo>
+
+      {criandoPara && (
+        <NovaAnalitica empresa={empresaSel} contas={contas}
+          natureza={principalDe(criandoPara)?.direcao === 'entrada' ? 'receita' : 'despesa'}
+          textoInicial={textoSugerido(criandoPara)} onCriada={analiticaCriada} onCancelar={() => setCriandoPara(null)} />
+      )}
     </div>
   );
 }
 
-function LinhaLancar({ it, escolha, faltaConta, opcoes, analiticas, onEscolher }: {
+/** Nome sugerido para a analítica nova: o histórico já sugerido para a linha, se houver. */
+function textoSugerido(it: ItemConciliacao): string {
+  return principalDe(it)?.historico ?? '';
+}
+
+function LinhaLancar({ it, escolha, faltaConta, opcoes, analiticas, onEscolher, onCriar }: {
   it: ItemConciliacao; escolha: Escolha | undefined; faltaConta: boolean; opcoes: Opcao[];
-  analiticas: Analitica[]; onEscolher: (m: Partial<Escolha>) => void;
+  analiticas: Analitica[]; onEscolher: (m: Partial<Escolha>) => void; onCriar: () => void;
 }) {
   const principal = principalDe(it);
   const acao = escolha?.acao ?? 'deixar';
   // A sugestão pode trazer uma analítica que não está na lista (texto do histórico): entra como opção.
   const lista = escolha?.historico && !escolha.historicoId && !opcoes.some((o) => o.rotulo === escolha.historico)
     ? [{ valor: '__sugerida', rotulo: escolha.historico, detalhe: 'sugerida' }, ...opcoes] : opcoes;
+  // Sempre dá para criar ali mesmo — inclusive quando a empresa não tem nenhuma analítica.
+  const comNova = [...lista, { valor: NOVA_ANALITICA, rotulo: 'Criar conta analítica…', detalhe: 'cadastrar agora' }];
   const valorSel = escolha?.historicoId ?? (escolha?.historico ? '__sugerida' : '');
   return (
     <tr className={`${tb.linha} align-top ${acao === 'lancar' ? '' : 'text-tinta-suave'}`}>
@@ -551,10 +590,11 @@ function LinhaLancar({ it, escolha, faltaConta, opcoes, analiticas, onEscolher }
         {principal ? (
           <>
             <Selecao id={`conta-${it.chave}`} aria-label={`Conta analítica de ${it.historico} de ${dataBR(it.data)}`} aparencia="celula"
-              valor={valorSel} placeholder="Escolha a conta" opcoes={lista} disabled={it.travada}
+              valor={valorSel} placeholder={opcoes.length ? 'Escolha a conta' : 'Crie a conta'} opcoes={comNova} disabled={it.travada}
               erro={faltaConta ? 'Escolha a conta analítica.' : undefined}
               onChange={(v) => {
                 if (v === '__sugerida') return;
+                if (v === NOVA_ANALITICA) { onCriar(); return; }
                 const a = analiticas.find((x) => x.id === v);
                 if (a) onEscolher({ historico: a.texto, historicoId: a.id, contaId: a.contaId });
               }} />
