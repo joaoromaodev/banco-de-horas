@@ -178,9 +178,9 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
 7. Atualizar `roadmap.md`, arquivar sessões, limpar worktrees e `integracao/*`.
 
 ### Produção agora
-- Migrações **0000–0030** aplicadas (0024–0026 não usadas). Próximo livre: **0031**.
+- Migrações **0000–0031** aplicadas (0024–0026 não usadas). Próximo livre: **0032**.
 - Funções da Vercel em `gru1` (São Paulo), junto do Supabase (`sa-east-1`).
-- 1118 testes; CI verde no último push. Sprints 11–14 concluídas e publicadas; nenhuma frente em andamento. Próxima: Sprint 15 (medição própria, ver roadmap). IA de documentos do caixa e e-mail de avisos ao cliente publicados desligados.
+- 1162 testes, lint sem avisos; CI verde no último push. Sprints 11–15 concluídas e publicadas; nenhuma frente em andamento. Próximo passo: deixar a medição juntar uma semana de uso e decidir a Sprint 16 pelos números (telas lentas, erros) e pelo que a Edilse responder. IA de documentos do caixa e e-mail de avisos ao cliente publicados desligados.
 
 ### Pendências que só o João resolve
 - Vercel: `CRON_SECRET` (resumo da agenda), `RESEND_API_KEY` + `EMAIL_REMETENTE`

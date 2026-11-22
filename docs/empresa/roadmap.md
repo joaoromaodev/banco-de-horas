@@ -156,11 +156,11 @@ Publicação de A + C: 930 testes; de B: 980 testes, CI e Vercel verdes, `/api/d
 
 Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal; lint subiu de 32 para 45 avisos (`set-state-in-effect`) — limpar.
 
-## Sprint 15 — Medir por dentro e arrumar a casa (🔄 em andamento)
+## Sprint 15 — Medir por dentro e arrumar a casa (✅ concluída e publicada em 21/11/2026)
 
 | Frente | Branch | Status |
 |---|---|---|
-| A. Medição própria: tempo de páginas e rotas e erros, sem dado pessoal, resumo para o master | `claude/medicao` | 🔄 subagente |
+| A. Medição própria: tempo de páginas e rotas e erros, sem dado pessoal, resumo para o master | `claude/medicao` | ✅ publicada; 0031 aplicada (tabela nova `medicoes`, 30 dias). Amostra de 25% + todos os erros; tempo das rotas é o sentido no navegador (inclui rede); rotas normalizadas, sem dado pessoal (Escudo: pode publicar). Seção "Como o app está respondendo" em `/configuracoes`; privacidade cita a medição técnica. Lint: 0 avisos |
 | B. Arrumar a casa: avisos do lint (45 → 0 onde der), consulta de envios em empresa arquivada | `claude/arrumar-casa` | ✅ publicada em 21/11. Lint 45 → 2 avisos (os 2 em `/configuracoes`, da frente A). **Corrigido:** cliente de empresa arquivada baixava documentos por `/api/documentos/arquivo` (sem guarda de empresa). O 403 de envios em arquivada era só do cadastro falso dos testes |
 
 ## Próximas frentes (backlog priorizado)
