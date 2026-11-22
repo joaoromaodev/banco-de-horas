@@ -73,6 +73,16 @@ class ConsultaFalsa implements PromiseLike<Resposta> {
     } else this.filtros.push((l) => (l[c] ?? null) !== v);
     return this;
   }
+  /** `.or('col.is.null,col.eq.x')` (o filtro do catálogo por escritório) — só `is.null` e `eq`. */
+  or(expr: string) {
+    const alts = expr.split(',').map((p) => {
+      const [c, op, ...resto] = p.trim().split('.');
+      const v = resto.join('.');
+      return (l: Linha) => (op === 'is' && v === 'null' ? (l[c] ?? null) === null : op === 'eq' ? String(l[c]) === v : false);
+    });
+    this.filtros.push((l) => alts.some((f) => f(l)));
+    return this;
+  }
   lt(c: string, v: number) { this.filtros.push((l) => Number(l[c]) < v); return this; }
   lte(c: string, v: string | number) { this.filtros.push((l) => String(l[c]) <= String(v)); return this; }
   gte(c: string, v: string | number) { this.filtros.push((l) => String(l[c]) >= String(v)); return this; }

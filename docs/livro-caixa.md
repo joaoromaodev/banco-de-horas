@@ -6,7 +6,8 @@
 
 Última atualização: **21/11/2026** (Sprint 17, Frente B — nota e boleto sem IA:
 XML de NF-e/NFS-e, linha digitável e PDF com texto lidos no servidor, migração 0033;
-Frente C — mês fechado que trava, migração 0034; ver "Sprint 17 · Frente C" em Etapas)
+Frente C — mês fechado que trava, migração 0034; Frente D — extrato OFX/CSV no caixa,
+migração 0035; ver "Sprint 17 · Frente C/D" em Etapas)
 
 ## Por que este módulo existe
 
@@ -1202,6 +1203,143 @@ liberação). Testes: `tests/mesFechadoRotas.test.ts` (guardas reais) e `tests/m
   registros; saldo inicial bloqueado com mês fechado.
 - **Gatilhos sem teste automático** (o banco falso não roda plpgsql): numa base de homologação,
   conferir à mão INSERT/UPDATE/DELETE em mês fechado (erro), UPDATE só de `conferido_*` (passa).
+
+### ✅ Sprint 17 · Frente D — Extrato no caixa (migração 0035)
+
+Ideia 2 de [`empresa/concorrentes.md`](empresa/concorrentes.md): importar o extrato **OFX** (e
+**CSV** dos bancos, com mapeamento de colunas) no Livro Caixa de uma empresa e conciliar —
+**sem serviço externo nem IA** (o arquivo é lido no servidor; o teste de rota proíbe `fetch`).
+
+**Como funciona.** Livro Caixa › aba **Extrato** (só a contabilidade). A contadora escolhe a
+empresa e o extrato — **arquivo do computador** ou **o OFX/CSV que o cliente mandou em
+Documentos** — e clica em **Ler extrato**. Nada é gravado aí. A tela mostra:
+
+| Bloco | O que é |
+|---|---|
+| **No banco e não no caixa** | cada linha vira a sugestão do que entra no livro, com a **conta analítica sugerida** (a mesma `sugerirConta` da caixaInteligente: analítica citada no histórico do banco, depois o histórico da empresa — o que ela confere passa a pesar mais). Por linha: **Lançar** (padrão), **Agora não** ou **Ignorar sempre**. Linha sem sugestão pede a conta (erro no campo, foco nele). |
+| **Já no caixa** | casadas: mesma direção, mesmo valor, data **± 2 dias**, um-para-um (dois PIX iguais no banco e um no caixa = um casado, um novo); e as **importadas antes** (mesma chave). |
+| **No caixa e não no banco** | no período do extrato, separado em **transferências sem par** (retirada/depósito de conta corrente que o banco não mostra — essas pedem atenção) e **outros** (pago/recebido em dinheiro — normal). |
+| **Fora do caixa** | só no modo "dentro do caixa": saque e depósito em dinheiro, que aí não mudam o saldo. |
+
+**Confirmação em lote** ("Lançar N linhas", a única ação primária da conferência) → toast com
+**Desfazer** (apaga os lançamentos do lote e as marcas). As casadas ficam registradas no mesmo
+lote para a próxima importação reconhecer.
+
+**A regra da conta bancária (decisão desta frente).** A contadora definiu: *depósito no banco
+= saída do caixa, retirada = entrada, cheque = dois lançamentos* — ou seja, a conta bancária
+fica **fora** do caixa. O padrão (`par`) aplica a mesma lógica do cheque a toda linha do banco:
+
+| Linha do banco | Vira no caixa |
+|---|---|
+| pagamento (débito: PIX, boleto, tarifa…) | "Retirada de conta corrente" (entrada, sem conta) + o pagamento (saída, conta sugerida) |
+| recebimento (crédito: PIX, TED, cartão…) | o recebimento (entrada, conta sugerida) + "Depósito em conta corrente" (saída, sem conta) |
+| saque (débito com "saque", "caixa eletrônico", `TRNTYPE ATM`) | só a retirada (entrada) |
+| depósito **em dinheiro** (crédito com "dinheiro"/"espécie"/"envelope") | só o depósito (saída) |
+| cheque (débito com "cheque", `TRNTYPE CHECK`) | retirada + pagamento, complemento "Cheque nº — …" (o atalho de cheque de sempre) |
+
+O par é neutro no saldo: o caixa só muda com dinheiro vivo, e as receitas e despesas ficam no
+livro. "DEPOSITO" sozinho é tratado como recebimento (pode ser cliente pagando). Como há dúvida
+de verdade (o NÉLIO hoje lança pagamentos pelo banco sem a retirada), ficou **configurável por
+empresa**, com o padrão atual: "A conta bancária fica" **Fora do caixa (padrão)** ou **Dentro
+do caixa** (`direto`: uma perna por linha; saque/depósito em dinheiro ficam de fora). A pergunta
+está em [`empresa/reuniao-edilse.md`](empresa/reuniao-edilse.md) (**L7**). Se o caixa já tem
+só o pagamento, a linha vem **parcial**: "falta a Retirada de conta corrente" (Agora não, por padrão).
+
+**Quem pode: só a contabilidade** (`exigirGestor` nas duas rotas; aba escondida do cliente, que
+é redirecionado da tela para Lançamentos). Por quê: conciliar é o trabalho dela no módulo ("a
+empresa lança, a contadora concilia"); a regra do banco ainda está em aberto com a Edilse e um
+cliente lançando PIX em par (ou sem par) bagunçaria o saldo; e o extrato traz dados de
+terceiros. O cliente continua mandando o OFX/CSV pelo **portal** (Documentos) e a contadora
+importa de lá. `CLIENTE_PODE` não mudou (`/api/caixa/extrato*` está sob `/api/caixa`, e a
+varredura `proxyCliente` exige — e encontra — `exigirGestor` numa rota que nenhuma tela do
+cliente usa).
+
+**Travas.**
+- **Mês fechado** (Sprint 17 · C): linha de mês fechado (ou anterior a um fechado) vem
+  **travada** ("mês fechado", sem Lançar) com aviso; o POST do lote confere **antes de gravar** e
+  responde **409** com a mensagem de `lib/mesFechado.ts`; desfazer um lote de mês fechado depois
+  também dá 409. **Casar** e **Ignorar** passam (não mudam o livro). O gatilho da 0034 continua
+  como defesa.
+- **Empresa arquivada:** ler/confirmar/desfazer dão **409** para a contabilidade (o POST de
+  leitura conta como escrita no `motivoNegado`: não se importa extrato em empresa arquivada); o
+  cliente dela, 403.
+- **Catálogo:** cada perna passa por `validarLancamento` e `exigirCatalogoVisivel` (conta de outro
+  escritório → 400). Lançamento citado como "casado" tem que ser da empresa (400); desfazer só
+  apaga lançamentos da empresa.
+- **Não duplica:** (1) casamento por data ± 2 e valor com o que já está no livro; (2) a **chave**
+  da linha — `ofx:` + hash de banco|conta|**FITID**|data|valor|lado (sem FITID, do histórico), ou
+  `csv:` + hash de data|valor|lado|histórico|documento, com `#2`, `#3` quando a mesma linha se
+  repete no arquivo — gravada em `caixa_extrato_linhas` com `unique (empresa_id, chave)`. As
+  marcas são **reservadas antes** dos lançamentos (clique duplo/outra aba → 409, nada gravado);
+  se o insert dos lançamentos falhar, as marcas saem.
+- **Privacidade:** o histórico do banco vai para o complemento com CPF (inclusive o mascarado
+  `***.456.789-**`), números de 11+ dígitos e e-mail trocados por marcador; a conta aparece só
+  como "Banco 341 · conta final 7654". Nada sai do servidor.
+- Limites: 2 MB e 5.000 linhas por arquivo, 500 linhas por lote, 30 leituras/10 min por usuário
+  (memória).
+
+**Leitores.** OFX 1.x (SGML, folhas sem fechar) e 2.x (XML), Windows-1252 declarado ou UTF-8,
+valor com ponto ou vírgula, valor sem sinal com `TRNTYPE` de débito (avisa), `NAME`+`MEMO`,
+`CHECKNUM`, período `DTSTART/DTEND`. CSV: separador detectado (`;` `,` tab `|`), aspas,
+preâmbulo antes do cabeçalho (Itaú), cabeçalho reconhecido pelos nomes comuns (Data, Lançamento,
+Histórico, Descrição, Valor, Crédito, Débito, D/C, Documento; "Saldo" nunca), valor assinado,
+crédito/débito separados ou valor + D/C, "1.234,56", "R$ 100,00 D", "(50,00)", "100,00-", linhas
+de saldo puladas. Cabeçalho desconhecido → 422 com as colunas e uma amostra, e a tela pede o
+**mapeamento** (Data, Histórico, Valor/Tipo ou Crédito/Débito, Documento).
+
+**Arquivos.** Novos: `lib/extratoBancario.ts` (puro: leitores, classificação, pernas,
+conciliação, lote), `lib/extratoServidor.ts` (modo, marcas, período, meses fechados),
+`app/api/caixa/extrato/route.ts` (GET/PATCH modo, POST leitura),
+`app/api/caixa/extrato/lote/route.ts` (POST confirmar, DELETE desfazer),
+`app/(app)/caixa/extrato/page.tsx`, `supabase/migrations/0035_extrato_caixa.sql`,
+`tests/extratoBancario.test.ts`, `tests/extratoCaixaRotas.test.ts`. Alterados:
+`app/(app)/caixa/AbasCaixa.tsx` (aba Extrato, só gestor), `lib/medicaoRotas.ts` (rotas e tela
+novas), `tests/bancoFalso.ts` (`.or()` para o filtro do catálogo). **Não toquei** em
+`lib/caixa.ts`, `lib/ia/**`, `lib/ocr.ts`, `lib/documentoLancamento*`, `lib/cadastro.ts`, `proxy.ts`
+nem na rota de lançamentos.
+
+#### Para o integrador (Sprint 17 · D)
+
+- **Migração `0035_extrato_caixa.sql`** (só o arquivo; **não aplicada**). Aditiva:
+  `caixa_extrato_linhas` (marcas por chave, `unique (empresa_id, chave)`, lote, ids dos
+  lançamentos, data/valor/lado/histórico mascarado) e `caixa_extrato_config` (modo por empresa,
+  padrão `par`), as duas com RLS sem policies e FK composta `(empresa_id, escritorio_id)`.
+  Depende de 0002 e 0012. **Ordem livre:** sem ela a importação lê e lança (o casamento por
+  data/valor já evita duplicar o que foi lançado), mas não lembra "Ignorar sempre", não marca as
+  casadas, o modo fica no padrão (mudar → **503**) e o Desfazer usa os ids guardados na tela.
+  Reversão no cabeçalho. `npx supabase migration list` antes do `db push`. Se outra frente tiver
+  ocupado a 0035 na integração, renomeie para o próximo número livre (o conteúdo não depende dele).
+- **Sem variável nova, sem dependência nova, sem mudança no `proxy.ts`.**
+- **Conflitos prováveis:** `lib/medicaoRotas.ts` (listas), `app/(app)/caixa/AbasCaixa.tsx` e
+  `tests/bancoFalso.ts` (método `or` novo, antes de `lt`).
+- **O que testar com conta de teste** (empresa de teste; **nunca** extrato real de cliente):
+  1. Livro Caixa › **Extrato** aparece só para a contabilidade; como cliente, `/caixa/extrato`
+     volta para Lançamentos e `POST /api/caixa/extrato` dá 403.
+  2. Importar um OFX de teste com um PIX recebido, um boleto pago, um saque e um "DEP DINHEIRO":
+     o PIX vira recebimento + depósito; o boleto, retirada + pagamento (com a conta sugerida se o
+     histórico citar uma analítica); o saque, só a retirada; o depósito em dinheiro, só o depósito.
+  3. Lançar em lote → os lançamentos aparecem em Lançamentos; **Desfazer** apaga todos. Lançar
+     de novo e reimportar o mesmo arquivo → tudo "importada antes"; `select chave, situacao from
+     caixa_extrato_linhas order by criado_em desc limit 5;`.
+  4. Um lançamento já digitado (mesmo valor, data a 1–2 dias) → casa; uma venda em dinheiro do
+     período → "No caixa e não no banco".
+  5. Fechar janeiro → as linhas de janeiro vêm "mês fechado" e o lote com elas dá 409.
+  6. Trocar "A conta bancária fica" para **Dentro do caixa** → uma perna por linha, saque "fora do
+     caixa". Voltar para o padrão.
+  7. CSV de teste nos formatos Itaú/BB/Nubank → colunas reconhecidas; um CSV com cabeçalho
+     estranho → a tela pede o mapeamento.
+- **Não verificado no navegador** (sem banco local; o único `.env.local` aponta para produção).
+  typecheck, lint, testes e build verdes.
+
+**Pendências / próximos passos:**
+- **[Aberto — Edilse, L7]** confirmar o modo `par` como padrão, ou restringir a saque/depósito, ou
+  ligar "Dentro do caixa" por empresa.
+- Empresa que **identifica pagador** (NÉLIO): o recebimento importado vem sem nome/CPF de quem
+  pagou — a revisão já acusa "Falta o pagador". Puxar o nome do PIX do histórico seria possível,
+  mas é dado de terceiro; fica para quando ela pedir.
+- PDF de extrato não é lido (sem IA, só texto, e os layouts variam) — OFX/CSV cobrem os bancos.
+- A conta sugerida aprende com o que ela confere: os lançamentos importados levam o histórico do
+  banco no complemento, então a próxima importação casa melhor com os conferidos.
 
 ## Estado do banco
 

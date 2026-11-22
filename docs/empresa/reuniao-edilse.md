@@ -11,7 +11,7 @@ da reunião, passe cada resposta para o doc de origem e risque o item aqui.
 1. **IA lendo comprovantes no Livro Caixa:** ela aceita ligar, em alguma empresa? (pergunta L1)
 2. **Carnê-Leão:** quando quem paga não é o paciente, precisa do CPF dos dois? E como ela lança hoje no Carnê-Leão Web? (C1, C2)
 3. **Rescisão:** confirmar os pontos de cálculo antes de usar a simulação de verdade (D1 a D8).
-4. **Conta bancária fora do caixa:** o que entra e o que fica fora do livro (L2).
+4. **Conta bancária fora do caixa:** o que entra e o que fica fora do livro (L2) — e, com isso, como o **extrato importado** vira lançamento (L7).
 5. **Livro definitivo:** validar o texto dos termos (sobretudo pessoa física) e passar os dados fiscais das empresas (L3 e pedido 3).
 
 ## Pedidos para ela fazer
@@ -48,6 +48,7 @@ cálculo foi conferido pelo nosso consultor; estes pontos ficaram sem consenso.
 - **L3. Texto dos termos** de abertura e encerramento: serve? Em especial o de **pessoa física**, que redigimos nós. Fonte: `livro-caixa.md` (Fase 6), `roadmap.md`.
 - **L4. Rótulos do livro impresso:** usar "Conta Titular / Conta Analítica"? E a coluna **Cliente/Paciente** deve sair no PDF/planilha, com qual nome? Fonte: `roadmap.md`, `livro-caixa.md`.
 - **L5. Devolução de fornecedor:** vai para "Recuperação de despesas" ou abate a despesa? Fonte: `livro-caixa.md`.
+- **L7. Extrato importado no caixa (Sprint 17 · D).** A contadora importa o OFX/CSV do banco e cada linha vira sugestão. Seguindo a regra dela (depósito no banco = saída, retirada = entrada, cheque = dois lançamentos), o padrão é: **pagamento pelo banco** (PIX, boleto, débito, tarifa) = "Retirada de conta corrente" + o pagamento; **recebimento no banco** (PIX, TED, cartão) = o recebimento + "Depósito em conta corrente"; **saque** = só a retirada; **depósito em dinheiro** = só o depósito. Assim o saldo do caixa só muda com dinheiro vivo e as receitas/despesas ficam no livro. *Perguntas:* (a) é isso mesmo, ou o movimento que passa **só pelo banco** fica fora do livro (só saque/depósito entram)? (b) em alguma empresa o banco conta **como caixa** (cada linha um lançamento só)? — já existe a opção "Dentro do caixa" por empresa, desligada; (c) "DEPOSITO" sem dizer "dinheiro" é tratado como recebimento de cliente — confere? *Opções:* manter o padrão · ligar "Dentro do caixa" em empresas que ela indicar · restringir a saque/depósito. Fonte: `livro-caixa.md` ("Extrato no caixa").
 - **L6.** Até que dia do mês o cliente costuma lançar? *Define a carência do aviso "mês sem lançamento" (hoje 10 dias).* Fonte: `livro-caixa.md`.
 
 ### Carnê-Leão
@@ -81,12 +82,14 @@ Novidades das Sprints 11 a 15, ainda não vistas por ela:
 5. **Folha de ponto pelo cliente:** a foto tirada de lado chega sempre em pé para a leitura, o que reduz erro de leitura.
 6. **Nada falha calado:** quando algo não carrega, a tela avisa; em Configurações há a lista do que está desligado.
 7. **Ler documento com IA** (L1): só explicar, está desligado em produção.
+8. **Extrato no caixa** (L7): importar o OFX/CSV de uma empresa (ou o que o cliente mandou em Documentos), ver o que está no banco e não no caixa e vice-versa, e lançar em lote com Desfazer.
 
 ## Respostas
 
 | Item | Resposta | Data |
 |---|---|---|
 | L1 IA lendo comprovantes | | |
+| L7 Extrato no caixa (banco fora/dentro) | | |
 | C1 CPF de quem paga e do paciente | | |
 | C2 Carnê-Leão Web hoje | | |
 | C3 DMED ou Receita Saúde | | |
