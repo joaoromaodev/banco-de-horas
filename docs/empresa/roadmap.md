@@ -172,7 +172,7 @@ Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal
 
 ## Sprint 17 — Planejada a partir dos concorrentes (`concorrentes.md`)
 
-Tudo sem serviço pago. 🔄 Em andamento desde 22/11: A+B → `claude/documentos-mao-dupla` (0032), C → `claude/nota-sem-ia` (0033), E → `claude/mes-fechado` (0034). D (extrato OFX) depois da C; F espera o token da Cloudflare.
+Tudo sem serviço pago. 🔄 Em andamento desde 22/11: A+B → `claude/documentos-mao-dupla` (0032), C → `claude/nota-sem-ia` (0033) ✅ publicada em 22/11 (XML NF-e/NFC-e/NFS-e, boleto com DV conferido, PDF com texto via `unpdf` 1.4.0; nota duplicada apontada; 0033 aplicada, backup `backup-antes-0033-2026-11-22.json`. Atenção: a 0032 vai entrar depois da 0033 — usar `db push --include-all`), E → `claude/mes-fechado` (0034). D (extrato OFX) depois da C; F espera o token da Cloudflare.
 
 | Frente | Por quê |
 |---|---|
