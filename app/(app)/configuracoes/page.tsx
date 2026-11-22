@@ -209,6 +209,13 @@ export default function Configuracoes() {
                   O contador da cota diária ainda não está instalado (falta a migração 0036). A leitura funciona; o aviso de 80% não.
                 </p>
               ))}
+              {ia.tetoEscritorio && (
+                <p className="text-[13px] text-tinta-suave">
+                  Cada escritório pode usar até {ia.tetoEscritorio.pct}% do limite diário
+                  ({ia.tetoEscritorio.neuronios.toLocaleString('pt-BR')} neurônios), para um não esgotar a IA dos outros.
+                  Ajuste em IA_COTA_ESCRITORIO_PCT (100 desliga o teto). Sem a migração 0037, o teto por escritório não é medido.
+                </p>
+              )}
             </div>
           )}
         </Secao>

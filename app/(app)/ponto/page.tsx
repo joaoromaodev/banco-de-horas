@@ -9,7 +9,8 @@ import { dataBR } from '@/lib/data';
 import LupaImagem from '../LupaImagem';
 import { AbasPonto } from '../AbasPonto';
 import { comArquivadaDaUrl, empresaDaUrl, FaixaArquivada } from '../FaixaArquivada';
-import { anoMesDaUrl, urlDoPonto } from '@/lib/pontoUrl';
+import { mesInicialPonto, urlDoPonto } from '@/lib/pontoUrl';
+import { hojeBelem } from '@/lib/agenda';
 import { IconeBaixar, IconeDesfazer } from '../icones';
 import { DialogoConfirmacao } from '../Dialogo';
 import { AchadosDoMes, PainelRevisaoMes, RevisaoDoMes, SeloAchados } from './RevisaoPonto';
@@ -19,6 +20,7 @@ import { Alternador, Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteu
 import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { DicaFotoFolha } from '../DicaFotoFolha';
 
 type Campo = 'entradaManha' | 'saidaAlmoco' | 'retornoAlmoco' | 'saidaTarde';
 const CAMPOS: Campo[] = ['entradaManha', 'saidaAlmoco', 'retornoAlmoco', 'saidaTarde'];
@@ -61,8 +63,9 @@ export default function Home() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [empresa, setEmpresa] = useState('');
   const [funcionario, setFuncionario] = useState('');
-  const [ano, setAno] = useState(2026);
-  const [mes, setMes] = useState(6);
+  // Começa no mês de hoje (Belém); o efeito abaixo aplica `?ano=&mes=` da URL.
+  const [ano, setAno] = useState(() => mesInicialPonto('', hojeBelem()).ano);
+  const [mes, setMes] = useState(() => mesInicialPonto('', hojeBelem()).mes);
   const [feriadosTxt, setFeriadosTxt] = useState('');
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [imgUrl, setImgUrl] = useState<string | null>(null);
@@ -121,10 +124,10 @@ export default function Home() {
 
   // `?ano=&mes=` da URL (só na montagem); depois a URL acompanha a escolha.
   useEffect(() => {
-    const { ano: a, mes: m } = anoMesDaUrl(window.location.search);
+    const { ano: a, mes: m } = mesInicialPonto(window.location.search, hojeBelem());
     // eslint-disable-next-line react-hooks/set-state-in-effect -- lê localStorage/URL só no navegador, após hidratar (no useState inicial divergiria do HTML do servidor)
-    if (a) setAno(a);
-    if (m) setMes(m);
+    setAno(a);
+    setMes(m);
   }, []);
   useEffect(() => {
     if (!empresa) return; // ainda lendo a URL e a lista de empresas
@@ -528,6 +531,7 @@ export default function Home() {
             <Entrada rotulo="Ano" type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} />
             <CampoArquivo rotulo="Foto da folha" classeCampo="md:col-span-2" accept="image/*" texto="Escolher ou soltar a foto aqui"
               nome={arquivo?.name} onArquivo={escolherArquivo} />
+            <DicaFotoFolha className="md:col-span-4" />
             <Entrada rotulo="Feriados extras (opcional)" classeCampo="md:col-span-4" value={feriadosTxt}
               onChange={(e) => setFeriadosTxt(e.target.value)}
               placeholder={feriadosCad.length ? `${feriadosCad.length} do cadastro + extras aqui` : 'AAAA-MM-DD, ex.: 2026-06-19'} />

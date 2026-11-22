@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
     const [contas, analiticas] = await Promise.all([contasDaEmpresa(empresa, visao), historicosDaEmpresa(empresa, visao)]);
     const opcoes = opcoesDocumento(direcao, contas, analiticas);
     const texto = await lerDocumentoPelaIa({
-      bytes, mime: doc.tipo, prompt: montarPromptDocumento({ ano, direcao, opcoes }),
+      bytes, mime: doc.tipo, prompt: montarPromptDocumento({ ano, direcao, opcoes }), escritorioId,
     });
     const proposta = interpretarLeitura(texto, opcoes, { ano, direcaoInformada: direcao });
     // A chamada foi feita: conta na cota mesmo se a leitura não serviu.

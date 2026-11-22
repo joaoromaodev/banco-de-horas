@@ -454,7 +454,44 @@ export default function DocumentosPage() {
                   titulo={filtroComp ? `Nada enviado em ${competenciaBR(filtroComp)}` : 'Nenhum documento ainda'}
                   descricao={gestor ? 'Quando a empresa enviar, os arquivos aparecem aqui.' : 'Os arquivos que você enviar aparecem aqui.'} />
               ) : (
-                <div className="relative overflow-x-auto">
+                <>
+                {/* Cliente no celular (abaixo de 640 px): cartões em vez da tabela que rola de lado. */}
+                {!gestor && (
+                  <ul className="divide-y divide-borda sm:hidden" aria-label="Documentos que você já enviou">
+                    {docsFiltrados.map((d) => (
+                      <li key={d.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <a href={`/api/documentos/arquivo?id=${encodeURIComponent(d.id)}`}
+                            className="inline-flex min-h-11 min-w-0 items-center gap-1.5 font-medium text-primaria-texto hover:underline">
+                            <IconeBaixar size={14} className="shrink-0" />
+                            <span className="break-all">{d.nome}</span>
+                          </a>
+                          <Selo tom={TOM_STATUS[d.status]}>{rotuloStatus(d.status, false)}</Selo>
+                        </div>
+                        <p className="text-[13px] text-tinta-suave">
+                          {ROTULO_CATEGORIA[d.categoria]} · {competenciaBR(d.competencia)} · enviado em {dataBR(d.enviadoEm)} · {tamanhoBR(d.tamanho)}
+                          {d.pendenciaId && nomePendencia(d.pendenciaId) ? ` · atende: ${nomePendencia(d.pendenciaId)}` : ''}
+                          {d.observacao ? ` · ${d.observacao}` : ''}
+                        </p>
+                        {d.status === 'devolvido' && d.motivoDevolucao && (
+                          <p className="text-[13px] text-perigo">Motivo: {d.motivoDevolucao}</p>
+                        )}
+                        {(d.status === 'devolvido' || d.status === 'recebido') && (
+                          <div className="flex flex-wrap gap-2">
+                            {d.status === 'devolvido' && (
+                              <Botao tamanho="sm" variante="tonal" aria-label={`Enviar de novo: ${d.nome}`} onClick={() => reenviar(d)}>Enviar de novo</Botao>
+                            )}
+                            {d.status === 'recebido' && (
+                              <Botao tamanho="sm" variante="fantasma" className="text-perigo" icone={<IconeExcluir size={14} />}
+                                aria-label={`Excluir ${d.nome}`} onClick={() => setExcluindoDoc(d)}>Excluir</Botao>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className={cx('relative overflow-x-auto', !gestor && 'hidden sm:block')}>
                   <table className={tb.tabela}>
                     <caption className="sr-only">{gestor ? 'Documentos recebidos' : 'Documentos que você já enviou'}</caption>
                     <thead className={tb.cabeca}>
@@ -525,6 +562,7 @@ export default function DocumentosPage() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </Secao>
           </>

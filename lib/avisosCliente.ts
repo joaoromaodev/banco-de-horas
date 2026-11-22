@@ -4,9 +4,9 @@
 // liberado. Nada é gravado em `notificacoes` (a contabilidade não passa a ver estes
 // avisos). Leituras em lib/avisosClienteServidor.ts. Ver docs/notificacoes.md.
 //
-// Texto do aviso: SEM nome de funcionário nem dado pessoal. O motivo da devolução e o
-// título do pedido são escritos pela contabilidade PARA o cliente e ele já os vê nas
-// telas; aqui entram cortados.
+// Texto do aviso: SEM nome de funcionário nem dado pessoal. O título do pedido é escrito
+// pela contabilidade PARA o cliente e entra cortado. O MOTIVO de uma devolução (folha ou
+// documento) não entra (Sprint 18 · A): fica nas telas.
 import type { ItemNotificacao } from './notificacoes';
 import { competenciaBR, DIAS_LEMBRETE, diasAte, ROTULO_CATEGORIA, type Categoria } from './documentos';
 import { ROTULO_TIPO_ENTREGA, type TipoEntrega } from './entregas';
@@ -21,7 +21,6 @@ const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.sl
 const iso = (v: string) => new Date(v).toISOString();
 const valida = (v: string | null | undefined): v is string => !!v && !Number.isNaN(Date.parse(v));
 
-export const MAX_MOTIVO = 160;
 export const MAX_TITULO_PEDIDO = 120;
 
 // ------------------------------------------------------------------ folha devolvida
@@ -44,7 +43,6 @@ export interface EnvioParaAviso {
   ano: number;
   mes: number;
   situacao: string;
-  motivo: string | null;
   devolvidoEm: string | null;
 }
 
@@ -58,15 +56,15 @@ export function avisosFolhaDevolvida(envios: EnvioParaAviso[]): ItemNotificacao[
   const reenviadas = new Set(envios.filter((e) => e.situacao !== 'devolvida' && e.situacao !== 'rejeitada').map(chave));
   return envios
     .filter((e) => e.situacao === 'devolvida' && valida(e.devolvidoEm) && !reenviadas.has(chave(e)))
-    .map((e) => {
-      const motivo = e.motivo ? cortar(e.motivo, MAX_MOTIVO) : '';
-      return {
-        chave: `cli|folha|${e.id}|${iso(e.devolvidoEm!)}`, tipo: 'folha_devolvida' as const,
-        titulo: 'Folha de ponto devolvida pela contabilidade',
-        texto: `${mesAno(e.ano, e.mes)} · ${motivo ? `Motivo: ${motivo}` : 'A contabilidade pediu uma nova foto.'}`,
-        href: '/enviar-ponto', quando: iso(e.devolvidoEm!),
-      };
-    });
+    // Sem o motivo (Sprint 18 · A, como o documento devolvido — revisão do Escudo): é texto
+    // livre da contadora e pode citar o funcionário ("a folha da Maria está cortada"). Ele
+    // continua em /enviar-ponto e no /inicio, dentro do app.
+    .map((e) => ({
+      chave: `cli|folha|${e.id}|${iso(e.devolvidoEm!)}`, tipo: 'folha_devolvida' as const,
+      titulo: 'Folha de ponto devolvida pela contabilidade',
+      texto: `${mesAno(e.ano, e.mes)} · Veja o motivo em Folha de ponto e envie uma nova foto.`,
+      href: '/enviar-ponto', quando: iso(e.devolvidoEm!),
+    }));
 }
 
 // ------------------------------------------------------------------ pedido de documento

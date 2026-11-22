@@ -296,8 +296,8 @@ do comportamento sem a 0032.
   contabilidade do escritório vê). O jurídico confirma se o termo cobre e **por quanto tempo**
   guardar o registro e o arquivo (hoje ficam, inclusive os excluídos — a mesma pendência de
   retenção dos documentos, acima). A faxina de `entregas` `enviando`/`rejeitada` entra na mesma rotina.
-- O sino da **folha de ponto devolvida** (Sprint 13) ainda mostra o motivo; o Escudo recomenda
-  igualar ao do documento ("Veja o motivo em …"). Não mexi: é de outra frente e muda teste dela.
+- ~~O sino da **folha de ponto devolvida** (Sprint 13) ainda mostra o motivo~~ — **resolvido na
+  Sprint 18 · A**: "Veja o motivo em Folha de ponto e envie uma nova foto." (ver notificacoes.md).
 - E-mail ao cliente quando sai uma entrega: o gancho `avisarClientePorEmail` continua desligado.
 - Editar uma entrega publicada = excluir e publicar de novo.
 
@@ -338,3 +338,16 @@ do comportamento sem a 0032.
      de outra empresa → 403/404; empresa de teste arquivada: contadora lista e baixa, publicar → 409,
      cliente → 403.
   7. Apagar o escritório de teste no fim (linhas e objetos em `documentos/<escritorio>/entregas/`).
+
+## Sprint 18 · Frente A — lista do cliente no celular
+
+Abaixo de 640 px (`sm`), "O que você já enviou" vira **cartões** para o cliente (nome com link de
+download, situação, tipo · mês · data · tamanho, motivo do devolvido, "Enviar de novo" e "Excluir" com
+o nome do arquivo no rótulo). A partir de `sm`, a tabela de sempre. A contabilidade continua com a
+tabela em qualquer largura. Mesmas rotas e regras; nada no servidor mudou.
+
+### Para o integrador (Sprint 18 · A, documentos)
+
+- Só `app/(app)/documentos/page.tsx`. Sem migração e sem variável.
+- Conferir com conta de teste, em 375 px nos dois temas: cliente vê cartões, sem rolagem lateral; em
+  ≥ 640 px, a tabela.

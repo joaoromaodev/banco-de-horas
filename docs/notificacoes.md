@@ -53,7 +53,7 @@ para o cliente. **Sem migração nova** (a 0030 ficou livre).
 
 | Aviso | Origem | Texto | Leva a | Chave |
 |---|---|---|---|---|
-| Folha de ponto devolvida | `ponto_envios` `devolvida` (0028), ainda não reenviada para o mesmo funcionário e mês, nos últimos 13 meses (o corte da tela); `quando` = `devolvido_em` | "Outubro/2026 · Motivo: …" (motivo cortado em 160) — **sem nome do funcionário** | `/enviar-ponto` | `cli\|folha\|<id>\|<devolvido_em>` (desfazer e devolver de novo → não lida de novo) |
+| Folha de ponto devolvida | `ponto_envios` `devolvida` (0028), ainda não reenviada para o mesmo funcionário e mês, nos últimos 13 meses (o corte da tela); `quando` = `devolvido_em` | "Outubro/2026 · Veja o motivo em Folha de ponto e envie uma nova foto." — **sem o motivo** (Sprint 18 · A, como o documento devolvido) **e sem nome do funcionário** | `/enviar-ponto` | `cli\|folha\|<id>\|<devolvido_em>` (desfazer e devolver de novo → não lida de novo) |
 | Pedido de documento | `pendencias` `aberta`; `quando` = `criado_em` | "<título> · Prazo: dd/mm/aaaa" (ou "Sem prazo") | `/documentos` | `cli\|pedido\|<id>` |
 | Resumo do ponto para aceitar (Sprint 17 · C) | `ponto_meses_fechados` (0034) dos últimos 13 meses, sem resposta do cliente para a assinatura atual; `quando` = `fechado_em` | "Outubro/2026 · confira as horas do mês e responda à contabilidade." — **sem nome nem número** | `/enviar-ponto#aceite` | `cli\|aceite\|<ano>\|<mes>\|<fechado_em>` (reabrir e fechar de novo → não lida de novo) |
 | Demonstrativo pronto | `meses_confirmados` do ano (e do anterior, se a janela alcança); mês M liberado quando o último de 1..M é confirmado (`liberadoAte`) | "Abril/2026 · confirmado pela contabilidade." | `/caixa/demonstrativo?ano=&mes=` | `cli\|demo\|<ano>\|<mes>\|<quando>` |
@@ -169,3 +169,32 @@ chame na confirmação do envio, logo depois de gravar a folha.
 - `/documentos` e `/caixa` ainda não leem `?empresa=`: o item leva à tela, não à empresa.
 - Não foi aberto no navegador contra um banco real (não há banco local); typecheck, lint,
   testes e build verdes.
+
+## Sprint 18 · Frente A — acabamentos do sino
+
+- **Sino da contadora: resposta do cliente ao resumo do ponto.** Quando o cliente dá o
+  **aceite** ou registra uma **dúvida** em `/enviar-ponto#aceite`, a rota
+  `POST /api/envio-ponto/aceite` publica um evento (`registrarNotificacao`, tipo
+  `aceite_ponto_cliente`): "O cliente aceitou o resumo do ponto" · "Outubro/2026 · confirmado
+  pela empresa." ou "O cliente tem uma dúvida no resumo do ponto" · "Outubro/2026 · leia a
+  dúvida no fechamento do mês, na Timesheet." — com a empresa (o sino põe o nome) e o link
+  `/ponto?empresa=&ano=&mes=`. **Sem nome de funcionário e sem o texto da dúvida** (texto livre do
+  cliente; fica na seção do fechamento). Uma chave por resposta (`aceite-ponto|empresa|ano|mes|em`).
+  Regra pura `avisoRespostaAceite` em `lib/mesFechado.ts`. Resposta recusada (409/429/403) não avisa.
+  Sem a 0027, o evento não é gravado e o aceite segue normal.
+- **Folha de ponto devolvida no sino do cliente: sem o motivo.** Igual ao documento devolvido
+  (recomendação do Escudo): o motivo é texto livre da contadora e pode citar o funcionário. Ele
+  continua em `/enviar-ponto` e no `/inicio`. `EnvioParaAviso` deixou de ter `motivo` (o servidor nem o
+  repassa) e `MAX_MOTIVO` saiu de `lib/avisosCliente.ts`.
+- Testes: `tests/mesFechado.test.ts` (aviso puro), `tests/mesFechadoRotas.test.ts` (as duas respostas
+  geram aviso no escritório certo, sem "MARIA" nem a dúvida; isolamento e recusas não geram nada),
+  `tests/avisosCliente.test.ts` e `tests/avisosClienteRota.test.ts` (sem o motivo).
+
+### Para o integrador (Sprint 18 · A, sino)
+
+- Sem migração nova (usa a 0027 e a 0034, já aplicadas). Sem variável nova.
+- Testar com conta de teste: fechar um mês de ponto da empresa de teste; como cliente, "Tenho uma
+  dúvida" com texto → o sino da contadora mostra "O cliente tem uma dúvida no resumo do ponto" (sem o
+  texto) e o link abre a Timesheet no mês, onde a dúvida aparece no fechamento; "Aceito" → novo aviso.
+  Devolver uma folha com motivo → o sino do cliente diz "Veja o motivo em Folha de ponto…", e o motivo
+  aparece em `/enviar-ponto` e no `/inicio`.

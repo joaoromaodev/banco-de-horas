@@ -21,6 +21,7 @@ import { MENSAGEM_GENERICA, MENSAGEM_SEM_REDE } from '@/lib/carga';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
 import { AceiteResumo } from './AceiteResumo';
+import { DicaFotoFolha } from '../DicaFotoFolha';
 
 interface EnvioCliente {
   id: string; funcionario: string; ano: number; mes: number; situacao: SituacaoEnvio; motivo: string | null;
@@ -314,6 +315,8 @@ export default function EnviarPontoPage() {
                       onChange={(v) => { setFuncionario(v); setErrosCampo((e) => ({ ...e, funcionario: undefined })); }}
                       opcoes={funcionarios.map((n) => ({ valor: n, rotulo: n }))} />
                   </div>
+
+                  <DicaFotoFolha className="mt-4" />
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     {/* No celular abre direto a câmera traseira; no computador, o seletor de arquivo. */}

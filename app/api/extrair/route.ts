@@ -16,7 +16,7 @@ import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
 import { extrairFolha } from '@/lib/ocr';
 import { ErroIa } from '@/lib/ia';
 import { iaConfigurada } from '@/lib/ia/config';
-import { situacaoIa } from '@/lib/ia/cota';
+import { avisoIaDoDia, situacaoIa } from '@/lib/ia/cota';
 import { avaliarCota, competenciaBelem, excedeuRitmo, MENSAGEM_RITMO } from '@/lib/cotaOcr';
 import { lerEscritorio } from '@/lib/escritorios';
 import {
@@ -39,16 +39,19 @@ async function estadoCota(escritorioId: string) {
   return avaliarCota({ plano: escritorio?.plano, situacao: escritorio?.situacao, usadas });
 }
 
-/** Só o nível e a mensagem da cota diária da IA (o aviso de 80% e o de esgotada). */
+/**
+ * Só o nível e a mensagem da cota diária da IA (o aviso de 80% e o de esgotada) — o pior
+ * entre o limite da plataforma e a parte deste escritório (Sprint 18 · A).
+ */
 function iaDiaDe(ia: Awaited<ReturnType<typeof situacaoIa>> | null) {
-  return ia?.cota && ia.cota.medida && ia.cota.nivel !== 'ok' ? { nivel: ia.cota.nivel, mensagem: ia.cota.mensagem } : null;
+  return avisoIaDoDia(ia?.cota && ia.cota.medida ? ia.cota : null, ia?.escritorio ?? null);
 }
 
 export async function GET(req: NextRequest) {
   const g = await exigirEmpresaPonto(req, new URL(req.url).searchParams.get('empresa'));
   if (!g.ok) return g.resposta;
   try {
-    const [cota, ia] = await Promise.all([estadoCota(g.escritorioId), situacaoIa().catch(() => null)]);
+    const [cota, ia] = await Promise.all([estadoCota(g.escritorioId), situacaoIa(process.env, g.escritorioId).catch(() => null)]);
     return Response.json({ cota, iaDia: iaDiaDe(ia) });
   } catch (e) {
     return respostaErroPonto(e, 'Falha ao consultar a cota de leituras.');
@@ -134,9 +137,10 @@ export async function POST(req: NextRequest) {
       mes,
       empresa: g.empresa.id,
       funcionario,
+      escritorioId,
     });
     await confirmarLeituraOcr(reserva).catch((e) => console.error('[ponto] confirmar leitura', e));
-    const [depois, ia] = await Promise.all([estadoCota(escritorioId).catch(() => null), situacaoIa().catch(() => null)]);
+    const [depois, ia] = await Promise.all([estadoCota(escritorioId).catch(() => null), situacaoIa(process.env, escritorioId).catch(() => null)]);
     return Response.json({ ...resultado, cota: depois, iaDia: iaDiaDe(ia) });
   } catch (e) {
     await falharLeituraOcr(reserva).catch(() => {});

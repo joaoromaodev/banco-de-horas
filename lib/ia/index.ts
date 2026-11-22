@@ -18,9 +18,9 @@
 import { chamarCloudflare, type ArquivoIa, type ResultadoProvedor } from './cloudflare';
 import {
   chaveGemini, cotaDiariaCloudflare, iaConfigurada, modeloCloudflare, modeloCloudflareTexto, modeloGemini,
-  provedorEscolhido, type FinalidadeIa, type NomeProvedor,
+  percentualCotaEscritorio, provedorEscolhido, tetoDiarioEscritorio, type FinalidadeIa, type NomeProvedor,
 } from './config';
-import { registrarUso, usoHoje } from './cota';
+import { avaliarCotaEscritorio, registrarUso, usoHoje, usoHojeEscritorio } from './cota';
 import { ErroIa } from './erros';
 import type { Esquema } from './esquema';
 import { chamarGemini } from './gemini';
@@ -42,6 +42,12 @@ export interface PedidoIa {
   /** Foto (já em pé e sem EXIF) ou, só no Gemini, PDF já reduzido. */
   arquivo?: ArquivoIa;
   timeoutMs?: number;
+  /**
+   * Escritório que pede (do cadastro da empresa ou da sessão, nunca do navegador).
+   * Com ele vale o teto diário por escritório (Sprint 18 · A) e o gasto é gravado com
+   * o escritório. Sem ele, só o limite do dia da plataforma.
+   */
+  escritorioId?: string | null;
   env?: NodeJS.ProcessEnv;
   /** Para teste: o fetch simulado da Cloudflare. */
   fetch?: typeof fetch;
@@ -87,7 +93,7 @@ export async function lerComIa(p: PedidoIa): Promise<RespostaIa> {
       const r = await chamarGemini({
         apiKey: chaveGemini(p.finalidade, env)!, modelo, prompt: p.prompt, esquema: p.esquema, arquivo: p.arquivo, timeoutMs,
       });
-      await registrarUso({ provedor, modelo, finalidade: p.finalidade, neuronios: null, estimado: false, ok: true });
+      await registrarUso({ provedor, modelo, finalidade: p.finalidade, neuronios: null, estimado: false, ok: true, escritorioId: p.escritorioId });
       return { texto: r.texto, provedor, modelo };
     } catch (e) {
       throw e instanceof ErroIa ? e : new ErroIa('indisponivel', `gemini: ${(e as Error)?.message ?? 'erro'}`);
@@ -105,6 +111,16 @@ export async function lerComIa(p: PedidoIa): Promise<RespostaIa> {
   const limite = cotaDiariaCloudflare(env);
   const usados = await usoHoje('cloudflare');
   if (usados !== null && usados >= limite) throw new ErroIa('cota_diaria', `cloudflare: ${usados}/${limite} neurônios hoje`);
+  // Teto por escritório: a cota do dia é repartida (um escritório não esgota os outros).
+  const pct = percentualCotaEscritorio(env);
+  if (p.escritorioId && pct < 100) {
+    const doEscritorio = await usoHojeEscritorio(p.escritorioId);
+    const teto = tetoDiarioEscritorio(env);
+    if (doEscritorio !== null && doEscritorio >= teto) {
+      throw new ErroIa('cota_escritorio', `cloudflare: escritório ${doEscritorio}/${teto} neurônios hoje`,
+        avaliarCotaEscritorio(doEscritorio, teto, pct).mensagem);
+    }
+  }
 
   const modelo = p.arquivo ? modeloCloudflare(env) : modeloCloudflareTexto(env);
   const imagem = p.arquivo ? await reduzirImagem(p.arquivo) : undefined;
@@ -121,12 +137,17 @@ export async function lerComIa(p: PedidoIa): Promise<RespostaIa> {
       // chamadas (deste e de outros servidores) param antes de ir à rede.
       await registrarUso({
         provedor, modelo, finalidade: p.finalidade, neuronios: Math.max(0, limite - (usados ?? 0)), estimado: true, ok: false,
+        escritorioId: p.escritorioId,
       });
     } else if (erro.neuronios !== null) {
-      await registrarUso({ provedor, modelo, finalidade: p.finalidade, neuronios: erro.neuronios, estimado: false, ok: false });
+      await registrarUso({
+        provedor, modelo, finalidade: p.finalidade, neuronios: erro.neuronios, estimado: false, ok: false, escritorioId: p.escritorioId,
+      });
     }
     throw erro;
   }
-  await registrarUso({ provedor, modelo, finalidade: p.finalidade, neuronios: r.neuronios, estimado: r.estimado, ok: true });
+  await registrarUso({
+    provedor, modelo, finalidade: p.finalidade, neuronios: r.neuronios, estimado: r.estimado, ok: true, escritorioId: p.escritorioId,
+  });
   return { texto: r.texto, provedor, modelo };
 }

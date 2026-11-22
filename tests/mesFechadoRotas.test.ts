@@ -420,6 +420,18 @@ describe('ponto: aceite do cliente', () => {
     // O aceite guarda a versão da declaração; a dúvida, não.
     expect(tabelas.ponto_aceites.map((a) => a.declaracao)).toEqual([null, 'v1']);
 
+    // Sprint 18 · A: o sino da contabilidade recebe as duas respostas, só com empresa e
+    // mês — sem o nome da funcionária e sem o texto da dúvida.
+    const avisosContab = tabelas.notificacoes ?? [];
+    expect(avisosContab).toHaveLength(2);
+    expect(avisosContab.map((n) => n.titulo)).toEqual([
+      'O cliente tem uma dúvida no resumo do ponto', 'O cliente aceitou o resumo do ponto',
+    ]);
+    for (const n of avisosContab) {
+      expect(n).toMatchObject({ escritorio_id: ESC_A, empresa_id: 'emp-a1', href: `/ponto?empresa=emp-a1&ano=${P_ANO}&mes=${P_MES}` });
+      expect(JSON.stringify(n)).not.toMatch(/MARIA|atestado|dia 12/i);
+    }
+
     // Aceito é definitivo para esses números.
     const de0 = (tabelas.ponto_aceites ?? []).length;
     expect((await responder('clienteA1', { assinatura, resposta: 'duvida', duvida: 'Mudei de ideia' })).status).toBe(409);
@@ -443,6 +455,7 @@ describe('ponto: aceite do cliente', () => {
     }));
     expect(r.status).toBe(409);
     expect(tabelas.ponto_aceites ?? []).toHaveLength(0);
+    expect(tabelas.notificacoes ?? []).toHaveLength(0); // recusado não avisa a contabilidade
   });
 
   it('isolamento: outra empresa, outro escritório, contabilidade na rota do cliente, arquivada e sem sessão', async () => {
@@ -465,6 +478,7 @@ describe('ponto: aceite do cliente', () => {
     expect(arq.status).toBe(409);
     expect((await arq.json()).erro).toMatch(/arquivada/i);
     expect(estadoPonto()).toBe(antes);
+    expect(tabelas.notificacoes ?? []).toHaveLength(0); // nenhuma tentativa barrada chega ao sino
     // Fechar a A1 não trava a A2.
     expect((await salvarFolha('contadorA', 'emp-a2')).status).toBe(200);
   });

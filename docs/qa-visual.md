@@ -228,11 +228,36 @@ ajuste de cor foi necessário.
 
 ### Pendências (para a próxima rodada)
 
-1. **Editar um lançamento no celular** continua na linha da tabela (campos de 32 px, rolagem
-   lateral). O certo é abrir o formulário empilhado (o mesmo do "Novo lançamento") num
-   diálogo ou no lugar do cartão. Não mexi: muda o fluxo da tela.
-2. **Lista de documentos do cliente no celular** é uma tabela que rola de lado; para o
-   cliente, cartões (nome, situação, excluir) leriam melhor.
+1. ~~**Editar um lançamento no celular** continua na linha da tabela~~ — **feito na Sprint 18 · A**
+   (ver abaixo).
+2. ~~**Lista de documentos do cliente no celular** é uma tabela que rola de lado~~ — **feito na
+   Sprint 18 · A**.
 3. Termos do caixa ("Conta Titular", "Conta Analítica", "Complemento") seguem os da
    contadora; vale perguntar a ela se o cliente pode ver nomes mais simples.
 4. Conferir no navegador, com conta de teste, em 375 px claro/escuro (ver acima).
+
+## Sprint 18, frente A — acabamentos no celular
+
+1. **Editar lançamento do caixa no celular** (abaixo de `md`, o mesmo corte do "Novo lançamento"):
+   o lápis abre o **formulário empilhado num diálogo** ("Editar lançamento", `Modal` com foco preso,
+   Esc e botões de 44 px) em vez dos campos pequenos na linha da tabela. Mesma rota (`PATCH
+   /api/caixa/lancamentos`), mesmas regras, mesmo erro ligado ao campo (`data-campo-lancamento="edicao"`);
+   erro que não é de campo aparece também dentro do diálogo. Mês fechado: não há botão de editar e o
+   diálogo não abre (o servidor recusa de qualquer jeito). No computador, a edição na linha continua.
+   A largura vem de `matchMedia` via `useSyncExternalStore` (no servidor, "não é celular").
+2. **Documentos do cliente no celular**: cartões abaixo de 640 px (ver documentos.md).
+3. **Dica de foto da folha** (`app/(app)/DicaFotoFolha.tsx`): "Fotografe a folha reta, inteira e com
+   luz. De cima, com os quatro cantos aparecendo e sem sombra…" em `Aviso` informativo, à vista, em
+   `/enviar-ponto` (acima de "Tirar foto") e na Timesheet (abaixo da foto da folha).
+
+Guarda estática em `tests/acabamentos18.test.ts`. **Não aberto no navegador** (sem banco local nem conta
+de teste nesta máquina): conferir em 375 px, nos dois temas, no próximo QA.
+
+### Para o integrador (Sprint 18 · A, telas)
+
+- Arquivos: `app/(app)/caixa/page.tsx`, `app/(app)/documentos/page.tsx`, `app/(app)/DicaFotoFolha.tsx`
+  (novo), `app/(app)/enviar-ponto/page.tsx`, `app/(app)/ponto/page.tsx`. Sem migração, sem variável,
+  sem rota nova.
+- Testar (conta de teste, 375 px): no caixa, tocar no lápis de um lançamento → diálogo; mudar o valor e
+  salvar → "Lançamento alterado."; data fora do ano → erro no campo, dentro do diálogo; fechar o mês →
+  sem lápis.

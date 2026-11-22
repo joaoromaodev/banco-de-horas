@@ -72,6 +72,26 @@ export function cotaDiariaCloudflare(env: NodeJS.ProcessEnv = process.env): numb
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : COTA_CLOUDFLARE_PADRAO;
 }
 
+/**
+ * Parte da cota diária que UM escritório pode gastar sozinho (Sprint 18 · A), em % —
+ * `IA_COTA_ESCRITORIO_PCT` (1 a 100; padrão 40). A cota da Cloudflare é da plataforma
+ * inteira: sem teto, um escritório com muitas folhas esgotaria o dia de todos. 100 =
+ * sem teto por escritório (só o limite do dia vale).
+ */
+export const COTA_ESCRITORIO_PCT_PADRAO = 40;
+
+export function percentualCotaEscritorio(env: NodeJS.ProcessEnv = process.env): number {
+  const v = t(env.IA_COTA_ESCRITORIO_PCT).replace('%', '').replace(',', '.');
+  const n = Number(v);
+  if (!v || !Number.isFinite(n) || n <= 0) return COTA_ESCRITORIO_PCT_PADRAO;
+  return Math.min(100, Math.max(1, Math.round(n)));
+}
+
+/** Teto diário de um escritório em neurônios (a parte dele da cota do dia). */
+export function tetoDiarioEscritorio(env: NodeJS.ProcessEnv = process.env): number {
+  return Math.floor((cotaDiariaCloudflare(env) * percentualCotaEscritorio(env)) / 100);
+}
+
 /** Resumo para o painel do master e para a política de privacidade (sem valor de variável). */
 export function descricaoProvedor(env: NodeJS.ProcessEnv = process.env): {
   provedor: NomeProvedor; nome: string; configurado: boolean; modelo: string; explicito: boolean;

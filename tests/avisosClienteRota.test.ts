@@ -102,6 +102,8 @@ describe('/api/notificacoes — avisos ao cliente', () => {
     expect(j.itens.map((i: { tipo: string }) => i.tipo).sort()).toEqual(['demonstrativo', 'folha_devolvida', 'pedido']);
     expect(j.naoLidas).toBe(3);
     expect(JSON.stringify(j)).not.toMatch(/MARIA/i);
+    // Sprint 18 · A: o motivo da folha devolvida não sai no sino (fica em /enviar-ponto).
+    expect(JSON.stringify(j)).not.toMatch(/Foto cortada/);
     expect(chamadas.leitura).toEqual(['cliente|emp-a1|c@a1.com']);
     expect(r.headers.get('cache-control')).toBe('no-store');
   });

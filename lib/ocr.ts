@@ -72,6 +72,8 @@ export async function extrairFolha(opts: {
   mes: number;
   empresa?: string;
   funcionario?: string;
+  /** Escritório que pede (teto diário por escritório da IA — Sprint 18 · A). */
+  escritorioId?: string | null;
   /** Para teste: variáveis de ambiente e fetch simulados. */
   env?: NodeJS.ProcessEnv;
   fetch?: typeof fetch;
@@ -92,6 +94,7 @@ export async function extrairFolha(opts: {
     prompt: promptFolha(opts.ano, opts.mes),
     esquema: ESQUEMA_FOLHA,
     arquivo: { bytes, mime: opts.mimeType },
+    escritorioId: opts.escritorioId,
     env: opts.env,
     fetch: opts.fetch,
   });

@@ -16,7 +16,8 @@ import { hojeBelem } from '@/lib/agenda';
 import { desdeTrezeMeses } from '@/lib/avisosCliente';
 import { ErroBancoPendente } from '@/lib/pontoDb';
 import { ErroFechamento, fechamentosParaCliente, registrarAceite } from '@/lib/fechamentoPontoServidor';
-import { textoDuvida } from '@/lib/mesFechado';
+import { avisoRespostaAceite, textoDuvida } from '@/lib/mesFechado';
+import { registrarNotificacao } from '@/lib/notificacoesServidor';
 
 export const runtime = 'nodejs';
 const SEM_CACHE = { 'Cache-Control': 'no-store' };
@@ -61,6 +62,12 @@ export async function POST(req: NextRequest) {
     }
     const r = await registrarAceite({
       escritorioId: g.sessao.escritorioId!, empresaId: g.empresaId!, ano, mes, por: g.sessao.email, assinatura, resposta, duvida,
+    });
+    // Sino da contabilidade (Sprint 18 · A): só empresa e mês; a dúvida fica no fechamento.
+    // `registrarNotificacao` nunca lança — avisar não derruba o aceite já gravado.
+    await registrarNotificacao({
+      escritorioId: g.sessao.escritorioId!, empresaId: g.empresaId!,
+      ...avisoRespostaAceite({ empresaId: g.empresaId!, ano, mes, resposta: r.resposta, em: r.em }),
     });
     return Response.json({ ok: true, resposta: r });
   } catch (e) {
