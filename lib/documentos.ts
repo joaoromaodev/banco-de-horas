@@ -18,7 +18,15 @@ export const ROTULO_CATEGORIA: Record<Categoria, string> = {
   outros: 'Outros',
 };
 
-export type StatusDocumento = 'enviando' | 'recebido' | 'conferido' | 'rejeitado';
+/**
+ * Situação do documento enviado pelo cliente. `conferido` é o **aceito** (o nome da
+ * coluna ficou o da 0015); `devolvido` (0032) volta ao cliente com motivo.
+ */
+export type StatusDocumento = 'enviando' | 'recebido' | 'conferido' | 'devolvido' | 'rejeitado';
+/** As situações que aparecem nas listas (o arquivo chegou e passou na conferência dos bytes). */
+export const STATUS_VISIVEIS: StatusDocumento[] = ['recebido', 'conferido', 'devolvido'];
+/** As que contam como "o pedido foi atendido" (devolvido não atende). */
+export const STATUS_VIVOS: StatusDocumento[] = ['recebido', 'conferido'];
 export type StatusPendencia = 'aberta' | 'atendida';
 
 /** 10 MB — o mesmo `file_size_limit` do bucket na migração 0015. */
@@ -264,6 +272,55 @@ export function podeConferir(q: Quem, d: DocumentoRef): boolean {
   return ehGestor(q.role) && (d.status === 'recebido' || d.status === 'conferido') && podeVerRegistro(q, d);
 }
 
+// ------------------------------------------------------------------ situação (0032)
+
+/** O que a contabilidade faz com um documento recebido. `desconferir` = voltar a "recebido". */
+export type AcaoSituacao = 'conferir' | 'devolver' | 'desconferir';
+
+/**
+ * Para onde vai a situação: recebido → aceito (`conferido`) ou devolvido; aceito ↔
+ * devolvido (mudou de ideia); e qualquer um dos dois volta a recebido (desfazer).
+ * `null` = transição que não existe (ex.: aceitar o que já está aceito, mexer em
+ * envio que não terminou ou foi recusado).
+ */
+export function proximaSituacao(atual: StatusDocumento, acao: AcaoSituacao): StatusDocumento | null {
+  if (!(STATUS_VISIVEIS as string[]).includes(atual)) return null;
+  if (acao === 'conferir') return atual === 'conferido' ? null : 'conferido';
+  if (acao === 'devolver') return atual === 'devolvido' ? null : 'devolvido';
+  return atual === 'recebido' ? null : 'recebido';
+}
+
+/** Mudar a situação: só a contabilidade, do registro que ela vê, numa transição válida. */
+export function podeMudarSituacao(q: Quem, d: DocumentoRef, acao: AcaoSituacao): boolean {
+  return ehGestor(q.role) && proximaSituacao(d.status, acao) !== null && podeVerRegistro(q, d);
+}
+
+export const MAX_MOTIVO_DEVOLUCAO = 500;
+
+/** Motivo da devolução: obrigatório (o cliente precisa saber o que corrigir), aparado, até 500. */
+export function motivoDevolucao(v: unknown): { ok: true; motivo: string } | { ok: false; erro: string } {
+  const s = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+  if (s.length < 3) return { ok: false, erro: 'Diga ao cliente por que o documento voltou.' };
+  return { ok: true, motivo: s.slice(0, MAX_MOTIVO_DEVOLUCAO) };
+}
+
+/** Documento devolvido, só com o que a regra de "já reenviou?" usa. */
+export interface DocParaReenvio {
+  id: string; categoria: string; competencia: string; status: StatusDocumento;
+  enviadoEm: string; devolvidoEm?: string | null;
+}
+
+/**
+ * Devolvidos que ainda esperam o cliente: não chegou depois da devolução outro envio
+ * vivo (recebido ou aceito) da mesma categoria e competência — o mesmo raciocínio da
+ * folha de ponto devolvida e não reenviada.
+ */
+export function devolvidosSemReenvio<T extends DocParaReenvio>(docs: T[]): T[] {
+  return docs.filter((d) => d.status === 'devolvido' && !docs.some((o) => o.id !== d.id
+    && (STATUS_VIVOS as string[]).includes(o.status) && o.categoria === d.categoria && o.competencia === d.competencia
+    && o.enviadoEm > (d.devolvidoEm ?? d.enviadoEm)));
+}
+
 /**
  * Excluir (lógico, com desfazer): a contabilidade, sempre; o cliente, só o que
  * ainda não foi conferido — depois disso o contador já usou o documento.
@@ -298,16 +355,42 @@ export function podeAtenderPendencia(q: Quem, p: RegistroRef & { status: StatusP
   return p.status === 'aberta' && podeVerRegistro(q, p);
 }
 
+/**
+ * "Não tenho este mês" (0032): o cliente da empresa — ou a contabilidade, que anota o
+ * que ouviu por telefone — responde a um pedido aberto. O pedido sai de "aberto".
+ */
+export function podeMarcarSemMovimento(q: Quem, p: RegistroRef & { status: StatusPendencia }): boolean {
+  return (q.role === 'cliente' || ehGestor(q.role)) && p.status === 'aberta' && podeVerRegistro(q, p);
+}
+
+/** Desfazer o "não tenho": só enquanto o pedido está fechado POR ele (não o fechado com arquivo ou à mão). */
+export function podeDesfazerSemMovimento(
+  q: Quem, p: RegistroRef & { status: StatusPendencia; semMovimentoEm?: string | null },
+): boolean {
+  return (q.role === 'cliente' || ehGestor(q.role)) && p.status === 'atendida' && Boolean(p.semMovimentoEm) && podeVerRegistro(q, p);
+}
+
+export const MAX_OBS_SEM_MOVIMENTO = 500;
+
 // ------------------------------------------------------------------ pendências
 
 export type SituacaoPrazo = 'sem-prazo' | 'no-prazo' | 'vence-logo' | 'vencida';
+
+/** "Logo" = até 3 dias antes — a mesma janela do lembrete ao cliente (sino e `/inicio`). */
+export const DIAS_LEMBRETE = 3;
+
+/** Dias de `hoje` até `data` (AAAA-MM-DD; negativo = já passou). `null` se a data não vale. */
+export function diasAte(data: string | null | undefined, hoje: string): number | null {
+  if (!data || !dataValida(data.slice(0, 10)) || !dataValida(hoje)) return null;
+  return Math.round((Date.parse(`${data.slice(0, 10)}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86_400_000);
+}
 
 /** Situação do prazo de uma pendência aberta em relação a `hoje` (AAAA-MM-DD). "Logo" = até 3 dias. */
 export function situacaoPrazo(prazo: string | null | undefined, hoje: string): SituacaoPrazo {
   if (!prazo || !dataValida(prazo)) return 'sem-prazo';
   if (prazo < hoje) return 'vencida';
-  const dias = Math.round((Date.parse(`${prazo}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86_400_000);
-  return dias <= 3 ? 'vence-logo' : 'no-prazo';
+  const dias = diasAte(prazo, hoje) ?? Infinity;
+  return dias <= DIAS_LEMBRETE ? 'vence-logo' : 'no-prazo';
 }
 
 export interface PendenciaResumo { status: StatusPendencia; prazo: string | null }

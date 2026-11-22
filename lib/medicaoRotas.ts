@@ -18,7 +18,7 @@ export const ROTAS_API: readonly string[] = [
   '/api/documentos', '/api/documentos/arquivo',
   '/api/dp', '/api/dp/conferencia', '/api/dp/documento', '/api/dp/empregado', '/api/dp/ferias', '/api/dp/lote',
   '/api/dp/lote/modelo', '/api/dp/medias',
-  '/api/empresas', '/api/envio-ponto', '/api/envio-ponto/foto', '/api/escritorio', '/api/escritorio/responsavel',
+  '/api/empresas', '/api/entregas', '/api/entregas/arquivo', '/api/envio-ponto', '/api/envio-ponto/foto', '/api/escritorio', '/api/escritorio/responsavel',
   '/api/escritorios', '/api/extrair', '/api/feriados', '/api/folha', '/api/folha-lote', '/api/funcionarios',
   '/api/gerar', '/api/gerar-lote', '/api/inicio-cliente', '/api/login', '/api/logout', '/api/me', '/api/medicao',
   '/api/notificacoes', '/api/painel', '/api/painel/conferencia', '/api/painel/fechamento', '/api/painel/limite',

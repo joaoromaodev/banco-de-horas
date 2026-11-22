@@ -7,7 +7,9 @@ import type { AchadoConferencia } from './conferenciaModulos';
 
 export type TipoNotificacao = 'documento' | 'pendencia' | 'caixa' | 'conferencia' | 'evento'
   // Avisos ao cliente (lib/avisosCliente.ts): só o papel `cliente` recebe.
-  | 'folha_devolvida' | 'pedido' | 'demonstrativo';
+  | 'folha_devolvida' | 'pedido' | 'demonstrativo'
+  // Sprint 17 (0032): documento da contabilidade, documento devolvido e lembrete do prazo.
+  | 'entrega' | 'documento_devolvido' | 'lembrete';
 
 export interface Notificacao {
   /** Estável: identifica o item para "marcar como lida". Muda quando chega algo novo do mesmo tipo. */
@@ -56,7 +58,11 @@ export function notifDocumentos(docs: DocumentoNovo[], nomes: ReadonlyMap<string
   }));
 }
 
-export interface PendenciaAtendida { id: string; empresaId: string; titulo: string; atendidaEm: string; atendidaPor: string | null }
+export interface PendenciaAtendida {
+  id: string; empresaId: string; titulo: string; atendidaEm: string; atendidaPor: string | null;
+  /** O cliente respondeu "Não tenho este mês" (0032). */
+  semMovimento?: boolean;
+}
 
 /** Pendências que o cliente atendeu. O que o próprio usuário fechou à mão não é novidade. */
 export function notifPendencias(lista: PendenciaAtendida[], nomes: ReadonlyMap<string, string>, usuario: string): ItemNotificacao[] {
@@ -64,7 +70,8 @@ export function notifPendencias(lista: PendenciaAtendida[], nomes: ReadonlyMap<s
     .filter((p) => nomes.has(p.empresaId) && (p.atendidaPor ?? '').toLowerCase() !== usuario.toLowerCase())
     .map((p) => ({
       chave: `pend|${p.id}|${p.atendidaEm}`, tipo: 'pendencia' as const, empresa: nomes.get(p.empresaId),
-      titulo: 'Pedido atendido pelo cliente', texto: p.titulo, href: '/documentos', quando: p.atendidaEm,
+      titulo: p.semMovimento ? 'O cliente não tem este documento no mês' : 'Pedido atendido pelo cliente',
+      texto: p.titulo, href: '/documentos', quando: p.atendidaEm,
     }));
 }
 

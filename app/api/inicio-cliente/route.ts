@@ -11,7 +11,9 @@ import { lerEmpresa } from '@/lib/cadastro';
 import { hojeBelem } from '@/lib/contratos';
 import { Fonte, mesAnterior, montarInicioCliente } from '@/lib/inicioCliente';
 import { abrirPedidosNaVisita } from '@/lib/pedidosNaVisita';
-import { lerFolhasDevolvidas, lerMovimento, lerPendenciasAbertas, lerUltimoDemonstrativo } from '@/lib/inicioClienteServidor';
+import {
+  lerDocumentosDevolvidos, lerEntregasNaoAbertas, lerFolhasDevolvidas, lerMovimento, lerPendenciasAbertas, lerUltimoDemonstrativo,
+} from '@/lib/inicioClienteServidor';
 
 export const runtime = 'nodejs';
 
@@ -35,12 +37,16 @@ export async function GET(req: NextRequest) {
   await abrirPedidosNaVisita(escritorioId, hoje);
   const atual = { ano: Number(hoje.slice(0, 4)), mes: Number(hoje.slice(5, 7)) };
   const empresa = await lerEmpresa(empresaId).catch(() => null);
-  const [movimento, pendencias, folhasDevolvidas, demonstrativo] = await Promise.all([
+  const [movimento, pendencias, folhasDevolvidas, demonstrativo, entregas, devolvidos] = await Promise.all([
     fonte('movimento', () => lerMovimento(empresaId, [mesAnterior(hoje), atual])),
     fonte('pendencias', () => lerPendenciasAbertas(empresaId, escritorioId)),
     fonte('folhas', () => lerFolhasDevolvidas(empresaId, escritorioId)),
     fonte('demonstrativo', () => lerUltimoDemonstrativo(empresaId, hoje)),
+    fonte('entregas', () => lerEntregasNaoAbertas(empresaId, escritorioId)),
+    fonte('devolvidos', () => lerDocumentosDevolvidos(empresaId, escritorioId)),
   ]);
-  const inicio = montarInicioCliente({ hoje, empresaNome: empresa?.nome ?? '', movimento, pendencias, folhasDevolvidas, demonstrativo });
+  const inicio = montarInicioCliente({
+    hoje, empresaNome: empresa?.nome ?? '', movimento, pendencias, folhasDevolvidas, demonstrativo, entregas, devolvidos,
+  });
   return Response.json(inicio, { headers: { 'Cache-Control': 'no-store' } });
 }

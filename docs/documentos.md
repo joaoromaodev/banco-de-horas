@@ -200,3 +200,141 @@ entre processos com o índice único simulado, sem a 0030, falha) e `tests/pedid
   (`update escritorios set pedidos_competencia_aberta = null where id = '<teste>'`), ter um pedido
   mensal criado antes do dia 1º e abrir o `/painel` → a pendência da competência anterior aparece em
   Documentos; abrir de novo → nenhuma duplicada; a marca vira `AAAA-MM`.
+
+## Sprint 17 · Frente A — documentos de mão dupla
+
+Até aqui o portal só ia do cliente para o escritório. Agora vai e volta (ideias 1 e 3 de
+[`empresa/concorrentes.md`](empresa/concorrentes.md)). Migração **0032** (**não aplicada**).
+
+### 1. Escritório → cliente, com registro de leitura ("entregas")
+
+| Tema | Decisão |
+|---|---|
+| O que é | A contadora publica para uma empresa um documento — **guia, DAS, holerite, declaração ou outro** — com competência, vencimento opcional, título e observação opcionais. O cliente vê em `/documentos` ("Da contabilidade para você") e no `/inicio`, recebe aviso no sino e baixa. |
+| Tabela | `entregas` (0032), RLS ligada **sem policies**, `escritorio_id` gravado pelo servidor a partir do cadastro da empresa, sem FK para `empresas` (mesmo motivo da 0015). Situação `enviando → publicada` (ou `rejeitada`). |
+| Storage | O **mesmo bucket privado `documentos`**, no caminho `<escritorio_id>/entregas/<id>.<ext>` (só uuids; prefixo próprio para a faxina distinguir do que o cliente enviou). Mesmo envio em dois passos (URL de upload assinada + `PATCH confirmar`, que confere tamanho e assinatura dos bytes), mesmos tipos e 10 MB. Download por URL assinada de 60 s, anexo, `no-store`, `no-referrer`. |
+| "Aberto em" | É o **primeiro download feito pelo cliente** pelo portal (`GET /api/entregas/arquivo`). Gravado com `where aberto_em is null` (abrir de novo, ou dois cliques juntos, não muda a data) e `aberto_por` = e-mail do login do cliente (só a contabilidade vê). O download da contabilidade **não conta**. Link vindo de outro site (`Sec-Fetch-Site: cross-site`/`same-site`) baixa mas não conta. Falha ao gravar não impede o download (no pior caso a contadora vê "não baixado" e lembra de novo). A tela diz **"Baixado pela empresa em …"**: prova que o navegador do cliente pediu o arquivo, não que ele leu. |
+| Quem não abriu | Na lista da empresa: "Ainda não baixado" (neutro), "vence logo" (até 3 dias, aviso) ou "vencido" (perigo). No topo de `/documentos`, um aviso com as **não abertas perto do vencimento de todas as empresas** (`GET /api/entregas?visao=nao-abertas`, só gestor, recortado pelas empresas visíveis e pelo escritório da sessão); clicar troca a empresa. |
+| Quem faz o quê | Publicar, excluir (lógico, com confirmação + desfazer) e restaurar: só a contabilidade do escritório (`exigirGestor` + `podeGerirEntrega`). Confirmar a publicação: só quem a iniciou. Cliente: lista e baixa as da **própria** empresa. `/api/entregas` entrou em `CLIENTE_PODE`. Limite de 60 publicações por empresa por hora. |
+| Sino e `/inicio` | Aviso "A contabilidade enviou um documento para você" enquanto não foi baixado (some depois), com **tipo, competência e vencimento — sem título nem nome do arquivo** (a contadora pode escrever "Holerite da Maria"). Lembrete quando vence em até 3 dias. No `/inicio`, bloco com link de download direto por item, os mais urgentes primeiro. |
+| Arquivada | A contabilidade lista e baixa (consulta); publicar/excluir dão 409; o cliente dela leva 403. Outro escritório: 403/404 sem saber que está arquivada. |
+
+### 2. Situação de cada documento enviado pelo cliente
+
+- `recebido` → **aceito** (`conferido`, o nome da coluna da 0015) ou **devolvido** com motivo
+  (0032: `devolvido_em`, `devolvido_por`, `motivo_devolucao` ≤ 500; o CHECK de `status` ganhou
+  `devolvido`). Regras puras em `lib/documentos.ts` (`proximaSituacao`, `podeMudarSituacao`,
+  `motivoDevolucao`): aceito ↔ devolvido e "voltar para a conferir" (`desconferir`) a partir de
+  qualquer um dos dois. A gravação exige a situação de partida (duas abas não se atropelam).
+- Só a contabilidade muda a situação. Devolver pede motivo (erro no campo); o toast oferece
+  **Desfazer** (volta para "a conferir").
+- Pedido ligado ao documento: devolver **não atende** — se não sobrar outro envio vivo, o pedido
+  reabre (como ao excluir); desfazer a devolução atende de novo.
+- Cliente: vê a situação (Recebido / Aceito / Devolvido) e o motivo, e tem **"Enviar de novo"**
+  (o formulário vem com categoria, competência e o pedido). Não exclui o devolvido (fica como
+  histórico). O devolvido continua baixável pelos dois lados.
+- Sino do cliente: "Documento devolvido pela contabilidade · Extrato bancário · out/2026 · Veja o
+  motivo em Documentos." — **sem o motivo** (texto livre, pode citar pessoa; revisão do Escudo) e
+  sem o nome do arquivo. Some quando chega outro envio vivo da mesma categoria e competência
+  (`devolvidosSemReenvio`). No `/inicio`, bloco "N documentos voltaram para você" com o motivo.
+
+### 3. "Não tenho este mês" e lembrete antes do prazo
+
+- No pedido aberto, o cliente (ou a contadora, anotando o que ouviu) responde **"Não tenho este
+  mês"** ("Não tenho", se o pedido não tem competência), com observação opcional
+  (`PATCH /api/pendencias { acao: 'nao-tenho', observacao }`). O pedido vira `atendida` com
+  `sem_movimento_em/por/obs` (0032) — por isso o **checklist de fechamento** (`lib/fechamento.ts`,
+  que conta só `aberta` como falta) deixa de mostrar atraso falso **sem mudar nada lá**.
+- Desfazer: o toast (e o botão na lista de atendidas) chama `desfazer-nao-tenho`, que só reabre
+  pedido fechado **pelo "não tenho"**. Fechar à mão e reabrir (contabilidade) apagam a marca;
+  devolver/excluir um arquivo antigo **não** reabre pedido respondido com "não tenho".
+- Sino da contabilidade: "O cliente não tem este documento no mês" no lugar de "Pedido atendido".
+- **Lembrete**: pedido aberto (e entrega não baixada) que vence de hoje a **3 dias**
+  (`DIAS_LEMBRETE`, a mesma janela do "vence logo") vira aviso no sino do cliente, datado da
+  meia-noite de Belém do 1º dia da janela (a chave leva o prazo: mudou o prazo, lembra de novo).
+  No `/inicio` o item ganha "Vence em 2 dias (23/11)" em amarelo.
+
+### Antes da 0032
+
+O código funciona sem a migração: as leituras de `documentos`/`pendencias` tentam com as colunas
+novas e, com `42703`, repetem sem elas (e lembram disso por 5 min); `/api/entregas` responde 503
+"aplique a 0032"; devolver e "não tenho" também (coluna ausente ou `23514` do CHECK antigo);
+aceitar, reabrir e o resto seguem. O sino e o `/inicio` do cliente tratam a falta de `entregas`
+como "nada a mostrar" (não como fonte indisponível). Testado em `tests/documentosSem0032Rotas.test.ts`.
+
+### Arquivos
+
+- `supabase/migrations/0032_documentos_mao_dupla.sql`
+- `lib/entregas.ts` (regras puras) e `lib/entregasServidor.ts` (banco + Storage)
+- `lib/documentos.ts` (situação, "não tenho", `diasAte`/`DIAS_LEMBRETE`) e `lib/documentosServidor.ts`
+  (`mudarSituacao` no lugar de `conferirDocumento`, `marcarSemMovimento`, `desfazerSemMovimento`,
+  leitura com e sem a 0032)
+- Rotas novas `app/api/entregas/route.ts` e `app/api/entregas/arquivo/route.ts`; alteradas
+  `app/api/documentos/route.ts` (PATCH `devolver`), `app/api/documentos/arquivo/route.ts` (baixa o
+  devolvido), `app/api/pendencias/route.ts` (`nao-tenho`, `desfazer-nao-tenho`),
+  `app/api/inicio-cliente/route.ts`
+- Sino e início: `lib/avisosCliente.ts`, `lib/avisosClienteServidor.ts`, `lib/notificacoes.ts`,
+  `lib/notificacoesServidor.ts`, `lib/inicioCliente.ts`, `lib/inicioClienteServidor.ts`, `app/(app)/Sino.tsx`
+- Telas: `app/(app)/documentos/page.tsx`, `app/(app)/documentos/Entregas.tsx` (novo), `app/(app)/inicio/page.tsx`
+- `proxy.ts` (`/api/entregas` em `CLIENTE_PODE`) e `lib/medicaoRotas.ts` (rotas novas na lista fechada)
+- Testes: `tests/documentosMaoDupla.test.ts` (regras), `tests/documentosMaoDuplaRotas.test.ts` (rotas
+  com guardas reais: fluxo e isolamento), `tests/documentosSem0032Rotas.test.ts` (antes da migração);
+  `tests/rotaTeste.ts` ganhou a sessão `contador2A` (outra pessoa do escritório A).
+
+### Revisão do Escudo (21/11/2026)
+
+Sem bloqueantes: não achou caminho entre escritórios ou empresas em nenhuma rota nova ou alterada.
+Corrigido o que ele apontou: o "não tenho" podia ficar grudado num pedido atendido/reaberto por
+documento (agora fechar/reabrir apagam a marca e devolver o arquivo não reabre o pedido respondido);
+o motivo da devolução saiu do sino; o devolvido voltou a baixar; "aberto em" passou a ignorar link
+de outro site e a tela diz "baixado"; a 0032 falha alto se sobrar CHECK antigo com outro nome; teste
+do comportamento sem a 0032.
+
+### Pendências e decisões em aberto
+
+- **LGPD**: `aberto_por` guarda o e-mail do login do cliente (finalidade: prova de entrega; só a
+  contabilidade do escritório vê). O jurídico confirma se o termo cobre e **por quanto tempo**
+  guardar o registro e o arquivo (hoje ficam, inclusive os excluídos — a mesma pendência de
+  retenção dos documentos, acima). A faxina de `entregas` `enviando`/`rejeitada` entra na mesma rotina.
+- O sino da **folha de ponto devolvida** (Sprint 13) ainda mostra o motivo; o Escudo recomenda
+  igualar ao do documento ("Veja o motivo em …"). Não mexi: é de outra frente e muda teste dela.
+- E-mail ao cliente quando sai uma entrega: o gancho `avisarClientePorEmail` continua desligado.
+- Editar uma entrega publicada = excluir e publicar de novo.
+
+### Para o integrador (Sprint 17 · Frente A)
+
+- **Aplicar a 0032** (`supabase/migrations/0032_documentos_mao_dupla.sql`) depois da 0015 e da 0010:
+  cria `entregas` (RLS, sem policy), acrescenta colunas nullable em `documentos` e `pendencias` e
+  **troca o CHECK** `documentos_status_check` (passa a aceitar `devolvido`; um bloco `DO` falha alto
+  se sobrar CHECK antigo com outro nome). Aditiva e idempotente. **Não foi aplicada em banco
+  nenhum.** Ordem com o código: tanto faz (ver "Antes da 0032"). Reversão no cabeçalho do arquivo.
+- Conferir depois de aplicar:
+  ```sql
+  select pg_get_constraintdef(oid) from pg_constraint where conname = 'documentos_status_check'; -- com 'devolvido'
+  select relrowsecurity from pg_class where relname = 'entregas';                                 -- true
+  select count(*) from pg_policies where tablename = 'entregas';                                  -- 0
+  ```
+- Sem variável de ambiente nova. Arquivos compartilhados tocados: `proxy.ts` (uma linha em
+  `CLIENTE_PODE`), `lib/medicaoRotas.ts`, `lib/notificacoes.ts`/`notificacoesServidor.ts`,
+  `app/(app)/Sino.tsx`, `lib/inicioCliente*.ts`, `tests/rotaTeste.ts`. **Nada** em
+  `app/(app)/caixa/**`, `lib/caixa*`, `lib/documentoLancamento*` nem em `lib/fechamento*.ts`.
+- `conferirDocumento` (lib/documentosServidor.ts) foi substituída por
+  `mudarSituacao(d, acao, autor, motivo)`; só a rota de documentos a usava.
+- Testar em produção com **conta de teste** (escritório criado em `/criar-conta`, nunca a Edilse):
+  1. Contadora: em Documentos, empresa de teste → "Publicar documento" (DAS, competência, vencimento
+     daqui a 2 dias, PDF) → aparece "Não baixado · vence logo" e o aviso no topo da tela.
+  2. Cliente da empresa: o sino marca "A contabilidade enviou um documento" e "vence em 2 dias" (sem
+     o título); `/inicio` mostra o bloco com "Baixar …". Baixar → a contadora vê "Baixado pela
+     empresa em …"; baixar de novo não muda a hora; o aviso some do sino.
+  3. Renomear um `.txt` para `.pdf` e publicar → recusado; o cliente não vê nada.
+  4. Contadora devolve um documento do cliente com motivo → o cliente vê "Devolvido" + motivo em
+     Documentos e no `/inicio`, e o aviso no sino **sem** o motivo; "Enviar de novo" → o aviso some.
+     Desfazer a devolução → volta para "a conferir".
+  5. Pedido mensal aberto → cliente "Não tenho este mês" com observação → o checklist do painel deixa
+     de contar o pedido como falta; o sino da contadora diz "não tem este documento no mês";
+     Desfazer → pedido aberto de novo.
+  6. Isolamento: logado em outro escritório, `GET /api/entregas?empresa=<teste>` → 403,
+     `GET /api/entregas/arquivo?id=<teste>` → 404, `DELETE /api/entregas?id=<teste>` → 404; cliente
+     de outra empresa → 403/404; empresa de teste arquivada: contadora lista e baixa, publicar → 409,
+     cliente → 403.
+  7. Apagar o escritório de teste no fim (linhas e objetos em `documentos/<escritorio>/entregas/`).

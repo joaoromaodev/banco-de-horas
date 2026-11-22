@@ -4,9 +4,13 @@
 import { lancamentosDoMes, mesesConfirmados } from './caixa';
 import { liberadoAte } from './demonstrativo';
 import { getDb } from './db';
-import { listarPendencias } from './documentosServidor';
+import { devolvidosSemReenvio } from './documentos';
+import { listarDocumentos, listarPendencias } from './documentosServidor';
+import { listarEntregasOuNada } from './entregasServidor';
 import { listarEnvios } from './envioPontoServidor';
-import type { DemonstrativoDisponivel, FolhaDevolvida, MesDoMovimento, PendenciaAberta } from './inicioCliente';
+import type {
+  DemonstrativoDisponivel, DevolvidoInicio, EntregaInicio, FolhaDevolvida, MesDoMovimento, PendenciaAberta,
+} from './inicioCliente';
 
 async function exercicioExistente(empresaId: string, ano: number): Promise<string | null> {
   const { data, error } = await getDb().from('exercicios').select('id').eq('empresa_id', empresaId).eq('ano', ano).maybeSingle();
@@ -30,6 +34,21 @@ export async function lerMovimento(empresaId: string, meses: { ano: number; mes:
 export async function lerPendenciasAbertas(empresaId: string, escritorioId: string | null): Promise<PendenciaAberta[]> {
   const todas = await listarPendencias({ empresaId, escritorioId });
   return todas.filter((p) => p.status === 'aberta').map((p) => ({ id: p.id, titulo: p.titulo, prazo: p.prazo ? p.prazo.slice(0, 10) : null }));
+}
+
+/** Documentos da contabilidade ainda não abertos pelo cliente (0032; sem a migração, nenhum). */
+export async function lerEntregasNaoAbertas(empresaId: string, escritorioId: string | null): Promise<EntregaInicio[]> {
+  return (await listarEntregasOuNada({ empresaId, escritorioId })).filter((e) => !e.abertoEm).map((e) => ({
+    id: e.id, tipo: e.tipo, titulo: e.titulo, competencia: e.competencia, vencimento: e.vencimento,
+    publicadoEm: e.publicadoEm, abertoEm: e.abertoEm,
+  }));
+}
+
+/** Documentos do cliente devolvidos pela contabilidade e ainda não reenviados (0032). */
+export async function lerDocumentosDevolvidos(empresaId: string, escritorioId: string | null): Promise<DevolvidoInicio[]> {
+  return devolvidosSemReenvio(await listarDocumentos({ empresaId, escritorioId })).map((d) => ({
+    id: d.id, nome: d.nome, categoria: d.categoria, competencia: d.competencia, motivo: d.motivoDevolucao,
+  }));
 }
 
 /** Folhas devolvidas e ainda não reenviadas para o mesmo funcionário e mês. */

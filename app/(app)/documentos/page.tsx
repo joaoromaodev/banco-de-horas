@@ -5,26 +5,30 @@
 // Mesma tela para os dois lados:
 // - cliente: envia arquivos (arrastar ou foto do celular), vê o que enviou e
 //   atende as pendências que o escritório abriu;
-// - contabilidade: escolhe a empresa, confere os documentos e abre/fecha
-//   pendências.
+// - contabilidade: escolhe a empresa, aceita ou devolve (com motivo) os documentos e
+//   abre/fecha pendências.
+// Sprint 17 (0032): documentos que o escritório publica para a empresa, com "aberto em"
+// (Entregas.tsx), situação por documento e "Não tenho este mês" no pedido.
 // A tela só esconde botões; quem decide de verdade são as rotas.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ACCEPT, CATEGORIAS, Categoria, competenciaBR, competenciaPadrao, competenciasRecentes, conferirEnvioDocumentos, type ErrosEnvioDocumentos, LIMITE_TEXTO,
-  ROTULO_CATEGORIA, situacaoPrazo, StatusDocumento, StatusPendencia, tamanhoBR, TIPOS_TEXTO, validarArquivo,
+  MAX_MOTIVO_DEVOLUCAO, MAX_OBS_SEM_MOVIMENTO, motivoDevolucao, ROTULO_CATEGORIA, situacaoPrazo, StatusDocumento, StatusPendencia, tamanhoBR,
+  TIPOS_TEXTO, validarArquivo,
 } from '@/lib/documentos';
 import { hojeBelem } from '@/lib/contratos';
 import { lerMe } from '@/lib/meCliente';
 import { lerJson as lerCarga, mensagemDeCarga, MENSAGEM_GENERICA, MENSAGEM_SEM_REDE } from '@/lib/carga';
 import { DialogoConfirmacao, Modal } from '../Dialogo';
 import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
-import { IconeBaixar, IconeCheck, IconeDesfazer, IconeDocumento, IconeExcluir, IconeLapis, IconeMais } from '../icones';
+import { IconeAlerta, IconeBaixar, IconeCheck, IconeDesfazer, IconeDocumento, IconeExcluir, IconeLapis, IconeMais } from '../icones';
 import {
   AreaTexto, Aviso, Botao, BotaoIcone, CabecalhoPagina, Carregando, Conteudo, cx, Entrada, EstadoVazio, FalhaCarregamento, Secao,
   Selo, tb, Tom,
 } from '@/components/ui';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { Entregas, NaoAbertas, type Desfazivel } from './Entregas';
 
 type Papel = 'master' | 'usuario' | 'cliente';
 interface Me { role: Papel; email: string; empresa: string | null }
@@ -34,18 +38,23 @@ interface Documento {
   id: string; empresaId: string; competencia: string; categoria: Categoria; nome: string; tamanho: number;
   tipo: string; observacao: string | null; pendenciaId: string | null; status: StatusDocumento;
   enviadoPor: string; enviadoEm: string; conferidoPor: string | null; conferidoEm: string | null;
+  devolvidoEm?: string | null; motivoDevolucao?: string | null;
 }
 interface Pendencia {
   id: string; empresaId: string; titulo: string; descricao: string | null; categoria: Categoria | null;
   competencia: string | null; prazo: string | null; status: StatusPendencia; atendidaEm: string | null;
   atendidaPor: string | null; criadoEm: string;
+  semMovimentoEm?: string | null; semMovimentoObs?: string | null;
 }
 
 type EstadoFila = 'esperando' | 'enviando' | 'ok' | 'erro';
 interface ItemFila { chave: string; arquivo: File; estado: EstadoFila; erro?: string }
 
-const TOM_STATUS: Record<StatusDocumento, Tom> = { enviando: 'neutro', recebido: 'aviso', conferido: 'sucesso', rejeitado: 'perigo' };
-const ROTULO_STATUS: Record<StatusDocumento, string> = { enviando: 'Enviando', recebido: 'A conferir', conferido: 'Conferido', rejeitado: 'Recusado' };
+const TOM_STATUS: Record<StatusDocumento, Tom> = { enviando: 'neutro', recebido: 'aviso', conferido: 'sucesso', devolvido: 'perigo', rejeitado: 'perigo' };
+/** Situação de cada documento: recebido → aceito, ou devolvido com motivo. A contabilidade lê "a conferir". */
+const rotuloStatus = (s: StatusDocumento, gestor: boolean) => ({
+  enviando: 'Enviando', recebido: gestor ? 'A conferir' : 'Recebido', conferido: 'Aceito', devolvido: 'Devolvido', rejeitado: 'Recusado',
+}[s]);
 
 const dataBR = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Belem' }) : '');
 const diaBR = (d: string | null) => (d ? d.split('-').reverse().join('/') : '');
@@ -74,8 +83,12 @@ export default function DocumentosPage() {
   // Falha da carga principal: na tela, com "Tentar de novo" (antes, "Carregando…" para sempre).
   const [falha, setFalha] = useState<{ msg: string; de: 'inicio' | 'lista'; id?: string } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [desfazer, setDesfazer] = useState<{ tipo: 'documento' | 'pendencia'; id: string; texto: string } | null>(null);
+  const [desfazer, setDesfazer] = useState<Desfazivel | null>(null);
   const [excluindoDoc, setExcluindoDoc] = useState<Documento | null>(null);
+  const [devolvendo, setDevolvendo] = useState<Documento | null>(null);
+  const [semMovimento, setSemMovimento] = useState<Pendencia | null>(null);
+  // Muda quando algo é publicado/excluído: o resumo "ainda não abertos" recarrega.
+  const [versaoEntregas, setVersaoEntregas] = useState(0);
   const [excluindoPend, setExcluindoPend] = useState<Pendencia | null>(null);
   const [editandoPend, setEditandoPend] = useState<Pendencia | 'nova' | null>(null);
 
@@ -233,16 +246,57 @@ export default function DocumentosPage() {
       await fetch('/api/documentos', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: d.id, acao }),
       }).then(lerJson);
-      setMsg(acao === 'conferir' ? 'Documento conferido.' : 'Conferência desfeita.');
+      setMsg(acao === 'conferir' ? 'Documento aceito.' : 'O documento voltou para "a conferir".');
       carregar(empresaId);
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha.'); }
+  }
+
+  /** Devolver com motivo: o cliente vê o motivo e recebe o aviso. Desfazer = voltar para "a conferir". */
+  async function devolverDoc(d: Documento, motivo: string) {
+    await fetch('/api/documentos', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: d.id, acao: 'devolver', motivo }),
+    }).then(lerJson);
+    setDevolvendo(null);
+    setDesfazer({ texto: `"${d.nome}" devolvido. A empresa já vê o motivo.`, url: '/api/documentos', corpo: { id: d.id, acao: 'desconferir' } });
+    carregar(empresaId);
+  }
+
+  /** "Não tenho este mês": o pedido sai de aberto, com a observação opcional. */
+  async function marcarSemMovimento(p: Pendencia, observacao: string) {
+    await fetch('/api/pendencias', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, acao: 'nao-tenho', observacao }),
+    }).then(lerJson);
+    setSemMovimento(null);
+    setDesfazer({ texto: `Pedido "${p.titulo}" respondido: não houve este mês.`, url: '/api/pendencias', corpo: { id: p.id, acao: 'desfazer-nao-tenho' } });
+    carregar(empresaId);
+  }
+
+  async function desfazerSemMovimento(p: Pendencia) {
+    try {
+      await fetch('/api/pendencias', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, acao: 'desfazer-nao-tenho' }),
+      }).then(lerJson);
+      setMsg('O pedido voltou a ficar aberto.');
+      carregar(empresaId);
+    } catch (e) { setErro(e instanceof Error ? e.message : 'Falha.'); }
+  }
+
+  /** Reenviar um documento devolvido: o formulário vem com a categoria, a competência e o pedido dele. */
+  function reenviar(d: Documento) {
+    setCategoria(d.categoria);
+    setCompetencia(d.competencia);
+    const pedidoAberto = (pendencias ?? []).find((p) => p.id === d.pendenciaId && p.status === 'aberta');
+    setPendenciaSel(pedidoAberto?.id ?? '');
+    setErrosCampo({});
+    formRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    formRef.current?.querySelector<HTMLElement>('[data-zona-envio] input')?.focus({ preventScroll: true });
   }
 
   async function excluirDoc(d: Documento) {
     setExcluindoDoc(null);
     try {
       await fetch(`/api/documentos?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' }).then(lerJson);
-      setDesfazer({ tipo: 'documento', id: d.id, texto: `"${d.nome}" excluído.` });
+      setDesfazer({ texto: `"${d.nome}" excluído.`, url: '/api/documentos', corpo: { id: d.id, acao: 'restaurar' } });
       carregar(empresaId);
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha.'); }
   }
@@ -261,7 +315,7 @@ export default function DocumentosPage() {
     setExcluindoPend(null);
     try {
       await fetch(`/api/pendencias?id=${encodeURIComponent(p.id)}`, { method: 'DELETE' }).then(lerJson);
-      setDesfazer({ tipo: 'pendencia', id: p.id, texto: `Pendência "${p.titulo}" excluída.` });
+      setDesfazer({ texto: `Pendência "${p.titulo}" excluída.`, url: '/api/pendencias', corpo: { id: p.id, acao: 'restaurar' } });
       carregar(empresaId);
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha.'); }
   }
@@ -271,12 +325,12 @@ export default function DocumentosPage() {
     const alvo = desfazer;
     setDesfazer(null);
     try {
-      await fetch(alvo.tipo === 'documento' ? '/api/documentos' : '/api/pendencias', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: alvo.id, acao: 'restaurar' }),
+      await fetch(alvo.url, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(alvo.corpo),
       }).then(lerJson);
-      setMsg('Exclusão desfeita.');
+      setMsg('Desfeito.');
       carregar(empresaId);
+      setVersaoEntregas((v) => v + 1);
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha.'); }
   }
 
@@ -310,6 +364,10 @@ export default function DocumentosPage() {
 
       <Conteudo largura="media">
         {me && gestor && <FaixaArquivada empresa={empresas.find((e) => e.id === empresaSel)} />}
+        {me && gestor && empresas.length > 0 && (
+          <NaoAbertas hoje={hoje} recarregar={versaoEntregas}
+            onEscolherEmpresa={(id) => { if (empresas.some((e) => e.id === id)) trocarEmpresa(id); }} />
+        )}
         {falha && (
           <FalhaCarregamento titulo={falha.de === 'inicio' ? 'Não foi possível abrir os documentos.' : 'Não foi possível carregar os documentos desta empresa.'}
             onTentar={() => (falha.de === 'inicio' ? iniciar() : void carregar(falha.id ?? ''))}>{falha.msg}</FalhaCarregamento>
@@ -327,6 +385,11 @@ export default function DocumentosPage() {
 
         {me && empresaId && !semTabela && (
           <>
+            {/* ---------------------------------------- do escritório para a empresa (0032) */}
+            <Entregas key={empresaId} gestor={gestor} empresaId={empresaId} somenteLeitura={Boolean(empresa?.arquivadaEm)}
+              hoje={hoje} competencias={competencias} onMsg={(m) => { setMsg(m); setVersaoEntregas((v) => v + 1); }} onErro={setErro}
+              onDesfazivel={(d) => { setDesfazer(d); setVersaoEntregas((v) => v + 1); }} />
+
             {/* ---------------------------------------------- pendências */}
             <Secao
               titulo={gestor ? 'Pendências da empresa' : 'O escritório está pedindo'}
@@ -341,6 +404,7 @@ export default function DocumentosPage() {
                   abertas={abertas} atendidas={atendidas} hoje={hoje} gestor={gestor}
                   onAtender={atender} onEditar={(p) => setEditandoPend(p)} onFechar={(p) => acaoPend(p, 'fechar')}
                   onReabrir={(p) => acaoPend(p, 'reabrir')} onExcluir={setExcluindoPend}
+                  onNaoTenho={setSemMovimento} onDesfazerNaoTenho={desfazerSemMovimento}
                 />
               )}
             </Secao>
@@ -425,18 +489,31 @@ export default function DocumentosPage() {
                             {gestor && <div className="text-xs">{d.enviadoPor}</div>}
                           </td>
                           <td className={tb.td}>
-                            <Selo tom={TOM_STATUS[d.status]}>{ROTULO_STATUS[d.status]}</Selo>
+                            <Selo tom={TOM_STATUS[d.status]}>{rotuloStatus(d.status, gestor)}</Selo>
+                            {d.status === 'devolvido' && d.motivoDevolucao && (
+                              <div className="mt-1 max-w-[16rem] whitespace-normal text-xs text-perigo">Motivo: {d.motivoDevolucao}</div>
+                            )}
                           </td>
                           <td className={cx(tb.td, 'whitespace-nowrap text-right')}>
-                            {gestor && (d.status === 'conferido' ? (
-                              <BotaoIcone rotulo="Desfazer conferência" tom="apagado" onClick={() => acaoDoc(d, 'desconferir')}>
+                            {!gestor && d.status === 'devolvido' && (
+                              <Botao tamanho="sm" variante="tonal" aria-label={`Enviar de novo: ${d.nome}`} onClick={() => reenviar(d)}>Enviar de novo</Botao>
+                            )}
+                            {gestor && d.status === 'recebido' && (
+                              <>
+                                <BotaoIcone rotulo={`Aceitar ${d.nome}`} title="Aceitar" tom="sucesso" onClick={() => acaoDoc(d, 'conferir')}>
+                                  <IconeCheck />
+                                </BotaoIcone>
+                                <BotaoIcone rotulo={`Devolver ${d.nome} ao cliente`} title="Devolver com motivo" tom="perigo" onClick={() => setDevolvendo(d)}>
+                                  <IconeAlerta />
+                                </BotaoIcone>
+                              </>
+                            )}
+                            {gestor && (d.status === 'conferido' || d.status === 'devolvido') && (
+                              <BotaoIcone rotulo={`Voltar ${d.nome} para a conferir`} title={d.status === 'conferido' ? 'Desfazer o aceite' : 'Desfazer a devolução'}
+                                tom="apagado" onClick={() => acaoDoc(d, 'desconferir')}>
                                 <IconeDesfazer />
                               </BotaoIcone>
-                            ) : (
-                              <BotaoIcone rotulo="Marcar como conferido" tom="sucesso" onClick={() => acaoDoc(d, 'conferir')}>
-                                <IconeCheck />
-                              </BotaoIcone>
-                            ))}
+                            )}
                             {(gestor || d.status === 'recebido') && (
                               <BotaoIcone rotulo={`Excluir ${d.nome}`} title="Excluir" tom="perigo" onClick={() => setExcluindoDoc(d)}>
                                 <IconeExcluir />
@@ -464,6 +541,21 @@ export default function DocumentosPage() {
           mensagem={<>A pendência <strong>{excluindoPend.titulo}</strong> some para a empresa. Você poderá desfazer logo em seguida.</>}
           onConfirmar={() => excluirPend(excluindoPend)} onCancelar={() => setExcluindoPend(null)} />
       )}
+      {devolvendo && (
+        <DialogoTexto titulo="Devolver documento ao cliente"
+          descricao={<>Diga o que precisa ser corrigido em <strong>{devolvendo.nome}</strong>. A empresa vê o motivo e recebe o aviso.</>}
+          rotulo="Motivo" obrigatorio max={MAX_MOTIVO_DEVOLUCAO} placeholder="Ex.: a foto está cortada; mande o extrato do mês inteiro"
+          textoConfirmar="Devolver ao cliente"
+          validar={(v) => { const m = motivoDevolucao(v); return m.ok ? null : m.erro; }}
+          onCancelar={() => setDevolvendo(null)} onConfirmar={(motivo) => devolverDoc(devolvendo, motivo)} />
+      )}
+      {semMovimento && (
+        <DialogoTexto titulo={semMovimento.competencia ? 'Não tem este mês?' : 'Não tem este documento?'}
+          descricao={<>O pedido <strong>{semMovimento.titulo}</strong>{semMovimento.competencia ? ` (${competenciaBR(semMovimento.competencia)})` : ''} sai da lista de pendências. A contabilidade vê a sua resposta.</>}
+          rotulo="Observação (opcional)" max={MAX_OBS_SEM_MOVIMENTO} placeholder="Ex.: a empresa não teve movimento no banco"
+          textoConfirmar="Confirmar"
+          onCancelar={() => setSemMovimento(null)} onConfirmar={(obs) => marcarSemMovimento(semMovimento, obs)} />
+      )}
       {editandoPend && (
         <DialogoPendencia
           pendencia={editandoPend === 'nova' ? null : editandoPend} empresaId={empresaId} competencias={competencias}
@@ -478,10 +570,11 @@ export default function DocumentosPage() {
 
 // -------------------------------------------------------------------- partes
 
-function ListaPendencias({ abertas, atendidas, hoje, gestor, onAtender, onEditar, onFechar, onReabrir, onExcluir }: {
+function ListaPendencias({ abertas, atendidas, hoje, gestor, onAtender, onEditar, onFechar, onReabrir, onExcluir, onNaoTenho, onDesfazerNaoTenho }: {
   abertas: Pendencia[]; atendidas: Pendencia[]; hoje: string; gestor: boolean;
   onAtender: (p: Pendencia) => void; onEditar: (p: Pendencia) => void; onFechar: (p: Pendencia) => void;
   onReabrir: (p: Pendencia) => void; onExcluir: (p: Pendencia) => void;
+  onNaoTenho: (p: Pendencia) => void; onDesfazerNaoTenho: (p: Pendencia) => void;
 }) {
   const [verAtendidas, setVerAtendidas] = useState(false);
   if (!abertas.length && !atendidas.length) {
@@ -501,16 +594,29 @@ function ListaPendencias({ abertas, atendidas, hoje, gestor, onAtender, onEditar
             {p.competencia && <span>· {competenciaBR(p.competencia)}</span>}
             {p.status === 'aberta' && p.prazo && (
               <Selo tom={prazo === 'vencida' ? 'perigo' : prazo === 'vence-logo' ? 'aviso' : 'neutro'}>
-                {prazo === 'vencida' ? `Venceu em ${diaBR(p.prazo)}` : `Até ${diaBR(p.prazo)}`}
+                {prazo === 'vencida' ? `Venceu em ${diaBR(p.prazo)}` : prazo === 'vence-logo' ? `Vence logo: ${diaBR(p.prazo)}` : `Até ${diaBR(p.prazo)}`}
               </Selo>
             )}
-            {p.status === 'atendida' && <Selo tom="sucesso">Atendida{p.atendidaEm ? ` em ${dataBR(p.atendidaEm)}` : ''}</Selo>}
+            {p.status === 'atendida' && (p.semMovimentoEm
+              ? <Selo tom="neutro">Não teve este mês · {dataBR(p.semMovimentoEm)}</Selo>
+              : <Selo tom="sucesso">Atendida{p.atendidaEm ? ` em ${dataBR(p.atendidaEm)}` : ''}</Selo>)}
           </div>
           {p.descricao && <p className="mt-1 whitespace-pre-line text-[13px] text-tinta-suave">{p.descricao}</p>}
+          {p.semMovimentoEm && p.semMovimentoObs && <p className="mt-1 text-[13px] text-tinta-suave">Observação: {p.semMovimentoObs}</p>}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center gap-1">
           {p.status === 'aberta' && !gestor && (
-            <Botao tamanho="sm" variante="tonal" aria-label={`Enviar agora: ${p.titulo}`} onClick={() => onAtender(p)}>Enviar agora</Botao>
+            <>
+              <Botao tamanho="sm" variante="tonal" aria-label={`Enviar agora: ${p.titulo}`} onClick={() => onAtender(p)}>Enviar agora</Botao>
+              <Botao tamanho="sm" variante="fantasma" aria-label={`Não tenho: ${p.titulo}`} onClick={() => onNaoTenho(p)}>
+                {p.competencia ? 'Não tenho este mês' : 'Não tenho'}
+              </Botao>
+            </>
+          )}
+          {p.status === 'atendida' && p.semMovimentoEm && !gestor && (
+            <BotaoIcone rotulo={`Desfazer a resposta: ${p.titulo}`} title="Desfazer" tom="apagado" onClick={() => onDesfazerNaoTenho(p)}>
+              <IconeDesfazer />
+            </BotaoIcone>
           )}
           {gestor && p.status === 'aberta' && (
             <>
@@ -601,6 +707,47 @@ function FilaEnvio({ fila, onRemover, enviando }: { fila: ItemFila[]; onRemover:
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Diálogo de um texto (motivo da devolução, observação do "não tenho"): erro no campo, foco nele. */
+function DialogoTexto({ titulo, descricao, rotulo, placeholder, max, obrigatorio = false, textoConfirmar, validar, onCancelar, onConfirmar }: {
+  titulo: string; descricao: React.ReactNode; rotulo: string; placeholder?: string; max: number; obrigatorio?: boolean;
+  textoConfirmar: string; validar?: (v: string) => string | null;
+  onCancelar: () => void; onConfirmar: (v: string) => Promise<void>;
+}) {
+  const id = useId();
+  const [valor, setValor] = useState('');
+  const [erro, setErro] = useState<string | undefined>();
+  const [salvando, setSalvando] = useState(false);
+
+  async function confirmar(e: React.FormEvent) {
+    e.preventDefault();
+    const problema = validar?.(valor) ?? null;
+    if (problema) { setErro(problema); document.getElementById(`${id}-campo`)?.focus(); return; }
+    setSalvando(true);
+    try { await onConfirmar(valor.trim()); } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível concluir. Tente de novo.');
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Modal onFechar={onCancelar} rotuladoPor={id} largura="max-w-lg">
+      <form onSubmit={confirmar} noValidate>
+        <div className="space-y-4 p-5">
+          <h2 id={id} className="text-base font-semibold text-tinta">{titulo}</h2>
+          <p className="text-sm leading-relaxed text-tinta-suave">{descricao}</p>
+          <AreaTexto id={`${id}-campo`} rotulo={rotulo} value={valor} maxLength={max} rows={3} placeholder={placeholder}
+            required={obrigatorio} erro={erro} data-foco-inicial=""
+            onChange={(e) => { setValor(e.target.value); setErro(undefined); }} />
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-borda bg-superficie-suave px-5 py-3 sm:flex-row sm:justify-end">
+          <Botao onClick={onCancelar}>Cancelar</Botao>
+          <Botao type="submit" variante="primaria" carregando={salvando}>{textoConfirmar}</Botao>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

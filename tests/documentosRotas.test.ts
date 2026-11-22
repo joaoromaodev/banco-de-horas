@@ -66,7 +66,7 @@ let pendAtual: typeof pendBase | null = pendBase;
 const io = {
   excluirDocumento: vi.fn(async () => {}),
   restaurarDocumento: vi.fn(async () => {}),
-  conferirDocumento: vi.fn(async () => docBase),
+  mudarSituacao: vi.fn(async () => docBase),
   confirmarEnvio: vi.fn(async () => docBase),
   urlDownload: vi.fn(async () => 'https://storage.exemplo/assinada'),
   listarDocumentos: vi.fn(async () => [docBase]),
@@ -116,7 +116,7 @@ describe('outro escritório não alcança o documento por id', () => {
     docAtual!.excluidoEm = null;
     expect((await docs.DELETE(req(`/api/documentos?id=${DOC}`, { method: 'DELETE' }))).status).toBe(404);
     expect(io.urlDownload).not.toHaveBeenCalled();
-    expect(io.conferirDocumento).not.toHaveBeenCalled();
+    expect(io.mudarSituacao).not.toHaveBeenCalled();
     expect(io.restaurarDocumento).not.toHaveBeenCalled();
     expect(io.excluirDocumento).not.toHaveBeenCalled();
   });

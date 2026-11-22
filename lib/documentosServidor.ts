@@ -8,8 +8,8 @@ import { randomUUID } from 'crypto';
 import { getDb } from './db';
 import { fecharRecorrenteDoDocumento } from './fechamentoServidor';
 import {
-  caminhoNoStorage, Categoria, conferirAssinatura, deveReabrir, extensao, LIMITE_BYTES,
-  StatusDocumento, StatusPendencia, TipoAceito, uuidValido,
+  AcaoSituacao, caminhoNoStorage, Categoria, conferirAssinatura, deveReabrir, extensao, LIMITE_BYTES, proximaSituacao,
+  STATUS_VISIVEIS, STATUS_VIVOS, StatusDocumento, StatusPendencia, TipoAceito, uuidValido,
 } from './documentos';
 
 export const BUCKET = 'documentos';
@@ -30,6 +30,40 @@ function traduzir(e: { code?: string; message?: string } | null): never {
   // Mensagem do banco não vai para a tela (pode citar coluna/constraint).
   console.error('[documentos] falha no banco:', e?.code, e?.message);
   throw new ErroDoc('Falha ao acessar o banco.', 502);
+}
+
+// ------------------------------------------------------------------ migração 0032
+// A 0032 acrescenta colunas (devolução do documento, "não tenho este mês" do
+// pedido). O código pode chegar à produção antes dela: a LEITURA cai para as
+// colunas antigas (as telas seguem funcionando) e só as ações novas respondem 503.
+
+/** Coluna inexistente: 42703 no select, PGRST204 no insert/update (cache do PostgREST). */
+export const colunaAusente = (e: { code?: string } | null | undefined) => e?.code === '42703' || e?.code === 'PGRST204';
+
+export const SEM_0032 = 'Esta ação ainda não está disponível — aplique a migração 0032 do banco.';
+
+/** Sem a 0032 (coluna ausente, ou `devolvido` barrado pelo CHECK antigo): 503 com o recado; o resto, `traduzir`. */
+function traduzir0032(e: { code?: string; message?: string } | null): never {
+  if (colunaAusente(e) || e?.code === '23514') throw new ErroDoc(SEM_0032, 503);
+  traduzir(e);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- resposta crua do PostgREST
+type Res = { data: any; error: { code?: string; message?: string } | null; count?: number | null };
+let sem0032Ate = 0;
+
+/**
+ * Lê com as colunas da 0032; se o banco ainda não as tem, repete com as antigas e
+ * lembra disso por 5 min (sem pagar duas consultas a cada leitura).
+ */
+async function lerCom0032(montar: (com0032: boolean) => PromiseLike<Res>): Promise<Res> {
+  if (Date.now() >= sem0032Ate) {
+    const r = await montar(true);
+    if (!colunaAusente(r.error)) return r;
+    sem0032Ate = Date.now() + 5 * 60_000;
+    console.warn('[documentos] migração 0032 ainda não aplicada: lendo sem as colunas novas.');
+  }
+  return montar(false);
 }
 
 // ------------------------------------------------------------------ tipos
@@ -53,6 +87,10 @@ export interface Documento {
   conferidoEm: string | null;
   excluidoEm: string | null;
   excluidoPorGestor: boolean;
+  /** Devolução (0032): quando, por quem (só a contabilidade vê) e o motivo para o cliente. */
+  devolvidoEm: string | null;
+  devolvidoPor: string | null;
+  motivoDevolucao: string | null;
 }
 
 export interface Pendencia {
@@ -70,6 +108,10 @@ export interface Pendencia {
   criadoPor: string;
   criadoEm: string;
   excluidoEm: string | null;
+  /** "Não tenho este mês" (0032): quando, por quem (só a contabilidade vê) e a observação. */
+  semMovimentoEm: string | null;
+  semMovimentoPor: string | null;
+  semMovimentoObs: string | null;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- linhas cruas do PostgREST */
@@ -80,6 +122,7 @@ const doc = (l: any): Documento => ({
   enviadoPor: l.enviado_por, enviadoEm: l.enviado_em, conferidoPor: l.conferido_por ?? null,
   conferidoEm: l.conferido_em ?? null, excluidoEm: l.excluido_em ?? null,
   excluidoPorGestor: Boolean(l.excluido_por_gestor),
+  devolvidoEm: l.devolvido_em ?? null, devolvidoPor: l.devolvido_por ?? null, motivoDevolucao: l.motivo_devolucao ?? null,
 });
 
 const pend = (l: any): Pendencia => ({
@@ -87,6 +130,7 @@ const pend = (l: any): Pendencia => ({
   descricao: l.descricao ?? null, categoria: l.categoria ?? null, competencia: l.competencia ?? null,
   prazo: l.prazo ?? null, status: l.status, atendidaEm: l.atendida_em ?? null, atendidaPor: l.atendida_por ?? null,
   criadoPor: l.criado_por, criadoEm: l.criado_em, excluidoEm: l.excluido_em ?? null,
+  semMovimentoEm: l.sem_movimento_em ?? null, semMovimentoPor: l.sem_movimento_por ?? null, semMovimentoObs: l.sem_movimento_obs ?? null,
 });
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -97,11 +141,11 @@ const pend = (l: any): Pendencia => ({
 export function publico(d: Documento, gestor: boolean) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { caminho: _c, excluidoPorGestor: _x, ...resto } = d;
-  return gestor ? resto : { ...resto, enviadoPor: '', conferidoPor: null };
+  return gestor ? resto : { ...resto, enviadoPor: '', conferidoPor: null, devolvidoPor: null };
 }
 
 export function pendenciaPublica(p: Pendencia, gestor: boolean) {
-  return gestor ? p : { ...p, criadoPor: '', atendidaPor: null };
+  return gestor ? p : { ...p, criadoPor: '', atendidaPor: null, semMovimentoPor: null };
 }
 
 /**
@@ -113,14 +157,18 @@ type Escopo = { empresaId: string; escritorioId: string | null };
 
 // ------------------------------------------------------------------ documentos
 
-const COLS_DOC = 'id, empresa_id, escritorio_id, competencia, categoria, caminho, nome_original, tamanho, tipo, observacao, pendencia_id, status, enviado_por, enviado_em, conferido_por, conferido_em, excluido_em, excluido_por_gestor';
+const COLS_DOC_0015 = 'id, empresa_id, escritorio_id, competencia, categoria, caminho, nome_original, tamanho, tipo, observacao, pendencia_id, status, enviado_por, enviado_em, conferido_por, conferido_em, excluido_em, excluido_por_gestor';
+const COLS_DOC = `${COLS_DOC_0015}, devolvido_em, devolvido_por, motivo_devolucao`;
+const colsDoc = (com0032: boolean) => (com0032 ? COLS_DOC : COLS_DOC_0015);
 
 export async function listarDocumentos(e: Escopo, competencia?: string): Promise<Documento[]> {
-  let q = getDb().from('documentos').select(COLS_DOC)
-    .eq('empresa_id', e.empresaId).is('excluido_em', null).in('status', ['recebido', 'conferido']);
-  if (e.escritorioId) q = q.eq('escritorio_id', e.escritorioId);
-  if (competencia) q = q.eq('competencia', competencia);
-  const { data, error } = await q.order('competencia', { ascending: false }).order('enviado_em', { ascending: false }).limit(500);
+  const { data, error } = await lerCom0032((c) => {
+    let q = getDb().from('documentos').select(colsDoc(c))
+      .eq('empresa_id', e.empresaId).is('excluido_em', null).in('status', STATUS_VISIVEIS);
+    if (e.escritorioId) q = q.eq('escritorio_id', e.escritorioId);
+    if (competencia) q = q.eq('competencia', competencia);
+    return q.order('competencia', { ascending: false }).order('enviado_em', { ascending: false }).limit(500);
+  });
   if (error) traduzir(error);
   return (data ?? []).map(doc);
 }
@@ -128,7 +176,7 @@ export async function listarDocumentos(e: Escopo, competencia?: string): Promise
 /** Lê um documento pelo id, inclusive excluído (para o desfazer). A rota decide o acesso. */
 export async function lerDocumento(id: string): Promise<Documento | null> {
   if (!uuidValido(id)) return null;
-  const { data, error } = await getDb().from('documentos').select(COLS_DOC).eq('id', id).maybeSingle();
+  const { data, error } = await lerCom0032((c) => getDb().from('documentos').select(colsDoc(c)).eq('id', id).maybeSingle());
   if (error) traduzir(error);
   return data ? doc(data) : null;
 }
@@ -208,9 +256,9 @@ export async function confirmarEnvio(d: Documento, autor: string): Promise<Docum
     await rejeitar(d);
     throw new ErroDoc('O conteúdo do arquivo não corresponde ao tipo informado. Envie um arquivo válido.', 422);
   }
-  const { data, error: eUp } = await db.from('documentos')
+  const { data, error: eUp } = await lerCom0032((c) => db.from('documentos')
     .update({ status: 'recebido', tamanho: bytes.length, enviado_em: new Date().toISOString() })
-    .eq('id', d.id).eq('status', 'enviando').select(COLS_DOC).maybeSingle();
+    .eq('id', d.id).eq('status', 'enviando').select(colsDoc(c)).maybeSingle());
   if (eUp) traduzir(eUp);
   if (d.pendenciaId) await atenderPendencia(d.pendenciaId, autor);
   else {
@@ -222,15 +270,64 @@ export async function confirmarEnvio(d: Documento, autor: string): Promise<Docum
   return data ? doc(data) : { ...d, status: 'recebido' };
 }
 
-export async function conferirDocumento(id: string, autor: string, desfazer = false): Promise<Documento> {
-  const mud = desfazer
-    ? { status: 'recebido', conferido_por: null, conferido_em: null }
-    : { status: 'conferido', conferido_por: autor, conferido_em: new Date().toISOString() };
-  const { data, error } = await getDb().from('documentos').update(mud)
-    .eq('id', id).in('status', ['recebido', 'conferido']).is('excluido_em', null).select(COLS_DOC).maybeSingle();
-  if (error) traduzir(error);
-  if (!data) throw new ErroDoc('Documento não encontrado.', 404);
+/**
+ * Muda a situação de um documento recebido (a rota já conferiu quem pode e a
+ * transição, em lib/documentos.ts): aceitar (`conferido`), devolver com motivo, ou
+ * voltar a "recebido". A gravação ainda exige a situação de partida (`eq status`):
+ * duas abas clicando ao mesmo tempo não atropelam uma à outra.
+ *
+ * Pedido ligado ao documento: devolver não atende — se não sobrar outro envio vivo,
+ * o pedido REABRE (como ao excluir); voltar de devolvido para recebido/aceito
+ * atende de novo.
+ */
+export async function mudarSituacao(
+  d: Documento, acao: AcaoSituacao, autor: string, motivo: string | null = null,
+): Promise<Documento> {
+  const destino = proximaSituacao(d.status, acao);
+  if (!destino) throw new ErroDoc('Este documento não pode mudar para essa situação.', 409);
+  const agora = new Date().toISOString();
+  const mud: Record<string, unknown> = { status: destino };
+  if (destino === 'conferido') Object.assign(mud, { conferido_por: autor, conferido_em: agora });
+  else Object.assign(mud, { conferido_por: null, conferido_em: null });
+  // Colunas da 0032 só quando a devolução entra ou sai — aceitar/desfazer um
+  // documento que nunca foi devolvido continua funcionando sem a migração.
+  const usa0032 = destino === 'devolvido' || d.status === 'devolvido';
+  if (destino === 'devolvido') Object.assign(mud, { devolvido_em: agora, devolvido_por: autor, motivo_devolucao: motivo });
+  else if (d.status === 'devolvido') Object.assign(mud, { devolvido_em: null, devolvido_por: null, motivo_devolucao: null });
+
+  const db = getDb();
+  const { data, error } = usa0032
+    ? await db.from('documentos').update(mud).eq('id', d.id).eq('status', d.status).is('excluido_em', null).select(COLS_DOC).maybeSingle()
+    : await lerCom0032((c) => db.from('documentos').update(mud)
+      .eq('id', d.id).eq('status', d.status).is('excluido_em', null).select(colsDoc(c)).maybeSingle());
+  if (error) (usa0032 ? traduzir0032 : traduzir)(error);
+  if (!data) throw new ErroDoc('O documento mudou enquanto você olhava. Recarregue a lista.', 409);
+
+  if (d.pendenciaId) {
+    if (destino === 'devolvido') await reabrirSeSemEnvioVivo(d.pendenciaId);
+    else if (d.status === 'devolvido') await atenderPendencia(d.pendenciaId, autor);
+  }
   return doc(data);
+}
+
+/**
+ * Pedido atendido por envios: sem nenhum envio vivo (recebido/aceito, não excluído),
+ * volta a ficar aberto. Pedido fechado por "não tenho este mês" (0032) NÃO reabre: a
+ * resposta do cliente não dependia daquele arquivo (e o "não tenho" não fica
+ * grudado num pedido aberto — ver `podeDesfazerSemMovimento`).
+ */
+async function reabrirSeSemEnvioVivo(pendenciaId: string) {
+  const db = getDb();
+  const { count, error } = await db.from('documentos').select('id', { count: 'exact', head: true })
+    .eq('pendencia_id', pendenciaId).is('excluido_em', null).in('status', STATUS_VIVOS);
+  if (error) traduzir(error);
+  if (deveReabrir(count ?? 0)) {
+    const reabrir = () => db.from('pendencias').update({ status: 'aberta', atendida_em: null, atendida_por: null })
+      .eq('id', pendenciaId).eq('status', 'atendida');
+    let { error: eU } = await reabrir().is('sem_movimento_em', null);
+    if (colunaAusente(eU)) ({ error: eU } = await reabrir()); // sem a 0032 não existe "não tenho"
+    if (eU) traduzir(eU);
+  }
 }
 
 /** Exclusão lógica (o arquivo fica no Storage para o desfazer). */
@@ -240,22 +337,14 @@ export async function excluirDocumento(d: Documento, autor: string, porGestor: b
     .update({ excluido_em: new Date().toISOString(), excluido_por: autor, excluido_por_gestor: porGestor })
     .eq('id', d.id).is('excluido_em', null);
   if (error) traduzir(error);
-  if (d.pendenciaId) {
-    const { count, error: eC } = await db.from('documentos').select('id', { count: 'exact', head: true })
-      .eq('pendencia_id', d.pendenciaId).is('excluido_em', null).in('status', ['recebido', 'conferido']);
-    if (eC) traduzir(eC);
-    if (deveReabrir(count ?? 0)) {
-      await db.from('pendencias').update({ status: 'aberta', atendida_em: null, atendida_por: null })
-        .eq('id', d.pendenciaId).eq('status', 'atendida');
-    }
-  }
+  if (d.pendenciaId) await reabrirSeSemEnvioVivo(d.pendenciaId);
 }
 
 export async function restaurarDocumento(d: Documento, autor: string): Promise<void> {
   const { error } = await getDb().from('documentos')
     .update({ excluido_em: null, excluido_por: null, excluido_por_gestor: false }).eq('id', d.id);
   if (error) traduzir(error);
-  if (d.pendenciaId && (d.status === 'recebido' || d.status === 'conferido')) await atenderPendencia(d.pendenciaId, autor);
+  if (d.pendenciaId && (STATUS_VIVOS as string[]).includes(d.status)) await atenderPendencia(d.pendenciaId, autor);
 }
 
 /**
@@ -288,20 +377,24 @@ export async function urlDownload(d: Documento): Promise<string> {
 
 // ------------------------------------------------------------------ pendências
 
-const COLS_PEND = 'id, empresa_id, escritorio_id, titulo, descricao, categoria, competencia, prazo, status, atendida_em, atendida_por, criado_por, criado_em, excluido_em';
+const COLS_PEND_0015 = 'id, empresa_id, escritorio_id, titulo, descricao, categoria, competencia, prazo, status, atendida_em, atendida_por, criado_por, criado_em, excluido_em';
+const COLS_PEND = `${COLS_PEND_0015}, sem_movimento_em, sem_movimento_por, sem_movimento_obs`;
+const colsPend = (com0032: boolean) => (com0032 ? COLS_PEND : COLS_PEND_0015);
 
 export async function listarPendencias(e: Escopo): Promise<Pendencia[]> {
-  let q = getDb().from('pendencias').select(COLS_PEND).eq('empresa_id', e.empresaId).is('excluido_em', null);
-  if (e.escritorioId) q = q.eq('escritorio_id', e.escritorioId);
-  const { data, error } = await q.order('status', { ascending: true })
-    .order('prazo', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }).limit(300);
+  const { data, error } = await lerCom0032((c) => {
+    let q = getDb().from('pendencias').select(colsPend(c)).eq('empresa_id', e.empresaId).is('excluido_em', null);
+    if (e.escritorioId) q = q.eq('escritorio_id', e.escritorioId);
+    return q.order('status', { ascending: true })
+      .order('prazo', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }).limit(300);
+  });
   if (error) traduzir(error);
   return (data ?? []).map(pend);
 }
 
 export async function lerPendencia(id: string): Promise<Pendencia | null> {
   if (!uuidValido(id)) return null;
-  const { data, error } = await getDb().from('pendencias').select(COLS_PEND).eq('id', id).maybeSingle();
+  const { data, error } = await lerCom0032((c) => getDb().from('pendencias').select(colsPend(c)).eq('id', id).maybeSingle());
   if (error) traduzir(error);
   return data ? pend(data) : null;
 }
@@ -317,16 +410,16 @@ export interface CamposPendencia {
 export async function criarPendencia(
   e: { empresaId: string; escritorioId: string }, c: CamposPendencia, autor: string,
 ): Promise<Pendencia> {
-  const { data, error } = await getDb().from('pendencias').insert({
+  const { data, error } = await lerCom0032((col) => getDb().from('pendencias').insert({
     empresa_id: e.empresaId, escritorio_id: e.escritorioId, ...c, criado_por: autor,
-  }).select(COLS_PEND).single();
+  }).select(colsPend(col)).single());
   if (error) traduzir(error);
   return pend(data);
 }
 
 export async function editarPendencia(id: string, c: CamposPendencia): Promise<Pendencia> {
-  const { data, error } = await getDb().from('pendencias').update(c)
-    .eq('id', id).is('excluido_em', null).select(COLS_PEND).maybeSingle();
+  const { data, error } = await lerCom0032((col) => getDb().from('pendencias').update(c)
+    .eq('id', id).is('excluido_em', null).select(colsPend(col)).maybeSingle());
   if (error) traduzir(error);
   if (!data) throw new ErroDoc('Pendência não encontrada.', 404);
   return pend(data);
@@ -339,15 +432,47 @@ async function atenderPendencia(id: string, autor: string) {
   if (error) traduzir(error);
 }
 
-/** Fecha (atendida à mão) ou reabre. */
+/** Fecha (atendida à mão) ou reabre. Reabrir também apaga um "não tenho este mês" (0032). */
 export async function mudarStatusPendencia(id: string, status: StatusPendencia, autor: string): Promise<Pendencia> {
-  const mud = status === 'atendida'
+  const base = status === 'atendida'
     ? { status, atendida_em: new Date().toISOString(), atendida_por: autor }
     : { status, atendida_em: null, atendida_por: null };
-  const { data, error } = await getDb().from('pendencias').update(mud)
-    .eq('id', id).is('excluido_em', null).select(COLS_PEND).maybeSingle();
+  const limpar = { sem_movimento_em: null, sem_movimento_por: null, sem_movimento_obs: null };
+  // Fechar à mão ou reabrir sempre apaga um "não tenho" anterior: a marca só vale para o
+  // pedido fechado POR ela (senão o cliente "desfaria" um fechamento da contabilidade).
+  // Sem a 0032 as colunas não existem: grava só o de sempre.
+  const { data, error } = await lerCom0032((c) => getDb().from('pendencias').update(c ? { ...base, ...limpar } : base)
+    .eq('id', id).is('excluido_em', null).select(colsPend(c)).maybeSingle());
   if (error) traduzir(error);
   if (!data) throw new ErroDoc('Pendência não encontrada.', 404);
+  return pend(data);
+}
+
+/**
+ * "Não tenho este mês" (0032): o pedido aberto passa a `atendida`, marcado como sem
+ * movimento, com a observação opcional. Só sai de `aberta` (`eq status`): não
+ * sobrescreve um pedido que acabou de ser atendido com arquivo.
+ */
+export async function marcarSemMovimento(id: string, autor: string, obs: string | null): Promise<Pendencia> {
+  const agora = new Date().toISOString();
+  const { data, error } = await getDb().from('pendencias').update({
+    status: 'atendida', atendida_em: agora, atendida_por: autor,
+    sem_movimento_em: agora, sem_movimento_por: autor, sem_movimento_obs: obs,
+  }).eq('id', id).eq('status', 'aberta').is('excluido_em', null).select(COLS_PEND).maybeSingle();
+  if (error) traduzir0032(error);
+  if (!data) throw new ErroDoc('Este pedido não está mais aberto. Recarregue a lista.', 409);
+  return pend(data);
+}
+
+/** Desfaz o "não tenho": o pedido volta a ficar aberto — só se ainda estiver fechado por ele. */
+export async function desfazerSemMovimento(id: string): Promise<Pendencia> {
+  const { data, error } = await getDb().from('pendencias').update({
+    status: 'aberta', atendida_em: null, atendida_por: null,
+    sem_movimento_em: null, sem_movimento_por: null, sem_movimento_obs: null,
+  }).eq('id', id).eq('status', 'atendida').not('sem_movimento_em', 'is', null).is('excluido_em', null)
+    .select(COLS_PEND).maybeSingle();
+  if (error) traduzir0032(error);
+  if (!data) throw new ErroDoc('Este pedido mudou enquanto você olhava. Recarregue a lista.', 409);
   return pend(data);
 }
 

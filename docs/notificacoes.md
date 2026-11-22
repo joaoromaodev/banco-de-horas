@@ -56,6 +56,13 @@ para o cliente. **Sem migração nova** (a 0030 ficou livre).
 | Folha de ponto devolvida | `ponto_envios` `devolvida` (0028), ainda não reenviada para o mesmo funcionário e mês, nos últimos 13 meses (o corte da tela); `quando` = `devolvido_em` | "Outubro/2026 · Motivo: …" (motivo cortado em 160) — **sem nome do funcionário** | `/enviar-ponto` | `cli\|folha\|<id>\|<devolvido_em>` (desfazer e devolver de novo → não lida de novo) |
 | Pedido de documento | `pendencias` `aberta`; `quando` = `criado_em` | "<título> · Prazo: dd/mm/aaaa" (ou "Sem prazo") | `/documentos` | `cli\|pedido\|<id>` |
 | Demonstrativo pronto | `meses_confirmados` do ano (e do anterior, se a janela alcança); mês M liberado quando o último de 1..M é confirmado (`liberadoAte`) | "Abril/2026 · confirmado pela contabilidade." | `/caixa/demonstrativo?ano=&mes=` | `cli\|demo\|<ano>\|<mes>\|<quando>` |
+| Documento da contabilidade (Sprint 17, 0032) | `entregas` `publicada`, ainda não baixada pelo cliente; `quando` = `publicado_em` | "Holerite · out/2026 · Vence em dd/mm/aaaa" — **sem título nem nome do arquivo** | `/documentos` | `cli\|entrega\|<id>` |
+| Documento devolvido (Sprint 17, 0032) | `documentos` `devolvido`, sem envio vivo depois (mesma categoria e competência); `quando` = `devolvido_em` | "Extrato bancário · out/2026 · Veja o motivo em Documentos." — **sem motivo nem nome do arquivo** | `/documentos` | `cli\|docdev\|<id>\|<devolvido_em>` |
+| Lembrete do prazo (Sprint 17) | pedido `aberta` ou entrega não baixada que vence de hoje a 3 dias; `quando` = meia-noite de Belém do 1º dia da janela | "<título do pedido> · Prazo: dd/mm/aaaa" / "<tipo> · … · Ainda não aberto" | `/documentos` | `cli\|lembrete\|<id>\|<prazo>`, `cli\|entrega-vence\|<id>\|<vencimento>` |
+
+Sprint 17: o sino da contabilidade diz "O cliente não tem este documento no mês" quando o pedido
+foi fechado pelo "Não tenho este mês" (lê `sem_movimento_em`, com recuo sem a 0032). Detalhes em
+[`documentos.md`](documentos.md), seção "Sprint 17 · Frente A".
 
 - Meses liberados no mesmo instante (confirmar janeiro depois de fevereiro e março) viram
   **um** aviso, do mês mais alto. Pedido atendido ou folha reenviada somem do sino.
