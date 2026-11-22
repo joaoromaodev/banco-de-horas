@@ -151,3 +151,11 @@ backlog restante depende de terceiros. Decisões:
 - **B. Testes de guarda e de rota:** CI quebra se uma rota de `app/api` não chamar a
   guarda; testes de rota nos fluxos de dinheiro e acesso.
 - **C. Medição própria de desempenho e erros** fica para a Sprint 15.
+
+## 22/11/2026 — Foco do beta (João)
+
+- MVP/beta: foco total em qualidade do produto; **nada de venda nem de implantação em
+  cliente**; **tudo gratuito** pelo máximo de tempo. Implantação guiada (Sprint 16 B)
+  cancelada. Gemini pago fora — alternativa gratuita em `ia-gratuita.md`.
+- As próximas sprints saem da pesquisa de concorrentes (`concorrentes.md`).
+- `CRON_SECRET` configurado na Vercel (produção) pela CLI em 22/11.

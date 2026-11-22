@@ -168,7 +168,23 @@ Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal
 | Frente | Branch | Status |
 |---|---|---|
 | A. Acessibilidade e celular nas telas do cliente (`/inicio`, `/caixa`, `/documentos`, `/enviar-ponto`) | `claude/acessibilidade-cliente` | 🔄 subagente |
-| B. Implantação guiada do escritório novo (checklist do primeiro acesso) | `claude/implantacao-guiada` | 🔄 subagente |
+| ~~B. Implantação guiada~~ | — | ❌ cancelada em 22/11: o João pediu foco em produto, sem implantação/venda (ver `decisoes.md`) |
+
+## Sprint 17 — Planejada a partir dos concorrentes (`concorrentes.md`)
+
+Tudo sem serviço pago. Começa quando a Sprint 16 A for integrada (mexe nas mesmas telas).
+
+| Frente | Por quê |
+|---|---|
+| A. Envio do escritório → cliente com registro de leitura (guia, DAS, holerite; "lido em…"; quem não abriu perto do vencimento) | motivo nº 1 de o cliente abrir o portal em todos os concorrentes |
+| B. Situação por documento (recebido/aceito/devolvido com motivo), "Não tenho este mês" e lembrete antes do prazo | tira o "chegou? serviu?" do WhatsApp |
+| C. Leitor de XML de NF-e/NFS-e e de PDF/boleto **sem IA** → lançamento pronto, nota duplicada apontada | "documento → lançamento" exato, de graça, sem Gemini |
+| D. Extrato OFX/CSV no caixa: linha vira sugestão, diferenças banco × caixa, confirmação em lote | corta a digitação mais repetitiva |
+| E. Mês fechado que trava + aceite do cliente no resumo do ponto | o número que foi para a folha não muda depois |
+| F. Troca do Gemini gratuito pela Cloudflare Workers AI (comparativo em folhas antes) | `ia-gratuita.md`; depende de o João criar a conta gratuita da Cloudflare |
+
+Achado: desde a IN RFB 2.240/2024 o recibo de saúde sai no Receita Saúde e vai direto ao
+Carnê-Leão Web — a frente Carnê-Leão deve **conferir** esses recibos contra o caixa, não emitir.
 
 ## Próximas frentes (backlog priorizado)
 
