@@ -15,6 +15,8 @@ import { podeVerRegistro } from '@/lib/documentos';
 import { lerDocumento } from '@/lib/documentosServidor';
 import { getDb } from '@/lib/db';
 import { avaliarNaConferencia, lerRegistroSugestao, registrarSugestao } from '@/lib/caixaInteligente';
+import { FORMATO_CHAVE } from '@/lib/leituraSemIa';
+import { semColunaChave } from '@/lib/leituraSemIaServidor';
 import { visaoDoCatalogo } from '@/lib/visibilidadeCatalogo';
 
 export const runtime = 'nodejs';
@@ -108,7 +110,13 @@ export async function POST(req: NextRequest) {
       }
       documentoId = d.id;
     }
-    const comDocumento = documentoId ? { documento_id: documentoId } : {};
+    // Chave da nota/boleto lido sem IA (0033): é por ela que a próxima leitura do
+    // mesmo documento aponta a duplicidade. Só o formato conhecido; o resto é ignorado.
+    const chave = typeof body.chaveDocumento === 'string' && FORMATO_CHAVE.test(body.chaveDocumento) ? body.chaveDocumento : null;
+    const comDocumento = {
+      ...(documentoId ? { documento_id: documentoId } : {}),
+      ...(chave ? { chave_documento: chave } : {}),
+    };
 
     const linhas: Record<string, unknown>[] = [];
     if (cheque) {
@@ -139,7 +147,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { data, error } = await getDb().from('lancamentos').insert(linhas).select('id, historico, conta_id');
+    let { data, error } = await getDb().from('lancamentos').insert(linhas).select('id, historico, conta_id');
+    if (error && chave && semColunaChave(error)) {
+      // Sem a 0033 o lançamento entra igual, só sem a chave (a duplicidade passa a
+      // ser conferida só pelo documento do portal).
+      for (const l of linhas) delete l.chave_documento;
+      ({ data, error } = await getDb().from('lancamentos').insert(linhas).select('id, historico, conta_id'));
+    }
     if (error && documentoId && semColunaDocumento(error)) {
       throw new ErroCaixa('O vínculo com o documento ainda não está instalado (falta a migração 0029). Lance sem o anexo.', 503);
     }

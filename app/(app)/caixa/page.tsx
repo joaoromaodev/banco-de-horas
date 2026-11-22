@@ -19,6 +19,7 @@ import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
 import { AbasCaixa } from './AbasCaixa';
 import LimiteFaturamento from './LimiteFaturamento';
 import LerDocumento, { type DocumentoLido } from './LerDocumento';
+import LerNota, { type LeituraSemIa } from './LerNota';
 import {
   Alternador, Aviso, Botao, FalhaCarregamento, botaoCls, BotaoIcone, CabecalhoPagina, Carregando, Cartao, Conteudo, Entrada, Esqueleto,
   EstadoVazio, Indicador, Marcacao, Secao, Selo, seloCls, tb, type Tom,
@@ -30,6 +31,7 @@ import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { sugerirConta, type ConsultaSugestao, type ExemploConferido, type Sugestao } from '@/lib/sugestaoConta';
 import type { NivelAlerta, ResultadoRevisao, RevisaoLancamento } from '@/lib/revisaoCaixa';
 import type { PropostaDocumento } from '@/lib/documentoLancamento';
+import type { LancamentoAnterior } from '@/lib/leituraSemIa';
 
 interface Me { nome: string; email: string; role: 'master' | 'usuario' | 'cliente'; empresa: string | null; }
 interface Empresa { id: string; nome: string; identificaPagador?: boolean; arquivadaEm?: string | null; }
@@ -97,8 +99,16 @@ interface IaDocumento {
   disponivel: boolean; podeLigar: boolean;
   plataforma?: boolean; ligadaNaEmpresa?: boolean; saude?: boolean;
 }
-/** O rascunho que a IA leu de um documento e está no formulário de novo lançamento. */
-interface Rascunho { empresa: string; documento: DocumentoLido; confianca: number; avisos: string[]; antes: Campos }
+/**
+ * O rascunho lido de um documento e que está no formulário de novo lançamento:
+ * pela IA (Sprint 12) ou sem IA — XML da nota, PDF com texto ou boleto (Sprint 17).
+ */
+interface Rascunho {
+  empresa: string; origem: 'ia' | 'leitura'; documento: DocumentoLido | null; confianca: number; avisos: string[]; antes: Campos;
+  /** Só na leitura sem IA: o que foi lido, a chave do documento e os lançamentos que já vieram dele. */
+  titulo?: string; detalhes?: string[]; chave?: string | null;
+  duplicados?: LancamentoAnterior[]; duplicidadeVerificada?: boolean;
+}
 
 /** Valor da proposta no formato que o formulário digita ("1234,56"). */
 const valorDigitado = (v: number | null) => (v && v > 0 ? v.toFixed(2).replace('.', ',') : '');
@@ -152,6 +162,9 @@ export default function Caixa() {
   // Documento → lançamento por IA (Sprint 12): duas travas, rascunho no formulário.
   const [iaDoc, setIaDoc] = useState<IaDocumento | null>(null);
   const [lendoDoc, setLendoDoc] = useState(false);
+  // Nota e boleto sem IA (Sprint 17): o mesmo rascunho, sem travas (nada sai do servidor).
+  const [lendoNota, setLendoNota] = useState(false);
+  const [confirmarDuplicado, setConfirmarDuplicado] = useState(false);
   const [rascunhoGuardado, setRascunho] = useState<Rascunho | null>(null);
   const [desfazerGuardado, setDesfazerRascunho] = useState<Rascunho | null>(null);
   // O rascunho é da empresa em que foi lido: trocar de empresa o esconde (e o Lançar não o leva).
@@ -352,7 +365,10 @@ export default function Caixa() {
     }
   }
 
-  async function lancar() {
+  async function lancar(jaConfirmouDuplicado = false) {
+    // Nota/boleto que já está no livro: aponta antes de gravar (quem lança decide).
+    if (!jaConfirmouDuplicado && rascunho?.duplicados?.length) { setConfirmarDuplicado(true); return; }
+    setConfirmarDuplicado(false);
     setSalvando(true); setErro(null); setMsg(null); setErroCampo(null);
     try {
       const d = await chamar('/api/caixa/lancamentos', {
@@ -360,11 +376,12 @@ export default function Caixa() {
         // A sugestão que estava na tela vai junto, para medir se foi aceita.
         body: JSON.stringify({
           empresa: empresaSel, ano, ...novo, cheque, sugestao: sugestaoNova ?? undefined,
-          documentoId: rascunho?.documento.id ?? undefined,
+          documentoId: rascunho?.documento?.id ?? undefined,
+          chaveDocumento: rascunho?.chave ?? undefined,
         }),
       });
       setMsg(d.criados > 1 ? 'Cheque lançado: retirada do banco + pagamento.'
-        : rascunho ? 'Lançado, com o documento anexado.' : 'Lançado.');
+        : rascunho?.documento ? 'Lançado, com o documento anexado.' : 'Lançado.');
       setNovo(vazio(novo.data)); // mantém a data: quem digita o mês inteiro agradece
       setCheque(false);
       setRascunho(null);
@@ -505,8 +522,12 @@ export default function Caixa() {
    * lançamento (nada é gravado). O que já estava digitado fica guardado para o
    * "Desfazer". Campo que a IA não leu mantém o que havia.
    */
-  function aplicarProposta({ proposta: p, documento }: { proposta: PropostaDocumento; documento: DocumentoLido }) {
+  function aplicarProposta(
+    { proposta: p, documento }: { proposta: PropostaDocumento & { pagadorNome?: string | null; pagadorDocumento?: string | null }; documento: DocumentoLido | null },
+    extra: Partial<Rascunho> = {},
+  ) {
     setLendoDoc(false);
+    setLendoNota(false);
     const antes = rascunho?.antes ?? novo;
     const valor = valorDigitado(p.valor);
     const preenchido: Campos = {
@@ -515,13 +536,22 @@ export default function Caixa() {
       contaId: p.historico ? p.contaId : null, historico: p.historico ?? '', historicoId: p.historico ? p.historicoId : null,
       entrada: p.direcao === 'entrada' ? valor : '',
       saida: p.direcao !== 'entrada' ? valor : '',
+      pagadorNome: p.pagadorNome ?? '', pagadorDocumento: p.pagadorDocumento ?? '',
     };
     setNovo(preenchido);
     setCheque(false);
-    const r: Rascunho = { empresa: empresaSel, documento, confianca: p.confianca, avisos: p.avisos, antes };
+    const r: Rascunho = { empresa: empresaSel, origem: 'ia', documento, confianca: p.confianca, avisos: p.avisos, antes, ...extra };
     setRascunho(r);
     setDesfazerRascunho(r);
     setErro(null); setMsg(null);
+  }
+
+  /** Nota ou boleto lido sem IA: o mesmo rascunho, com a duplicidade e o que foi lido. */
+  function aplicarLeitura(l: LeituraSemIa) {
+    aplicarProposta({ proposta: l.proposta, documento: l.documento }, {
+      origem: 'leitura', titulo: l.proposta.titulo, detalhes: l.proposta.detalhes, chave: l.proposta.chave,
+      duplicados: l.duplicados, duplicidadeVerificada: l.duplicidadeVerificada,
+    });
   }
 
   /** Desfaz o rascunho: o formulário volta ao que estava antes da leitura. */
@@ -626,15 +656,20 @@ export default function Caixa() {
   const nCols = identificaPagador ? 12 : 10; // colunas da tabela (com pagador, +2)
   const arquivada = !!empresas.find((e) => e.id === empresaSel)?.arquivadaEm;
   const podeLerDoc = !!iaDoc?.disponivel && !arquivada && !!empresaSel;
+  // A leitura sem IA não tem trava: basta poder lançar na empresa.
+  const podeLerNota = !arquivada && !!empresaSel;
 
   // O rascunho lido de um documento, acima do formulário (tabela e celular).
-  const avisoRascunho = rascunho && (
+  const duplicados = rascunho?.duplicados ?? [];
+  const linkDocumento = rascunho?.documento && (
+    <a href={`/api/documentos/arquivo?id=${encodeURIComponent(rascunho.documento.id)}`}
+      className="font-medium text-primaria-texto underline underline-offset-2">{rascunho.documento.nome}</a>
+  );
+  const avisoRascunho = rascunho && (rascunho.origem === 'ia' ? (
     <Aviso tom="info" titulo="Rascunho lido pela IA — confira antes de lançar"
       acao={<Botao tamanho="sm" variante="fantasma" onClick={descartarRascunho}>Descartar</Botao>}>
       <p>
-        Do documento{' '}
-        <a href={`/api/documentos/arquivo?id=${encodeURIComponent(rascunho.documento.id)}`}
-          className="font-medium text-primaria-texto underline underline-offset-2">{rascunho.documento.nome}</a>
+        Do documento {linkDocumento}
         {' '}(confiança da leitura: {Math.round(rascunho.confianca * 100)}%). Confira data, valor, conta e complemento;
         ao lançar, o documento fica anexado ao lançamento.
       </p>
@@ -644,7 +679,30 @@ export default function Caixa() {
         </ul>
       )}
     </Aviso>
-  );
+  ) : (
+    <Aviso tom={duplicados.length ? 'aviso' : 'info'}
+      titulo={duplicados.length ? `${rascunho.titulo ?? 'Este documento'} já foi lançado — confira antes de lançar de novo` : `Rascunho de ${rascunho.titulo ?? 'documento'} — confira antes de lançar`}
+      acao={<Botao tamanho="sm" variante="fantasma" onClick={descartarRascunho}>Descartar</Botao>}>
+      {duplicados.length > 0 && (
+        <ul className="mb-1 list-disc space-y-0.5 pl-5 font-medium">
+          {duplicados.map((d, i) => (
+            <li key={`${d.data}-${i}`}>Lançado em {diaMes(d.data)}/{d.data.slice(0, 4)}{d.complemento ? ` · ${d.complemento}` : ''} · R$ {dinheiro(d.valor)}</li>
+          ))}
+        </ul>
+      )}
+      <p>
+        {rascunho.documento ? <>Lido sem IA do documento {linkDocumento}; ao lançar, ele fica anexado.</> : 'Lido sem IA do código do boleto.'}
+        {' '}Confira data, valor, conta e complemento.
+        {rascunho.duplicidadeVerificada === false && !duplicados.length && ' Não deu para conferir se já foi lançado.'}
+      </p>
+      {(rascunho.avisos.length > 0 || (rascunho.detalhes?.length ?? 0) > 0) && (
+        <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          {rascunho.avisos.map((a) => <li key={a} className="font-medium">{a}</li>)}
+          {rascunho.detalhes?.map((a) => <li key={a} className="text-tinta-suave">{a}</li>)}
+        </ul>
+      )}
+    </Aviso>
+  ));
 
   if (erro && faltaMigracao(erro)) return <BancoIncompleto erro={erro} />;
 
@@ -663,6 +721,11 @@ export default function Caixa() {
           )}
           <Selecao aria-label="Exercício" largura="w-24" busca={false} valor={String(ano)} onChange={(v) => irPara(Number(v), mes)}
             opcoes={anos.map((a) => ({ valor: String(a), rotulo: String(a) }))} />
+          {podeLerNota && (
+            <Botao variante="secundaria" icone={<IconeDocumento />} onClick={() => setLendoNota(true)}>
+              Ler nota ou boleto
+            </Botao>
+          )}
           {podeLerDoc && (
             <Botao variante="secundaria" icone={<IconeSugestao />} onClick={() => setLendoDoc(true)}>
               Ler documento
@@ -688,7 +751,7 @@ export default function Caixa() {
         {desfazerRascunho && (
           <Toast tom="info" onFechar={() => setDesfazerRascunho(null)}
             acao={<Botao tamanho="sm" variante="tonal" icone={<IconeDesfazer size={15} />} onClick={descartarRascunho}>Desfazer</Botao>}>
-            Rascunho preenchido com o documento {desfazerRascunho.documento.nome}. Confira e clique em Lançar.
+            Rascunho preenchido com {desfazerRascunho.documento ? `o documento ${desfazerRascunho.documento.nome}` : (desfazerRascunho.titulo ?? 'o documento')}. Confira e clique em Lançar.
           </Toast>
         )}
       </Toasts>
@@ -835,7 +898,7 @@ export default function Caixa() {
           <Marcacao type="checkbox" className="mt-3" checked={cheque} onChange={(e) => setCheque(e.target.checked)}>
             Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
           </Marcacao>
-          <Botao variante="primaria" tamanho="lg" className="mt-4 w-full" onClick={lancar} carregando={salvando} disabled={!empresaSel}>
+          <Botao variante="primaria" tamanho="lg" className="mt-4 w-full" onClick={() => { void lancar(); }} carregando={salvando} disabled={!empresaSel}>
             Lançar
           </Botao>
           <p className="mt-3 text-xs text-tinta-suave">
@@ -977,7 +1040,7 @@ export default function Caixa() {
                   erro={erroCampo?.onde === 'novo' ? erroCampo : null} />
                 <td className={`${tb.td} ${tb.num} font-semibold ${(dados?.saldoFinal ?? 0) < 0 ? 'text-perigo' : 'text-tinta'}`}>{dinheiro(dados?.saldoFinal ?? 0)}</td>
                 <td className="px-2 py-1 text-right">
-                  <Botao tamanho="sm" variante="primaria" onClick={lancar} carregando={salvando} disabled={!empresaSel}>
+                  <Botao tamanho="sm" variante="primaria" onClick={() => { void lancar(); }} carregando={salvando} disabled={!empresaSel}>
                     Lançar
                   </Botao>
                 </td>
@@ -1027,7 +1090,22 @@ export default function Caixa() {
 
       {lendoDoc && (
         <LerDocumento empresaId={empresaSel} ano={ano} mes={mes}
-          onLido={aplicarProposta} onFechar={() => setLendoDoc(false)} />
+          onLido={(r) => aplicarProposta(r)} onFechar={() => setLendoDoc(false)} />
+      )}
+
+      {lendoNota && (
+        <LerNota empresaId={empresaSel} ano={ano} mes={mes}
+          onLido={aplicarLeitura} onFechar={() => setLendoNota(false)} />
+      )}
+
+      {confirmarDuplicado && rascunho && (
+        <DialogoConfirmacao textoConfirmar="Lançar mesmo assim"
+          titulo={`${rascunho.titulo ?? 'Este documento'} já está no livro`}
+          mensagem={<>Já há {duplicados.length === 1 ? 'um lançamento' : `${duplicados.length} lançamentos`} deste documento
+            ({duplicados.map((d) => `${diaMes(d.data)}/${d.data.slice(0, 4)}, R$ ${dinheiro(d.valor)}`).join('; ')}).
+            Lançar de novo duplica o valor no caixa. Lance só se for outro pagamento de verdade.</>}
+          onConfirmar={() => { void lancar(true); }}
+          onCancelar={() => setConfirmarDuplicado(false)} />
       )}
 
       {editandoSaldo && (
