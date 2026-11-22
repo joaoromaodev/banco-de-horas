@@ -112,3 +112,9 @@ Novidades das Sprints 11 a 15, ainda não vistas por ela:
 
 
 > Acrescentado em 22/11: o cliente pode ver nomes mais simples que "Conta Titular" e "Conta Analítica" na tela dele? (fonte: `docs/qa-visual.md`, Sprint 16)
+
+> Acrescentado em 22/11 (Sprint 17):
+> - **Avisar:** "Confirmar o mês" do Livro Caixa virou **"Fechar o mês"** e agora **trava**: os meses que ela já tinha confirmado (e os anteriores a eles) não aceitam mais lançamento, edição nem exclusão; para mudar, ela reabre o mês informando o motivo (fica no histórico). Os meses fecham em ordem, a partir de janeiro.
+> - **Mostrar:** envio de guia/DAS/holerite para o cliente com "baixado em"; aceitar ou devolver documento do cliente com motivo; "Não tenho este mês"; lembrete 3 dias antes do prazo; leitura de XML de nota, boleto e PDF sem IA; fechamento do mês do ponto com aceite do cliente.
+> - **Perguntar:** prazo para o cliente dar o aceite do resumo do ponto; quem guarda a folha de ponto original; se o contrato de serviço dela prevê aceite eletrônico (o aceite **não** é espelho assinado pelo empregado — art. 74 da CLT). Fonte: `docs/folha-de-ponto.md`.
+> - **Pedir:** 3 ou 4 fotos de folhas de ponto reais (pode tapar os nomes) para medir a nova IA gratuita.
