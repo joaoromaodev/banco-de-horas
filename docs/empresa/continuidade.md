@@ -180,7 +180,7 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
 ### Produção agora
 - Migrações **0000–0037** aplicadas (0024–0026 não usadas). Próximo livre: **0038**.
 - Funções da Vercel em `gru1` (São Paulo), junto do Supabase (`sa-east-1`).
-- 1162 testes, lint sem avisos; CI verde no último push. Sprints 11–15 concluídas e publicadas; nenhuma frente em andamento. O João pediu para não parar (22/11): Sprint 16 aberta; a medição segue juntando dados para a Sprint 17. IA de documentos do caixa e e-mail de avisos ao cliente publicados desligados.
+- 1393 testes, lint sem avisos; CI verde no último push. Sprints 11–18 concluídas e publicadas; nenhuma frente em andamento. **PAUSADO em 22/11 após a Sprint 18** (pedido do João; retomar no próximo fim de semana pela Sprint 19 do roadmap). Relatório em `docs/empresa/relatorio-sprints-11-18.pdf`. IA na Cloudflare Workers AI (gratuita); IA de documentos do caixa e e-mail de avisos ao cliente seguem desligados.
 
 ### Pendências que só o João resolve
 - Vercel: ~~`CRON_SECRET`~~ (feito em 22/11), `RESEND_API_KEY` + `EMAIL_REMETENTE`

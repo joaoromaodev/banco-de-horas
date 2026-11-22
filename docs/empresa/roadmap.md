@@ -196,6 +196,24 @@ Carnê-Leão Web — a frente Carnê-Leão deve **conferir** esses recibos contr
 
 Teste logado da IA na Cloudflare e do extrato (22/11): passou. Folhas sintéticas: 100% (limpa), 92,5% (inclinada), 95,2% (foto torta), ~45–50 s por folha.
 
+## ⏸ Pausa (22/11/2026) — retomar no próximo fim de semana
+
+O João pediu para pausar depois da Sprint 18. Relatório: `docs/empresa/relatorio-sprints-11-18.pdf`.
+
+## Sprint 19 — Planejada (começa na retomada)
+
+Tudo sem serviço pago, a partir de `concorrentes.md` (itens 8–11) e das pendências.
+
+| Frente | Por quê |
+|---|---|
+| A. Solicitações do cliente ("preciso de uma declaração", "recalcular guia") com status e resposta, no lugar do WhatsApp | item 8 dos concorrentes; fecha o portal de mão dupla |
+| B. Conferência do Receita Saúde × caixa do profissional PF (NÉLIO) e livro no formato do Carnê-Leão Web | item 9; depende de a Edilse trazer um exemplo do Carnê-Leão Web — fazer a conferência primeiro |
+| C. Indicador de adoção do portal por empresa (% de documentos que chegaram pelo portal, última visita do cliente) | item 10; mostra à contadora quem precisa de ajuda |
+| D. QA visual em 375 px e nos dois temas das telas novas das Sprints 16–18, com conta de teste | nada disso foi visto no navegador |
+| E. IA: testar Gemma 4 com raciocínio desligado; medir com 3–4 folhas reais da Edilse (com autorização) | qualidade da leitura gratuita |
+
+Depois: marca do escritório no portal (item 11); "abrir no último mês com folha" (decidir com a Edilse); rescisão com convenção coletiva, pensão e OJ 97 (dependem da Edilse).
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
