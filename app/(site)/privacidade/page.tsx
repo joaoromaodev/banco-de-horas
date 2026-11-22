@@ -1,5 +1,6 @@
 import { meta } from '../_partes';
 import { Documento, type SecaoDoc } from '../_documento';
+import { descricaoProvedor } from '@/lib/ia/config';
 
 export const metadata = meta(
   'Política de privacidade',
@@ -7,8 +8,30 @@ export const metadata = meta(
   '/privacidade',
 );
 
+/**
+ * O parágrafo da IA cita o provedor ATIVO (lib/ia/config: IA_PROVEDOR, ou a
+ * Cloudflare quando configurada). A página é gerada no build, com as variáveis
+ * do ambiente publicado — trocar de provedor pede nova publicação, que regera o texto.
+ */
+function paragrafosIa(): string[] {
+  const ia = descricaoProvedor();
+  const comum = 'Antes do envio, a foto é girada para ficar em pé e perde os metadados (localização, aparelho, data). De um documento em PDF lido pela Cloudflare vai só o texto das primeiras páginas, com CPF, CNPJ, e-mail e telefone mascarados — o arquivo não sai. Não vão o nome ou o CNPJ da empresa, o e-mail de quem envia nem o nome do arquivo. Empresas que identificam pacientes (área da saúde) não usam a IA do Livro Caixa.';
+  const fornecedor = ia.provedor === 'cloudflare'
+    ? 'Hoje esse serviço é a Cloudflare Workers AI (Cloudflare, Inc., Estados Unidos), que declara não usar o conteúdo enviado para treinar modelos nem guardá-lo depois de responder. [Confirmar com a Cloudflare a região de processamento antes do lançamento.]'
+    : 'Hoje esse serviço é o Google Gemini (Google LLC, Estados Unidos). [Confirmar com o Google as condições de retenção e treinamento do plano contratado antes do lançamento.]';
+  return [
+    `A Folha de Ponto e a leitura de documentos do Livro Caixa (nota, recibo, boleto, quando o escritório liga) usam um serviço de inteligência artificial de terceiros para ler a imagem enviada e extrair horários ou dados do lançamento; a sugestão de conta do Livro Caixa envia a esse serviço o complemento digitado (com números e e-mails mascarados) e a lista de contas da empresa. ${fornecedor} O conteúdo é enviado somente para essa finalidade e nós não usamos os dados e imagens dos clientes do escritório para treinar modelos próprios.`,
+    comum,
+    'O resultado é uma sugestão e deve ser revisado pelo escritório antes do uso.',
+  ];
+}
+
+function provedorIaNome(): string {
+  return descricaoProvedor().provedor === 'cloudflare' ? 'a Cloudflare (leitura por IA, empresa dos Estados Unidos)' : 'o Google (leitura por IA, empresa dos Estados Unidos)';
+}
+
 // RASCUNHO. Campos entre [colchetes] dependem de dados da empresa. Prazos de retenção são propostas.
-const SECOES: SecaoDoc[] = [
+const secoes = (): SecaoDoc[] => [
   {
     titulo: 'Quem é quem',
     paragrafos: [
@@ -40,23 +63,20 @@ const SECOES: SecaoDoc[] = [
     ],
   },
   {
-    titulo: 'Inteligência artificial e leitura de folhas',
-    paragrafos: [
-      'A Folha de Ponto usa um serviço de inteligência artificial de terceiros para ler a imagem enviada e extrair horários. A imagem é enviada somente para essa finalidade. Não usamos os dados e imagens dos clientes do escritório para treinar modelos próprios. [Confirmar com o fornecedor de IA as condições de retenção e treinamento antes do lançamento.]',
-      'O resultado é uma sugestão e deve ser revisado pelo escritório antes do uso.',
-    ],
+    titulo: 'Inteligência artificial e leitura de folhas e documentos',
+    paragrafos: paragrafosIa(),
   },
   {
     titulo: 'Compartilhamento e suboperadores',
     paragrafos: [
-      'Não vendemos dados pessoais. Para operar o serviço, contratamos prestadores que tratam dados em nosso nome (suboperadores), como: hospedagem e banco de dados, processamento de pagamentos, envio de e-mails e leitura por inteligência artificial. A lista atual está em [endereço da lista de suboperadores] e será atualizada quando houver mudanças relevantes.',
+      `Não vendemos dados pessoais. Para operar o serviço, contratamos prestadores que tratam dados em nosso nome (suboperadores), como: hospedagem e banco de dados, processamento de pagamentos, envio de e-mails e leitura por inteligência artificial (${provedorIaNome()}). A lista atual está em [endereço da lista de suboperadores] e será atualizada quando houver mudanças relevantes.`,
       'Também podemos compartilhar dados quando a lei ou ordem de autoridade competente exigir.',
     ],
   },
   {
     titulo: 'Transferência internacional',
     paragrafos: [
-      'Alguns prestadores podem armazenar ou processar dados fora do Brasil. Nesses casos adotamos as salvaguardas previstas na LGPD (art. 33), como cláusulas contratuais adequadas e fornecedores com nível de proteção compatível. [Informar países e fornecedores definitivos.]',
+      `Alguns prestadores podem armazenar ou processar dados fora do Brasil — entre eles ${provedorIaNome()}, que pode processar as imagens e textos enviados à IA na sua rede de servidores fora do país. Nesses casos adotamos as salvaguardas previstas na LGPD (art. 33), como cláusulas contratuais adequadas e fornecedores com nível de proteção compatível. [Confirmar com o jurídico o contrato de tratamento de dados de cada fornecedor (cláusulas-padrão da ANPD, Resolução CD/ANPD nº 19/2024) e informar a lista definitiva de países e fornecedores.]`,
     ],
   },
   {
@@ -114,7 +134,7 @@ export default function Privacidade() {
       titulo="Política de privacidade"
       atualizado="21 de novembro de 2026"
       intro="Cuidamos de dados de empresas e de pessoas. Aqui explicamos, em linguagem direta, quais dados tratamos, por quê, com quem os compartilhamos e como você exerce seus direitos."
-      secoes={SECOES}
+      secoes={secoes()}
     />
   );
 }

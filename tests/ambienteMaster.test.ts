@@ -32,7 +32,7 @@ const SEGREDOS = {
   AVISOS_CLIENTE_EMAIL: 'ligado',
   APP_URL: 'https://app.exemplo.com.br',
 };
-const NOMES = [...Object.keys(SEGREDOS), 'GEMINI_API_KEY_CAIXA'];
+const NOMES = [...Object.keys(SEGREDOS), 'GEMINI_API_KEY_CAIXA', 'IA_PROVEDOR', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_AI_TOKEN', 'IA_COTA_DIARIA'];
 let guardado: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -77,7 +77,7 @@ describe('situacaoDoAmbiente', () => {
 
   it('nada configurado: tudo desligado, cada item diz o que destrava', () => {
     const itens = situacaoDoAmbiente({} as unknown as NodeJS.ProcessEnv);
-    expect(itens.map((i) => i.id)).toEqual(['cron', 'email', 'master', 'gemini', 'caixa_documento', 'caixa_sugestao', 'avisos_email']);
+    expect(itens.map((i) => i.id)).toEqual(['cron', 'email', 'master', 'ia', 'caixa_documento', 'caixa_sugestao', 'avisos_email']);
     expect(itens.every((i) => i.situacao === 'desligado' && i.destrava && i.agora)).toBe(true);
     expect(resumoDoAmbiente(itens).desligados).toBe(7);
     // o cron desligado avisa que os pedidos mensais ainda abrem na visita
@@ -101,6 +101,26 @@ describe('situacaoDoAmbiente', () => {
     expect(m.get('caixa_documento')?.agora).toMatch(/falta uma chave/);
     // a leitura de documento aceita a chave própria do caixa
     expect(porId({ CAIXA_IA_DOCUMENTO: 'ligada', GEMINI_API_KEY_CAIXA: 'k' } as unknown as NodeJS.ProcessEnv).get('caixa_documento')?.situacao).toBe('ligado');
+  });
+
+  it('IA: Cloudflare quando as duas variáveis existem (padrão), Gemini quando escolhido ou sem a Cloudflare', () => {
+    const cf = porId({ CLOUDFLARE_ACCOUNT_ID: 'conta', CLOUDFLARE_AI_TOKEN: 'tok' } as unknown as NodeJS.ProcessEnv).get('ia')!;
+    expect(cf.situacao).toBe('ligado');
+    expect(cf.titulo).toMatch(/Cloudflare Workers AI/);
+    expect(cf.agora).toMatch(/10\.000 neurônios/);
+    expect(cf.agora).not.toMatch(/conta|tok/);
+    const so = porId({ CLOUDFLARE_ACCOUNT_ID: 'conta' } as unknown as NodeJS.ProcessEnv).get('ia')!;
+    expect(so.situacao).toBe('desligado'); // só uma das duas: cai no Gemini, sem chave
+    const gem = porId({ GEMINI_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv).get('ia')!;
+    expect(gem.titulo).toMatch(/Gemini/);
+    expect(gem.agora).toMatch(/Google pode usar/);
+    const forcado = porId({ IA_PROVEDOR: 'cloudflare', GEMINI_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv).get('ia')!;
+    expect(forcado.situacao).toBe('desligado');
+    expect(forcado.agora).toMatch(/CLOUDFLARE_ACCOUNT_ID/);
+    // travas do caixa ligadas só com a Cloudflare: ligadas
+    const caixa = porId({ CAIXA_IA_DOCUMENTO: 'ligada', CAIXA_IA_SUGESTAO: 'ligada', CLOUDFLARE_ACCOUNT_ID: 'a', CLOUDFLARE_AI_TOKEN: 'b' } as unknown as NodeJS.ProcessEnv);
+    expect(caixa.get('caixa_documento')?.situacao).toBe('ligado');
+    expect(caixa.get('caixa_sugestao')?.situacao).toBe('ligado');
   });
 
   it('e-mail dos avisos ao cliente exige a trava, o envio de e-mail e o APP_URL', () => {

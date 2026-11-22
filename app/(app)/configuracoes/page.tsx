@@ -10,6 +10,7 @@ import { Toast, Toasts } from '@/components/retorno';
 import { DialogoConfirmacao } from '../Dialogo';
 import { SENHA_MIN } from '@/lib/auth';
 import { MedicaoApp } from './Medicao';
+import type { SituacaoIa } from '@/lib/ia/cota';
 
 type Papel = 'master' | 'usuario' | 'cliente';
 type Modulo = 'ponto' | 'caixa';
@@ -83,7 +84,7 @@ function OQueEstaDesligado() {
 
 export default function Configuracoes() {
   // --- Leitura por IA (chave da plataforma, só consulta) ---
-  const [ia, setIa] = useState<{ temChave: boolean; modelo: string } | null>(null);
+  const [ia, setIa] = useState<SituacaoIa | null>(null);
 
   // --- Usuários ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -102,7 +103,7 @@ export default function Configuracoes() {
   async function carregarCfg() {
     try {
       const d = await lerJson('/api/config');
-      setIa({ temChave: Boolean(d.temChave), modelo: d.gemini_modelo || '' });
+      setIa(d.ia ?? null);
     } catch { /* a situação da IA também aparece em "O que está desligado" */ }
   }
   async function carregarUsuarios() {
@@ -189,12 +190,25 @@ export default function Configuracoes() {
         <MedicaoApp />
 
         {/* Leitura por IA */}
-        <Secao titulo="Leitura das folhas por IA"
-          descricao="A chave do Gemini é da plataforma e vale para todos os escritórios; cada um consome a cota mensal do seu plano. Para trocar a chave ou o modelo, altere GEMINI_API_KEY e GEMINI_MODELO na Vercel.">
+        <Secao titulo="Leitura por IA"
+          descricao="A IA é da plataforma e vale para todos os escritórios (folhas de ponto, documentos do caixa e sugestão de conta); cada escritório consome a cota mensal do seu plano. Para trocar o provedor ou o modelo, altere IA_PROVEDOR, IA_MODELO_CLOUDFLARE ou GEMINI_MODELO na Vercel.">
           {ia && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Selo tom={ia.temChave ? 'sucesso' : 'perigo'}>{ia.temChave ? 'Chave configurada' : 'Chave ausente'}</Selo>
-              {ia.modelo && <Selo>{ia.modelo}</Selo>}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-tinta">{ia.nome}</span>
+                <Selo tom={ia.configurado ? 'sucesso' : 'perigo'}>{ia.configurado ? 'Configurada' : 'Sem credenciais'}</Selo>
+                {ia.modelo && <Selo>{ia.modelo}</Selo>}
+              </div>
+              {ia.cota && (ia.cota.medida ? (
+                <p className={`text-[13px] ${ia.cota.nivel === 'ok' ? 'text-tinta-suave' : 'font-medium text-tinta'}`} role="status">
+                  Uso de hoje: {ia.cota.usados.toLocaleString('pt-BR')} de {ia.cota.limite.toLocaleString('pt-BR')} neurônios ({ia.cota.percentual}%).{' '}
+                  {ia.cota.nivel === 'ok' ? 'A cota gratuita renova às 21h (horário de Brasília).' : ia.cota.mensagem}
+                </p>
+              ) : (
+                <p className="text-[13px] text-tinta-suave">
+                  O contador da cota diária ainda não está instalado (falta a migração 0036). A leitura funciona; o aviso de 80% não.
+                </p>
+              ))}
             </div>
           )}
         </Secao>

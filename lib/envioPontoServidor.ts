@@ -12,7 +12,8 @@
 import { randomUUID } from 'crypto';
 import { getDb, lerTudo } from './db';
 import { extrairFolha } from './ocr';
-import { getGeminiApiKey, getGeminiModelo } from './config';
+import { ErroIa } from './ia';
+import { iaConfigurada } from './ia/config';
 import { avaliarCota, competenciaBelem, excedeuRitmo, RESERVA_VALIDA_MIN } from './cotaOcr';
 import { lerEscritorio } from './escritorios';
 import {
@@ -315,7 +316,7 @@ export type ResultadoLeitura = 'lida' | 'falhou' | 'esperando' | 'ocupada';
 /**
  * Lê UMA foto pela IA e guarda o rascunho. Fluxo igual ao de /api/extrair:
  * reivindica o envio (só um processo lê de cada vez) → cota, ritmo e, se for
- * automática, o teto da empresa → reserva na cota e reconta → Gemini → `lida`
+ * automática, o teto da empresa → reserva na cota e reconta → IA (lib/ia) → `lida`
  * (conta) ou `falhou` (não conta). NUNCA grava na frequência.
  */
 export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: string): Promise<ResultadoLeitura> {
@@ -333,9 +334,8 @@ export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: s
   if (!linha) return 'ocupada';
   const e = deLinha(linha);
 
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    console.error('[envio-ponto] GEMINI_API_KEY não configurada.');
+  if (!iaConfigurada('ponto')) {
+    console.error('[envio-ponto] IA sem variáveis configuradas.');
     await esperar(e.id, 'sem_ia');
     return 'esperando';
   }
@@ -391,8 +391,8 @@ export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: s
     if (eDown || !blob) throw new Error(`foto indisponível: ${eDown?.message ?? ''}`);
     const base64 = Buffer.from(await blob.arrayBuffer()).toString('base64');
     const r = await extrairFolha({
-      apiKey, imagemBase64: base64, mimeType: e.tipo, ano: e.ano, mes: e.mes,
-      empresa: e.empresaId, funcionario: e.funcionario, modelo: getGeminiModelo(),
+      imagemBase64: base64, mimeType: e.tipo, ano: e.ano, mes: e.mes,
+      empresa: e.empresaId, funcionario: e.funcionario,
     });
     const rascunho = normalizarRascunho({ dias: r.frequencia.dias, incertos: r.incertos, funcionarioLido: r.frequencia.funcionario || null });
     const { error: eUp } = await db.from('ponto_envios').update({
@@ -404,6 +404,13 @@ export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: s
     return 'lida';
   } catch (err) {
     await falharLeituraOcr(reserva).catch(() => {});
+    if (err instanceof ErroIa && (err.tipo === 'cota_diaria' || err.tipo === 'ocupada')) {
+      // Limite diário (ou fila cheia) da IA: a foto volta à fila e espera — não é falha
+      // da foto, e a tentativa não deveria ser gasta. Lê de novo quando a cota renovar.
+      await db.from('ponto_envios').update({ tentativas: e.tentativas }).eq('id', e.id);
+      await esperar(e.id, 'sem_ia');
+      return 'esperando';
+    }
     // Sem a mensagem crua da IA na tela; no log, sem o conteúdo da folha.
     console.error('[envio-ponto] leitura falhou:', err instanceof Error ? err.message.slice(0, 160) : 'erro');
     await db.from('ponto_envios').update({ situacao: 'falhou', lendo_desde: null })

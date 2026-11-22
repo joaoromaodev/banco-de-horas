@@ -31,7 +31,7 @@ import type { DiaFreq } from '@/lib/tipos';
 
 export const runtime = 'nodejs';
 // A leitura pela IA roda depois da resposta (`after`), dentro deste tempo.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const negado = () => Response.json({ erro: 'Acesso restrito.' }, { status: 403 });
 const naoEncontrado = () => Response.json({ erro: 'Envio não encontrado.' }, { status: 404 });

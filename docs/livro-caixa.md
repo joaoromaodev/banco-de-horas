@@ -1341,6 +1341,19 @@ nem na rota de lançamentos.
 - A conta sugerida aprende com o que ela confere: os lançamentos importados levam o histórico do
   banco no complemento, então a próxima importação casa melhor com os conferidos.
 
+### ✅ IA do caixa na Cloudflare Workers AI (0036) — 21/11/2026 (Sprint 17, Frente F)
+
+A leitura de documento (`/api/caixa/documento-ia`) e a sugestão de conta
+(`/api/caixa/sugestao`) passaram a chamar a IA pela interface única `lib/ia/` — padrão
+**Cloudflare Workers AI** (não treina com os dados), Gemini só com `IA_PROVEDOR=gemini`.
+Travas, cotas, prompt e validação **iguais**; a trava de plataforma agora exige "IA
+configurada" (`iaConfigurada`, Cloudflare ou chave do Gemini) em vez de "chave do Gemini".
+Diferenças na Cloudflare: **PDF vai só como texto** (das primeiras páginas, com
+CPF/CNPJ/e-mail/telefone mascarados — `minimizarTextoPdf`); PDF escaneado pede foto; HEIC
+recusado. Limite diário da IA → 429 com "O limite diário da IA foi atingido. Tente
+amanhã…" (não conta na cota mensal). Detalhes, cota de neurônios e integrador em
+[`folha-de-ponto.md`](folha-de-ponto.md), seção "IA plugável".
+
 ## Estado do banco
 
 Migrações `0000`–`0006` aplicadas (04/09/2026): `0004` trouxe **empresas** e

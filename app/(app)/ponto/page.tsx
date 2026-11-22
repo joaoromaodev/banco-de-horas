@@ -74,6 +74,8 @@ export default function Home() {
   const [funcList, setFuncList] = useState<Funcionario[]>([]);
   const [feriadosCad, setFeriadosCad] = useState<string[]>([]);
   const [cota, setCota] = useState<CotaOcr | null>(null);
+  // Cota DIÁRIA da IA da plataforma (Cloudflare): só vem quando passou de 80% ou acabou.
+  const [iaDia, setIaDia] = useState<{ nivel: 'aviso' | 'esgotada'; mensagem: string } | null>(null);
   const [bancoPendente, setBancoPendente] = useState(false);
   // Revisão inteligente (lib/revisaoPonto.ts): o mês salvo da empresa + a folha em edição.
   const [revisaoMes, setRevisaoMes] = useState<RevisaoDoMes | null>(null);
@@ -168,7 +170,7 @@ export default function Home() {
       if (Array.isArray(d.feriados)) setFeriadosCad(d.feriados.map((f: { data: string }) => f.data));
     }).catch(falhou);
     // A cota é só informativa: sem ela, a leitura segue (a rota de leitura confere a cota de novo).
-    fetch(`/api/extrair?${q}`).then((r) => r.json()).then((d) => setCota(d.cota ?? null)).catch(() => {});
+    fetch(`/api/extrair?${q}`).then((r) => r.json()).then((d) => { setCota(d.cota ?? null); setIaDia(d.iaDia ?? null); }).catch(() => {});
   }, [empresa, tentativaCadastros]);
 
   const empresaSel = useMemo(() => empresas.find((e) => e.id === empresa), [empresas, empresa]);
@@ -260,6 +262,7 @@ export default function Home() {
       const res = await fetch('/api/extrair', { method: 'POST', body: fd });
       const data = await res.json();
       if (data.cota) setCota(data.cota);
+      if ('iaDia' in data) setIaDia(data.iaDia ?? null);
       if (!res.ok) throw new Error(data.erro ?? 'Falha na leitura.');
       if (data.cota?.nivel === 'aviso' && data.cota.mensagem) setAviso(data.cota.mensagem);
       setEnvioAberto(null);
@@ -542,6 +545,9 @@ export default function Home() {
                 ? `Leituras por IA neste mês: ${cota.usadas.toLocaleString('pt-BR')} de ${cota.limite.toLocaleString('pt-BR')}.`
                 : cota.mensagem}
             </p>
+          )}
+          {iaDia && (
+            <p className="mt-1 text-[13px] font-medium text-tinta" role="status">{iaDia.mensagem}</p>
           )}
         </Secao>
 

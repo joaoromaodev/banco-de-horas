@@ -1,20 +1,22 @@
 // POST /api/extrair — recebe a foto da folha (multipart) e devolve a frequência
-// estruturada + campos incertos, via Gemini.
-// GET  /api/extrair?empresa=<id> — só a situação da cota do mês (para a tela).
+// estruturada + campos incertos, pela IA (lib/ia: Cloudflare Workers AI ou Gemini).
+// GET  /api/extrair?empresa=<id> — a situação da cota do mês e da cota diária da IA (para a tela).
 //
-// A chave do Gemini é da PLATAFORMA (variável GEMINI_API_KEY), nunca do escritório
-// nem da planilha. Cada leitura bem-sucedida conta na cota mensal do escritório
+// As credenciais da IA são da PLATAFORMA (variáveis de ambiente), nunca do
+// escritório nem da planilha. Cada leitura bem-sucedida conta na cota mensal do escritório
 // dono da empresa (lib/cotaOcr.ts). A contagem é feita aqui, no servidor:
 //   1. avalia a cota com o que já foi usado; esgotada → 429 com convite de plano;
 //   2. RESERVA a leitura (linha em ponto_leituras_ocr) e reconta — se a corrida com
 //      outra leitura passou do limite, desfaz e recusa;
-//   3. chama o Gemini; falhou → marca 'falhou' (não conta na cota, conta no ritmo);
+//   3. chama a IA; falhou → marca 'falhou' (não conta na cota, conta no ritmo);
 //      deu certo → confirma.
 // À parte da cota há um limite de ritmo (tentativas por 10 min, por escritório).
 import { NextRequest } from 'next/server';
 import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
 import { extrairFolha } from '@/lib/ocr';
-import { getGeminiApiKey, getGeminiModelo } from '@/lib/config';
+import { ErroIa } from '@/lib/ia';
+import { iaConfigurada } from '@/lib/ia/config';
+import { situacaoIa } from '@/lib/ia/cota';
 import { avaliarCota, competenciaBelem, excedeuRitmo, MENSAGEM_RITMO } from '@/lib/cotaOcr';
 import { lerEscritorio } from '@/lib/escritorios';
 import {
@@ -22,7 +24,7 @@ import {
 } from '@/lib/pontoDb';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 /** A Vercel recusa corpo acima de ~4,5 MB; abaixo disso explicamos com educação. */
 const TAMANHO_MAX = 4 * 1024 * 1024;
@@ -37,11 +39,17 @@ async function estadoCota(escritorioId: string) {
   return avaliarCota({ plano: escritorio?.plano, situacao: escritorio?.situacao, usadas });
 }
 
+/** Só o nível e a mensagem da cota diária da IA (o aviso de 80% e o de esgotada). */
+function iaDiaDe(ia: Awaited<ReturnType<typeof situacaoIa>> | null) {
+  return ia?.cota && ia.cota.medida && ia.cota.nivel !== 'ok' ? { nivel: ia.cota.nivel, mensagem: ia.cota.mensagem } : null;
+}
+
 export async function GET(req: NextRequest) {
   const g = await exigirEmpresaPonto(req, new URL(req.url).searchParams.get('empresa'));
   if (!g.ok) return g.resposta;
   try {
-    return Response.json({ cota: await estadoCota(g.escritorioId) });
+    const [cota, ia] = await Promise.all([estadoCota(g.escritorioId), situacaoIa().catch(() => null)]);
+    return Response.json({ cota, iaDia: iaDiaDe(ia) });
   } catch (e) {
     return respostaErroPonto(e, 'Falha ao consultar a cota de leituras.');
   }
@@ -83,9 +91,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ erro: 'Mês/ano inválidos.' }, { status: 400 });
   }
 
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    console.error('[ponto] GEMINI_API_KEY não configurada no servidor.');
+  if (!iaConfigurada('ponto')) {
+    console.error('[ponto] IA sem variáveis configuradas no servidor.');
     return Response.json(
       { erro: 'A leitura por IA está indisponível no momento. Você pode preencher a folha à mão enquanto isso.' },
       { status: 503 },
@@ -121,21 +128,24 @@ export async function POST(req: NextRequest) {
   try {
     const base64 = Buffer.from(await file.arrayBuffer()).toString('base64');
     const resultado = await extrairFolha({
-      apiKey,
       imagemBase64: base64,
       mimeType,
       ano,
       mes,
       empresa: g.empresa.id,
       funcionario,
-      modelo: getGeminiModelo(),
     });
     await confirmarLeituraOcr(reserva).catch((e) => console.error('[ponto] confirmar leitura', e));
-    const depois = await estadoCota(escritorioId).catch(() => null);
-    return Response.json({ ...resultado, cota: depois });
+    const [depois, ia] = await Promise.all([estadoCota(escritorioId).catch(() => null), situacaoIa().catch(() => null)]);
+    return Response.json({ ...resultado, cota: depois, iaDia: iaDiaDe(ia) });
   } catch (e) {
     await falharLeituraOcr(reserva).catch(() => {});
-    console.error('[ponto] leitura por IA falhou', e);
+    if (e instanceof ErroIa) {
+      // Mensagem para gente (limite diário, tempo, formato); no log só o detalhe curto.
+      console.error('[ponto] leitura por IA falhou:', e.detalhe);
+      return Response.json({ erro: `${e.mensagem} Esta tentativa não conta na cota.` }, { status: e.status });
+    }
+    console.error('[ponto] leitura por IA falhou', e instanceof Error ? e.message.slice(0, 160) : 'erro');
     return Response.json({ erro: 'Não foi possível ler a folha agora. Tente de novo ou preencha à mão — esta tentativa não conta na cota.' }, { status: 502 });
   }
 }
