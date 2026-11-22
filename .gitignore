@@ -50,3 +50,6 @@ service-account.json
 .env.local
 
 .vercel
+
+# comparativo de IA — imagens sintéticas geradas localmente
+scripts/ia-comparativo/saida/

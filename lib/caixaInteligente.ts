@@ -12,6 +12,7 @@ import { ErroCaixa } from './caixa';
 import { lerEmpresa } from './cadastro';
 import { compactarExemplos, exemploDe, sugestaoAceita, type ExemploConferido, type OrigemSugestao } from './sugestaoConta';
 import { revisarLancamentos, type LancamentoRevisao, type ResultadoRevisao } from './revisaoCaixa';
+import { iaConfigurada } from './ia/config';
 
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
 
@@ -81,14 +82,14 @@ export async function exemplosDaEmpresa(empresaId: string): Promise<{ exemplos: 
 
 /**
  * A IA pode ser oferecida para esta empresa? Desligada por padrão:
- * - só liga com `CAIXA_IA_SUGESTAO=ligada` (depois da privacidade citar o uso e do
- *   plano pago do Gemini — ver docs/livro-caixa.md, "Para o integrador");
+ * - só liga com `CAIXA_IA_SUGESTAO=ligada` e a IA configurada (Cloudflare Workers AI
+ *   ou Gemini pago — lib/ia/config; ver docs/livro-caixa.md, "Para o integrador");
  * - nunca para empresa que identifica pagador (clínica/saúde, Carnê-Leão): o
  *   complemento pode trazer nome de paciente e procedimento — dado sensível.
  */
 export function iaPermitida(empresa: { identificaPagador?: boolean } | null, env: NodeJS.ProcessEnv = process.env): boolean {
   if (String(env.CAIXA_IA_SUGESTAO ?? '').trim().toLowerCase() !== 'ligada') return false;
-  if (!env.GEMINI_API_KEY?.trim()) return false;
+  if (!iaConfigurada('sugestao', env)) return false;
   return !!empresa && !empresa.identificaPagador;
 }
 

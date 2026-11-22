@@ -708,3 +708,101 @@ sessão**; já sob `/api/envio-ponto` em `CLIENTE_PODE`) · `app/(app)/ponto/Res
 - Depois: registrar também o carimbo "conferido" (0022) ao fechar; avisar atestado > 15 dias
   seguidos (INSS); id do usuário/IP/navegador no aceite (o login da empresa é compartilhado) —
   decidir com o jurídico.
+
+## IA plugável — Cloudflare Workers AI (Sprint 17, frente F)
+
+O beta é gratuito, e o Gemini gratuito deixa o Google usar o conteúdo
+([decisão](empresa/ia-gratuita.md)). A leitura da folha (Timesheet e envio do cliente),
+a leitura de documento do caixa e a sugestão de conta passaram a usar **uma interface
+só**, `lib/ia/`, com dois provedores: **Cloudflare Workers AI** (padrão, não treina com os
+dados) e **Gemini**.
+
+| Peça | Arquivo |
+|---|---|
+| Escolha do provedor, modelos, cota (só env, puro) | `lib/ia/config.ts` |
+| Esquema único → Gemini (`responseSchema`) e JSON Schema; `extrairJson` | `lib/ia/esquema.ts` |
+| Provedor Cloudflare (REST `…/accounts/{id}/ai/run/{modelo}`, stream SSE, neurônios) | `lib/ia/cloudflare.ts` |
+| Provedor Gemini (o de antes, com tempo-limite) | `lib/ia/gemini.ts` |
+| Porta única `lerComIa` (cota antes, gasto depois, imagem ≤ 2.048 px na Cloudflare) | `lib/ia/index.ts` |
+| Contador diário de neurônios (`ia_uso`, migração **0036**) e `situacaoIa` | `lib/ia/cota.ts` |
+| Erro com mensagem para gente (`ErroIa`) | `lib/ia/erros.ts` |
+| Comparativo de modelos (folhas sintéticas, fora do CI) | `scripts/ia-comparativo/` |
+
+Decisões:
+
+- **Escolha:** `IA_PROVEDOR` (`cloudflare` | `gemini`); sem ela, Cloudflare quando
+  `CLOUDFLARE_ACCOUNT_ID` e `CLOUDFLARE_AI_TOKEN` existem, senão Gemini. Provedor escolhido
+  sem credenciais = IA desligada (não cai sozinho no outro).
+- **Mesmo contrato:** prompt, esquema e validação de antes (`promptFolha`, `ESQUEMA_FOLHA`,
+  `interpretarFolha` em `lib/ocr.ts`; `montarPromptDocumento`/`interpretarLeitura`;
+  `montarPromptIa`/`interpretarRespostaIa`). Na Cloudflare o esquema vai em
+  `response_format` **e** no texto do pedido; resposta com cerca ```json é aceita.
+- **Modelo padrão:** `@cf/mistralai/mistral-small-3.1-24b-instruct`, escolhido pelo
+  comparativo (tabela em [`ia-gratuita.md`](empresa/ia-gratuita.md)). Trocar:
+  `IA_MODELO_CLOUDFLARE` (e `IA_MODELO_CLOUDFLARE_TEXTO` para a sugestão de conta).
+- **Foto:** continua em pé e sem EXIF (`fotoParaIa`); JPG/PNG/WEBP que não dá para limpar
+  agora é **recusado** (antes ia como veio). Na Cloudflare a foto é reduzida a 2.048 px.
+  **HEIC não vai à Cloudflare** (erro humano pedindo JPG); o navegador do iPhone já
+  converte na maioria dos casos.
+- **O nome do funcionário saiu do prompt** (minimização — revisão do escudo). A IA lê o
+  nome do cabeçalho; o nome escolhido na tela continua prevalecendo.
+- **PDF do caixa na Cloudflare:** vai só o texto das primeiras páginas (lido no servidor
+  por `unpdf`), com CPF/CNPJ, e-mail, telefone e sequências de 11+ dígitos mascarados
+  (`minimizarTextoPdf`, que corta o texto antes de mascarar). PDF escaneado → "envie uma foto".
+- **Tempo:** com stream (sem ele a Cloudflare devolvia 408 na folha inteira). Limites:
+  folha 110 s, documento 60 s, sugestão 25 s. `maxDuration`: `/api/extrair` e
+  `/api/caixa/documento-ia` 120 s; `/api/envio-ponto` 300 s (a fila lê até 2 fotos no
+  `after()`).
+- **Cota diária (Cloudflare, 10.000 neurônios/dia grátis, dia UTC = 21h de Brasília):**
+  cada chamada grava em `ia_uso` os neurônios que a **própria API informa** (cabeçalho
+  `cf-ai-neurons` ou `usage.neurons`, inclusive no último evento do stream); sem isso,
+  estimativa pelos tokens × preço do catálogo (1.000 neurônios = US$ 0,011), marcada
+  `estimado`. Antes de chamar, soma o dia: ≥ 100% (`IA_COTA_DIARIA`, padrão 10.000) →
+  **429 "O limite diário da IA foi atingido. Tente amanhã…"** sem ir à rede. Se a própria
+  Cloudflare recusar por cota (erro 4006), grava o que faltava e responde igual. A leitura
+  que falhou **não conta** na cota mensal do escritório (como antes). Envio do cliente com
+  o limite diário → volta à fila (`sem_ia`) sem gastar tentativa.
+- **Aviso de 80%:** na Timesheet (linha abaixo da cota do mês; `iaDia` no `GET/POST
+  /api/extrair`) e no painel do master (`/configuracoes` → "Leitura por IA": provedor,
+  modelo e "Uso de hoje: X de 10.000 neurônios"). "O que está desligado" mostra o
+  provedor ativo (item `ia`).
+- **Sem a 0036:** a leitura segue sem contador; o master vê "falta a migração 0036".
+- **Erros:** sempre `ErroIa` → mensagem pronta; a crua do provedor só no log (curta,
+  sem conteúdo da folha nem token).
+
+### Para o integrador (frente F)
+
+1. Migração **0036** (`0036_ia_uso.sql`) — aditiva, sem dado pessoal, RLS sem policies e
+   view `security_invoker`. Ordem publicar/aplicar indiferente.
+2. Vercel (produção): já existem `CLOUDFLARE_ACCOUNT_ID` e `CLOUDFLARE_AI_TOKEN`.
+   **Defina também `IA_PROVEDOR=cloudflare`** — a política de privacidade é gerada no
+   build e cita o provedor ativo; deixar explícito evita publicar "Google" se as variáveis
+   da Cloudflare faltarem no build. Opcionais: `IA_MODELO_CLOUDFLARE`,
+   `IA_MODELO_CLOUDFLARE_TEXTO`, `IA_COTA_DIARIA`.
+3. O Llama 3.2 Vision exige aceitar a licença da Meta pela API — **não** foi aceita (não
+   é o padrão; só importa se alguém quiser testá-lo).
+4. Publicar e testar em produção (com folha de teste, nunca de cliente):
+   - Timesheet → "Ler folha (OCR)" numa folha sintética
+     (`python scripts/ia-comparativo/gerar_folhas.py`) — confere horários e a cota do mês
+     sobe 1; `/configuracoes` → "Leitura por IA" mostra Cloudflare, o modelo e o uso de hoje.
+   - `select dia, provedor, neuronios, chamadas from ia_uso_diario order by dia desc;`
+   - Forçar o aviso: `IA_COTA_DIARIA=300` num preview → a Timesheet mostra "já usou N%"
+     e, depois, "limite diário da IA foi atingido".
+   - Caixa: com `CAIXA_IA_DOCUMENTO=ligada` numa empresa de teste, ler um PDF com texto e
+     uma foto de nota; um PDF escaneado deve pedir foto.
+5. Rodar o comparativo de novo (gasta ~1.000–1.500 neurônios do dia):
+   `npx vite-node -c vitest.config.ts scripts/ia-comparativo/comparar.ts -- --orcamento 2500`.
+
+### Pendências (frente F)
+
+- **A cota da plataforma é uma só** (~45 folhas/dia no modelo padrão, somando todos os
+  escritórios): um escritório pode esgotar o dia de todos. Próximo passo: teto diário por
+  escritório dentro da cota, ou o plano pago da Workers AI como reserva (US$ 0,011 por
+  1.000 neurônios ≈ US$ 0,002 por folha).
+- **Jurídico:** contrato de tratamento de dados com a Cloudflare (cláusulas-padrão da ANPD,
+  Res. CD/ANPD nº 19/2024), região de processamento, lista de suboperadores e o termo com
+  os escritórios citando a Cloudflare.
+- Chamar a Workers AI **direto** (como hoje), não pelo AI Gateway: a Cloudflare declara
+  retenção zero só sem log/cache do Gateway.
+- Comparativo com **folhas reais** (com autorização) antes de qualquer afrouxamento da
+  revisão — o sintético mede o mínimo. A tela de revisão continua obrigatória.

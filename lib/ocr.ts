@@ -1,7 +1,9 @@
-// Extração da folha de ponto manuscrita via Gemini (saída estruturada em JSON).
-import { GoogleGenAI, Type } from '@google/genai';
+// Extração da folha de ponto manuscrita pela IA (saída estruturada em JSON).
+// O provedor (Cloudflare Workers AI ou Gemini) é escolhido em lib/ia — aqui ficam
+// o prompt, o esquema e a validação, iguais para os dois.
 import { Frequencia, DiaFreq, Marcador, MARCADORES } from './tipos';
 import { fotoParaIa } from './fotoParaIa';
+import { lerComIa, ErroIa, type Esquema } from './ia';
 
 export interface CampoIncerto {
   dia: number;
@@ -13,26 +15,22 @@ export interface ResultadoOCR {
   incertos: CampoIncerto[];
 }
 
-const schema = {
-  type: Type.OBJECT,
+export const ESQUEMA_FOLHA: Esquema = {
+  type: 'object',
   properties: {
-    funcionario: { type: Type.STRING, nullable: true },
+    funcionario: { type: 'string', nullable: true },
     dias: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          dia: { type: Type.INTEGER },
-          entradaManha: { type: Type.STRING, nullable: true },
-          saidaAlmoco: { type: Type.STRING, nullable: true },
-          retornoAlmoco: { type: Type.STRING, nullable: true },
-          saidaTarde: { type: Type.STRING, nullable: true },
-          marcador: { type: Type.STRING, nullable: true },
-          incerto: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            nullable: true,
-          },
+          dia: { type: 'integer' },
+          entradaManha: { type: 'string', nullable: true },
+          saidaAlmoco: { type: 'string', nullable: true },
+          retornoAlmoco: { type: 'string', nullable: true },
+          saidaTarde: { type: 'string', nullable: true },
+          marcador: { type: 'string', nullable: true },
+          incerto: { type: 'array', items: { type: 'string' }, nullable: true },
         },
         required: ['dia'],
       },
@@ -41,9 +39,13 @@ const schema = {
   required: ['dias'],
 };
 
-function prompt(ano: number, mes: number, funcionario?: string): string {
+/**
+ * O texto do pedido. Não leva o nome do funcionário (minimização: a imagem já o
+ * traz, e o nome informado na tela prevalece sobre o lido — revisão do escudo, S17-F).
+ */
+export function promptFolha(ano: number, mes: number): string {
   return `Você é um transcritor de folhas de ponto manuscritas brasileiras.
-A imagem é uma "FOLHA DE PONTO INDIVIDUAL DE TRABALHO" referente a ${String(mes).padStart(2, '0')}/${ano}${funcionario ? ` do funcionário ${funcionario}` : ''}.
+A imagem é uma "FOLHA DE PONTO INDIVIDUAL DE TRABALHO" referente a ${String(mes).padStart(2, '0')}/${ano}.
 
 Cada linha é um dia do mês. As colunas de horário, na ordem, são:
 1. ENTRADA MANHÃ (entradaManha)
@@ -64,43 +66,45 @@ Responda SOMENTE com o JSON no schema fornecido.`;
 }
 
 export async function extrairFolha(opts: {
-  apiKey: string;
   imagemBase64: string;
   mimeType: string;
   ano: number;
   mes: number;
   empresa?: string;
   funcionario?: string;
-  modelo?: string;
+  /** Para teste: variáveis de ambiente e fetch simulados. */
+  env?: NodeJS.ProcessEnv;
+  fetch?: typeof fetch;
 }): Promise<ResultadoOCR> {
   // A foto vai em pé (orientação do EXIF aplicada) e sem metadados (localização,
-  // aparelho). Foto pequena do celular sobe crua, com o EXIF; HEIC ou arquivo que
-  // não dá para limpar vai como veio — é como sempre foi, e a leitura não trava.
+  // aparelho). JPG/PNG/WEBP que não dá para limpar é RECUSADO (não sai com o EXIF);
+  // HEIC, que a biblioteca não abre, vai como veio só ao Gemini (a Cloudflare
+  // recusa HEIC com mensagem — lib/ia).
   const original = Buffer.from(opts.imagemBase64, 'base64');
   const pronta = await fotoParaIa(new Uint8Array(original), opts.mimeType);
-  const imagem = pronta ? Buffer.from(pronta).toString('base64') : opts.imagemBase64;
-  const ai = new GoogleGenAI({ apiKey: opts.apiKey });
-  const res = await ai.models.generateContent({
-    model: opts.modelo ?? 'gemini-2.5-flash',
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { inlineData: { mimeType: opts.mimeType, data: imagem } },
-          { text: prompt(opts.ano, opts.mes, opts.funcionario) },
-        ],
-      },
-    ],
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      temperature: 0,
-    },
+  if (!pronta && ['image/jpeg', 'image/png', 'image/webp'].includes(opts.mimeType)) {
+    throw new ErroIa('arquivo', 'folha: foto não pôde ser limpa',
+      'Não foi possível preparar esta foto para a leitura. Tire outra foto (JPG) e envie de novo.');
+  }
+  const bytes = pronta ?? new Uint8Array(original);
+  const { texto } = await lerComIa({
+    finalidade: 'ponto',
+    prompt: promptFolha(opts.ano, opts.mes),
+    esquema: ESQUEMA_FOLHA,
+    arquivo: { bytes, mime: opts.mimeType },
+    env: opts.env,
+    fetch: opts.fetch,
   });
+  const r = interpretarFolha(texto, opts);
+  if (!r) throw new ErroIa('resposta', 'folha: JSON inválido');
+  return r;
+}
 
-  const texto = res.text;
-  if (!texto) throw new Error('Gemini não retornou conteúdo.');
-
+/** Valida a resposta da IA (JSON) como sempre: horário limpo, marcador da lista. `null` = JSON torto. */
+export function interpretarFolha(
+  texto: string,
+  opts: { ano: number; mes: number; empresa?: string; funcionario?: string },
+): ResultadoOCR | null {
   interface DiaBruto {
     dia?: unknown; incerto?: unknown; marcador?: unknown;
     entradaManha?: unknown; saidaAlmoco?: unknown; retornoAlmoco?: unknown; saidaTarde?: unknown;
@@ -109,11 +113,13 @@ export async function extrairFolha(opts: {
   try {
     parsed = JSON.parse(texto);
   } catch {
-    throw new Error('Resposta do Gemini não é um JSON válido.');
+    return null;
   }
+  if (!parsed || typeof parsed !== 'object') return null;
 
   const incertos: CampoIncerto[] = [];
-  const dias: DiaFreq[] = (parsed.dias ?? []).map((d: DiaBruto) => {
+  const lista = Array.isArray(parsed.dias) ? parsed.dias.filter((d) => d && typeof d === 'object') : [];
+  const dias: DiaFreq[] = lista.map((d: DiaBruto) => {
     if (Array.isArray(d.incerto)) {
       for (const campo of d.incerto) incertos.push({ dia: Number(d.dia), campo });
     }

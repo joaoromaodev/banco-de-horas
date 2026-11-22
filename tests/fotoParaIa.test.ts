@@ -105,7 +105,7 @@ describe('foto em pé antes de tirar os metadados', () => {
   });
 });
 
-describe('folha de ponto (lib/ocr.ts): a foto vai em pé ao Gemini', () => {
+describe('folha de ponto (lib/ocr.ts): a foto vai em pé à IA (Gemini e Cloudflare)', () => {
   it('Timesheet e envio do cliente passam por extrairFolha, que endireita e limpa', async () => {
     const recebido = vi.fn();
     vi.doMock('@google/genai', async (orig) => {
@@ -116,12 +116,35 @@ describe('folha de ponto (lib/ocr.ts): a foto vai em pé ao Gemini', () => {
     vi.resetModules();
     const { extrairFolha } = await import('@/lib/ocr');
     const foto = await fotoDeExemplo(6);
-    await extrairFolha({ apiKey: 'k', imagemBase64: Buffer.from(foto).toString('base64'), mimeType: 'image/jpeg', ano: 2026, mes: 3 }).catch(() => {});
+    await extrairFolha({
+      imagemBase64: Buffer.from(foto).toString('base64'), mimeType: 'image/jpeg', ano: 2026, mes: 3,
+      env: { IA_PROVEDOR: 'gemini', GEMINI_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv,
+    }).catch(() => {});
     const parte = (recebido.mock.calls[0][0] as { contents: { parts: { inlineData?: { data: string } }[] }[] }).contents[0].parts[0];
     const enviada = new Uint8Array(Buffer.from(parte.inlineData!.data, 'base64'));
     expect(await dimensoes(enviada)).toEqual([40, 80]);
     expect(await corEm(enviada, 0.5, 0.25)).toBe('vermelho');
     expect(temTexto(enviada, 'CelularSecreto')).toBe(false);
     vi.doUnmock('@google/genai');
+  });
+
+  it('na Cloudflare (fetch simulado) a imagem do data URL também vai em pé e sem EXIF', async () => {
+    vi.resetModules();
+    const { extrairFolha } = await import('@/lib/ocr');
+    const corpos: string[] = [];
+    const fetchFalso = (async (_url: string, init: { body: string }) => {
+      corpos.push(init.body);
+      return new Response(JSON.stringify({ success: true, errors: [], result: { response: { dias: [] }, usage: { prompt_tokens: 10, completion_tokens: 5 } } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const foto = await fotoDeExemplo(6);
+    await extrairFolha({
+      imagemBase64: Buffer.from(foto).toString('base64'), mimeType: 'image/jpeg', ano: 2026, mes: 3,
+      env: { CLOUDFLARE_ACCOUNT_ID: 'conta', CLOUDFLARE_AI_TOKEN: 'tok' } as unknown as NodeJS.ProcessEnv, fetch: fetchFalso,
+    });
+    const url = JSON.parse(corpos[0]).messages[0].content[1].image_url.url as string;
+    const enviada = new Uint8Array(Buffer.from(url.split(',')[1], 'base64'));
+    expect(await dimensoes(enviada)).toEqual([40, 80]);
+    expect(await corEm(enviada, 0.5, 0.25)).toBe('vermelho');
+    expect(temTexto(enviada, 'CelularSecreto')).toBe(false);
   });
 });

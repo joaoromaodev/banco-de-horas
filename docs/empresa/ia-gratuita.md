@@ -38,3 +38,43 @@ com folhas reais antes de trocar.
 4. Plano B gratuito: Groq com retenção zero ou Mistral com treino desligado.
    Gemini pago só se o João liberar custo.
 5. Até a troca: nenhum documento real no Gemini gratuito (como já está).
+
+## Comparativo de visão na folha de ponto (21/11/2026, Sprint 17 · frente F)
+
+**Como:** `scripts/ia-comparativo/` — 4 folhas **sintéticas** (`gerar_folhas.py`: tabela
+"Folha de ponto individual", horários em fonte manuscrita do Windows, empresa e
+funcionários fictícios, gabarito conhecido): **limpa**, **inclinada** (3–5°), **borrada**
+(desfoque gaussiano) e **foto torta** (perspectiva, mesa ao fundo, sombra, ruído, JPEG 55).
+Cada uma tem 30–31 dias com 4 horários, sábados com meio expediente, domingos, feriado,
+atestado, falta e "BH". Mesmo prompt, esquema e validação do app (`lib/ocr.ts`);
+Cloudflare com stream e imagem ≤ 2.048 px; Gemini (referência, imagem sintética sem dado
+pessoal) pelo mesmo provedor do app. Acerto = horário igual ao gabarito ("HH:MM").
+Folha que falha conta como tudo errado.
+
+| Modelo | Horários certos | Vazios mantidos vazios | Inventados | Marcador | Limpa | Inclinada | Borrada | Foto torta | Folhas lidas | Tempo/folha | Neurônios/folha |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **`@cf/mistralai/mistral-small-3.1-24b-instruct`** | **91,0%** | 95,5% | 8 | 84,2% | 100% | 100% | 100% | 65,0% | 4/4 | **43,8 s** | **194** |
+| `@cf/meta/llama-4-scout-17b-16e-instruct` | 59,3% | 92,0% | 14 | 42,1% | 75,6% | 64,5% | 69,2% | 28,8% | 4/4 | 232 s | 172 |
+| `@cf/google/gemma-4-26b-a4b-it` | 0% | — | — | — | — | — | — | — | 0/4 | 110 s | 120 |
+| `@cf/meta/llama-3.2-11b-vision-instruct` | não rodou | | | | | | | | 0/4 | | |
+| `gemini-2.5-flash` (referência) | 99,0% | 100% | 0 | 94,7% | 100% | 100% | 100% | 96,3% | 4/4 | 18,3 s | — |
+
+- **Mistral Small 3.1 rodou duas vezes** (com e sem stream) com o mesmo resultado
+  (temperatura 0). Lê perfeito o que está reto e nítido; na foto torta erra ~1 em 3
+  horários. Gasto real informado pela API: 181–220 neurônios por folha → **~45–50 folhas
+  por dia** na cota gratuita (10.000).
+- **Llama 4 Scout:** lento demais (~4 min por folha; sem stream a Cloudflare devolve 408)
+  e erra muito — descartado.
+- **Gemma 4 26B:** modelo de raciocínio; gastou os 4.096 tokens de saída "pensando" e não
+  devolveu JSON. Fica para testar com o raciocínio desligado.
+- **Llama 3.2 11B Vision:** a Cloudflare exige aceitar a licença da Meta enviando "agree"
+  pela API; não aceitamos sem autorização do dono. Os demais modelos de visão do catálogo
+  (`qwen3.8-27b`, `deepseek-v4.1-flash`, `inkling-2-small`, `moondream3.1`, `clef*`,
+  `clairic*`) não foram testados — os grandes custam bem mais por folha.
+- Gasto total do comparativo: ~3.700 neurônios do dia (incluindo testes de chamada).
+
+**Escolha:** `@cf/mistralai/mistral-small-3.1-24b-instruct` é o padrão
+(`MODELO_CLOUDFLARE_PADRAO`, troca por `IA_MODELO_CLOUDFLARE`). Fica abaixo do Gemini
+(91% × 99%), sobretudo em foto torta — a **revisão continua obrigatória** e vale orientar
+o cliente a fotografar a folha reta e com luz. Medir de novo com folhas reais (com
+autorização) antes de qualquer conclusão sobre produção.

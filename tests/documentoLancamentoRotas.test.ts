@@ -329,11 +329,14 @@ describe('leitura', () => {
     expect((await ler()).status).toBe(200);
   });
 
-  it('Gemini falhou → 502, e a reserva vira falha (não conta na cota)', async () => {
+  it('Gemini falhou → 503 com mensagem para gente (sem a crua), e a reserva vira falha (não conta na cota)', async () => {
     como('clienteA1');
     gemini.mockRejectedValueOnce(new Error('fora do ar'));
     const r = await ler();
-    expect(r.status).toBe(502);
+    expect(r.status).toBe(503);
+    const d = await r.json();
+    expect(d.erro).toMatch(/indisponível no momento.*não conta na cota/);
+    expect(d.erro).not.toMatch(/fora do ar/);
     expect(cota.falharLeituraOcr).toHaveBeenCalledWith('reserva-1');
     expect(cota.confirmarLeituraOcr).not.toHaveBeenCalled();
   });

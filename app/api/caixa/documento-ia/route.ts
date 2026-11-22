@@ -13,7 +13,7 @@
 // (sem ela: 503) e a opção da empresa (sem ela: 403); empresa que identifica
 // pagador (saúde) nunca usa (403). Cada leitura conta na cota mensal de IA do
 // escritório (a mesma da folha de ponto, lib/cotaOcr.ts), reservada antes de
-// chamar o Gemini, como em /api/extrair.
+// chamar a IA (lib/ia: Cloudflare Workers AI ou Gemini), como em /api/extrair.
 //
 // Acesso: `cliente` (só a própria empresa — /api/caixa está em CLIENTE_PODE) e a
 // contabilidade do escritório (módulo caixa, recortado no proxy). O documento tem
@@ -22,16 +22,16 @@ import { NextRequest } from 'next/server';
 import { ehGestor, exigirEmpresa, exigirGestor, exigirSessao, motivoNegado } from '@/lib/acesso';
 import { contasDaEmpresa, ErroCaixa, historicosDaEmpresa } from '@/lib/caixa';
 import { definirIaDocumento, lerEmpresa } from '@/lib/cadastro';
-import { getGeminiModelo } from '@/lib/config';
 import { avaliarCota, competenciaBelem, excedeuRitmo } from '@/lib/cotaOcr';
 import {
-  categoriaLidaPelaIa, chaveGeminiDocumento, interpretarLeitura, leitorDaLeitura, LIMITE_DOCUMENTOS_EMPRESA_CLIENTE, MENSAGEM_INDISPONIVEL,
+  categoriaLidaPelaIa, iaDocumentoNaPlataforma, interpretarLeitura, leitorDaLeitura, LIMITE_DOCUMENTOS_EMPRESA_CLIENTE, MENSAGEM_INDISPONIVEL,
   montarPromptDocumento, opcoesDocumento, situacaoIaDocumento, tipoLidoPelaIa,
 } from '@/lib/documentoLancamento';
-import { ErroArquivoIa, lerDocumentoNoGemini, prepararParaIa } from '@/lib/documentoLancamentoServidor';
+import { ErroArquivoIa, lerDocumentoPelaIa, prepararParaIa } from '@/lib/documentoLancamentoServidor';
 import { podeVerRegistro } from '@/lib/documentos';
 import { baixarArquivo, ErroDoc, lerDocumento, type Documento } from '@/lib/documentosServidor';
 import { lerEscritorio } from '@/lib/escritorios';
+import { ErroIa } from '@/lib/ia';
 import { Limitador } from '@/lib/limite';
 import {
   cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasDocumentoDoCliente, contarLeiturasOcr, contarTentativasRecentes,
@@ -41,7 +41,7 @@ import type { Direcao } from '@/lib/sugestaoConta';
 import { visaoDoCatalogo } from '@/lib/visibilidadeCatalogo';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 /** Ritmo por usuário, à parte da cota e do ritmo do escritório: 15 leituras a cada 10 min. */
 const ritmo = new Limitador(15, 10 * 60_000);
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
   if (!g.ok) return g.resposta;
 
   let empresa: string; let ano: number; let direcao: Direcao | null;
-  let escritorioId: string; let doc: Documento; let apiKey: string;
+  let escritorioId: string; let doc: Documento;
   let bytes: Uint8Array;
   try {
     const body = await req.json().catch(() => ({}));
@@ -124,12 +124,10 @@ export async function POST(req: NextRequest) {
     // Travas: plataforma (503), saúde e opção da empresa (403).
     const dados = await lerEmpresa(empresa);
     const s = situacaoIaDocumento(dados);
-    const chave = chaveGeminiDocumento();
-    if (!chave || s.motivo === 'plataforma') throw new ErroCaixa(MENSAGEM_INDISPONIVEL.plataforma, 503);
+    if (!iaDocumentoNaPlataforma() || s.motivo === 'plataforma') throw new ErroCaixa(MENSAGEM_INDISPONIVEL.plataforma, 503);
     if (s.motivo) throw new ErroCaixa(MENSAGEM_INDISPONIVEL[s.motivo], 403);
     if (!dados?.escritorioId) throw new ErroCaixa('Esta empresa não está vinculada a um escritório.', 409);
     escritorioId = dados.escritorioId;
-    apiKey = chave;
 
     ano = Number(body.ano);
     if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new ErroCaixa('Ano inválido.');
@@ -209,9 +207,8 @@ export async function POST(req: NextRequest) {
     const visao = visaoDoCatalogo(g.sessao);
     const [contas, analiticas] = await Promise.all([contasDaEmpresa(empresa, visao), historicosDaEmpresa(empresa, visao)]);
     const opcoes = opcoesDocumento(direcao, contas, analiticas);
-    const texto = await lerDocumentoNoGemini({
-      apiKey, modelo: getGeminiModelo(), bytes, mime: doc.tipo,
-      prompt: montarPromptDocumento({ ano, direcao, opcoes }),
+    const texto = await lerDocumentoPelaIa({
+      bytes, mime: doc.tipo, prompt: montarPromptDocumento({ ano, direcao, opcoes }),
     });
     const proposta = interpretarLeitura(texto, opcoes, { ano, direcaoInformada: direcao });
     // A chamada foi feita: conta na cota mesmo se a leitura não serviu.
@@ -224,6 +221,11 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     await falharLeituraOcr(reserva).catch(() => {});
     if (e instanceof ErroCaixa || e instanceof ErroDoc) return falha(e);
+    if (e instanceof ErroIa) {
+      // Limite diário, tempo, PDF escaneado: mensagem para gente; no log só o detalhe curto.
+      console.error('[caixa] leitura de documento por IA falhou:', e.detalhe);
+      return Response.json({ erro: `${e.mensagem} Esta tentativa não conta na cota.` }, { status: e.status });
+    }
     console.error('[caixa] leitura de documento por IA falhou', e instanceof Error ? e.message : e);
     return Response.json({ erro: 'Não foi possível ler o documento agora. Tente de novo ou lance à mão — esta tentativa não conta na cota.' }, { status: 502 });
   }

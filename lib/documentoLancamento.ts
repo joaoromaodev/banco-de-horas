@@ -6,12 +6,13 @@
 // a tela preenche o formulário como rascunho e quem lança confere e clica em Lançar.
 //
 // Duas travas, as duas desligadas por padrão (decisão do dono, 21/11/2026):
-//   1. plataforma — `CAIXA_IA_DOCUMENTO=ligada` (e a chave do Gemini);
+//   1. plataforma — `CAIXA_IA_DOCUMENTO=ligada` (e a IA configurada: Cloudflare ou Gemini, lib/ia/config);
 //   2. empresa — `empresas.caixa_ia_documento` (0029), que só a contabilidade liga.
 // E, como a IA do caixa (lib/caixaInteligente.ts), nunca para empresa que
 // identifica pagador (clínica/saúde): o documento pode trazer dado de saúde.
 //
-// Sem I/O aqui: quem chama o Gemini e grava é a rota /api/caixa/documento-ia.
+// Sem I/O aqui: quem chama a IA e grava é a rota /api/caixa/documento-ia.
+import { chaveGemini, iaConfigurada } from './ia/config';
 import type { AnaliticaSugerivel, ContaSugerivel, Direcao, OpcaoIa } from './sugestaoConta';
 import { opcoesParaIa } from './sugestaoConta';
 
@@ -226,15 +227,16 @@ export function orientacaoExif(b: Uint8Array, mime: string): number {
 
 /** A plataforma ligou a leitura de documentos? (trava 1) */
 export function iaDocumentoNaPlataforma(env: NodeJS.ProcessEnv = process.env): boolean {
-  return String(env.CAIXA_IA_DOCUMENTO ?? '').trim().toLowerCase() === 'ligada' && !!chaveGeminiDocumento(env);
+  return String(env.CAIXA_IA_DOCUMENTO ?? '').trim().toLowerCase() === 'ligada' && iaConfigurada('documento', env);
 }
 
 /**
- * Chave do Gemini desta função: `GEMINI_API_KEY_CAIXA` (recomendada — uma chave do
- * plano pago só para os documentos do caixa) ou, sem ela, a `GEMINI_API_KEY` da plataforma.
+ * Chave do Gemini desta função (quando o provedor é o Gemini): `GEMINI_API_KEY_CAIXA`
+ * (recomendada — uma chave do plano pago só para os documentos do caixa) ou, sem
+ * ela, a `GEMINI_API_KEY` da plataforma.
  */
 export function chaveGeminiDocumento(env: NodeJS.ProcessEnv = process.env): string | null {
-  return env.GEMINI_API_KEY_CAIXA?.trim() || env.GEMINI_API_KEY?.trim() || null;
+  return chaveGemini('documento', env);
 }
 
 export type MotivoIndisponivel = 'plataforma' | 'saude' | 'empresa' | null;

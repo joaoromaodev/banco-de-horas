@@ -2,11 +2,12 @@
 // o master (Sprint 14, frente A). Só de servidor; testada em tests/ambienteMaster.test.ts.
 //
 // NUNCA devolve valor de variável: só se está configurada e o que ela destrava. A
-// decisão de cada item reusa a regra de quem usa a variável (senha do master, IA do
-// caixa, e-mail ao cliente), para o painel nunca dizer "ligado" quando a função
+// decisão de cada item reusa a regra de quem usa a variável (senha do master, IA —
+// lib/ia/config —, e-mail ao cliente), para o painel nunca dizer "ligado" quando a função
 // está, na prática, desligada.
 import { senhaMasterAceitavel } from './config';
 import { iaDocumentoNaPlataforma } from './documentoLancamento';
+import { cloudflareConfigurada, cotaDiariaCloudflare, descricaoProvedor, iaConfigurada } from './ia/config';
 
 export type SituacaoItem = 'ligado' | 'parcial' | 'desligado';
 
@@ -28,7 +29,12 @@ const igual = (v: string | undefined, esperado: string) => String(v ?? '').trim(
 export function situacaoDoAmbiente(env: NodeJS.ProcessEnv = process.env): ItemAmbiente[] {
   const temEmail = tem(env.RESEND_API_KEY);
   const temRemetente = tem(env.EMAIL_REMETENTE);
-  const temGemini = tem(env.GEMINI_API_KEY);
+  const ia = descricaoProvedor(env);
+  const temIa = ia.configurado;
+  const temIaSugestao = iaConfigurada('sugestao', env);
+  const faltaIa = ia.provedor === 'cloudflare'
+    ? 'falta configurar a Cloudflare (CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_AI_TOKEN)'
+    : 'falta uma chave do Gemini';
   const appUrl = String(env.APP_URL ?? '').trim();
   const temAppUrl = /^https?:\/\/[^/\s]+/.test(appUrl);
 
@@ -60,10 +66,15 @@ export function situacaoDoAmbiente(env: NodeJS.ProcessEnv = process.env): ItemAm
         : 'Sem senha forte, ninguém entra como administrador no ambiente publicado.',
     },
     {
-      id: 'gemini', variaveis: ['GEMINI_API_KEY'], titulo: 'Leitura por IA (Gemini)',
-      situacao: temGemini ? 'ligado' : 'desligado',
+      id: 'ia', variaveis: ['IA_PROVEDOR', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_AI_TOKEN', 'GEMINI_API_KEY'],
+      titulo: `Leitura por IA (${ia.nome})`,
+      situacao: temIa ? 'ligado' : 'desligado',
       destrava: 'A leitura das folhas de ponto por foto (inclusive as enviadas pelo cliente) e é a base das funções de IA do caixa.',
-      agora: temGemini ? 'A leitura por IA está disponível.' : 'Nenhuma leitura por IA funciona: as folhas precisam ser digitadas.',
+      agora: !temIa
+        ? `Nenhuma leitura por IA funciona (${faltaIa}): as folhas precisam ser digitadas.`
+        : ia.provedor === 'cloudflare'
+          ? `Ativa: ${ia.nome}, modelo ${ia.modelo}. Cota gratuita de ${cotaDiariaCloudflare(env).toLocaleString('pt-BR')} neurônios por dia (renova às 21h de Brasília); o uso de hoje aparece em "Leitura por IA", mais abaixo.`
+          : `Ativa: ${ia.nome}, modelo ${ia.modelo}.${cloudflareConfigurada(env) ? '' : ' No nível gratuito o Google pode usar o conteúdo enviado — configure a Cloudflare para trocar.'}`,
     },
     {
       id: 'caixa_documento', variaveis: ['CAIXA_IA_DOCUMENTO', 'GEMINI_API_KEY_CAIXA'], titulo: 'IA: lançamento a partir de documento',
@@ -72,15 +83,15 @@ export function situacaoDoAmbiente(env: NodeJS.ProcessEnv = process.env): ItemAm
       agora: iaDocumentoNaPlataforma(env)
         ? 'Ligada na plataforma.'
         : igual(env.CAIXA_IA_DOCUMENTO, 'ligada')
-          ? 'A trava está ligada, mas falta uma chave do Gemini.'
+          ? `A trava está ligada, mas ${faltaIa}.`
           : 'Desligada na plataforma (a trava precisa valer "ligada").',
     },
     {
       id: 'caixa_sugestao', variaveis: ['CAIXA_IA_SUGESTAO'], titulo: 'IA: sugestão de conta no caixa',
-      situacao: igual(env.CAIXA_IA_SUGESTAO, 'ligada') && temGemini ? 'ligado' : 'desligado',
+      situacao: igual(env.CAIXA_IA_SUGESTAO, 'ligada') && temIaSugestao ? 'ligado' : 'desligado',
       destrava: 'A sugestão de conta por IA ao lançar no Livro Caixa (nunca para empresa de saúde). Sem ela, a sugestão usa só o histórico.',
       agora: igual(env.CAIXA_IA_SUGESTAO, 'ligada')
-        ? temGemini ? 'Ligada.' : 'A trava está ligada, mas falta a chave do Gemini.'
+        ? temIaSugestao ? 'Ligada.' : `A trava está ligada, mas ${faltaIa}.`
         : 'Desligada (a trava precisa valer "ligada"): a sugestão usa só o histórico da empresa.',
     },
     {
