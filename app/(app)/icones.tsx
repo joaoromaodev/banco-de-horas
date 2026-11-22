@@ -138,6 +138,16 @@ export function IconeDocumento({ size = 16, className }: Props) {
 }
 
 /** "i" no círculo — informação. */
+/** Mês fechado (Sprint 17): cadeado. */
+export function IconeCadeado({ size = 16, className }: Props) {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
 export function IconeInfo({ size = 18, className }: Props) {
   return (
     <svg {...base(size)} className={className} aria-hidden="true">

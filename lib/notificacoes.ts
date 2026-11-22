@@ -7,7 +7,7 @@ import type { AchadoConferencia } from './conferenciaModulos';
 
 export type TipoNotificacao = 'documento' | 'pendencia' | 'caixa' | 'conferencia' | 'evento'
   // Avisos ao cliente (lib/avisosCliente.ts): só o papel `cliente` recebe.
-  | 'folha_devolvida' | 'pedido' | 'demonstrativo';
+  | 'folha_devolvida' | 'pedido' | 'demonstrativo' | 'aceite_ponto';
 
 export interface Notificacao {
   /** Estável: identifica o item para "marcar como lida". Muda quando chega algo novo do mesmo tipo. */

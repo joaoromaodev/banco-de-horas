@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server';
 import { ehGestor, exigirEmpresa, exigirGestor, motivoNegado } from '@/lib/acesso';
 import { ErroCaixa, garantirExercicio, lerTermo, mesesConfirmados, paraValor, resumoDoExercicio } from '@/lib/caixa';
 import { getDb } from '@/lib/db';
+import { mensagemSaldoInicialFechado } from '@/lib/mesFechado';
 
 export const runtime = 'nodejs';
 
@@ -61,6 +62,10 @@ export async function PATCH(req: NextRequest) {
     if (Number.isNaN(saldo)) throw new ErroCaixa('Saldo inicial inválido.');
 
     const ex = await garantirExercicio(empresa, ano);
+    // O saldo inicial abre janeiro e se propaga como saldo transportado: com algum mês
+    // fechado, mudá-lo mudaria os números desse mês (Sprint 17, frente C).
+    const fechados = await mesesConfirmados(ex.id);
+    if (fechados.length) throw new ErroCaixa(mensagemSaldoInicialFechado(ano, fechados), 409);
     const { error } = await getDb().from('exercicios')
       .update({ saldo_inicial: Math.round(saldo * 100) / 100 }).eq('id', ex.id);
     if (error) throw new ErroCaixa(`exercicios: ${error.message}`, 502);

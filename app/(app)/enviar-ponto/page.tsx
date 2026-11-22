@@ -20,6 +20,7 @@ import { Aviso, Botao, BotaoIcone, botaoCls, CabecalhoPagina, Carregando, Conteu
 import { MENSAGEM_GENERICA, MENSAGEM_SEM_REDE } from '@/lib/carga';
 import { Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { AceiteResumo } from './AceiteResumo';
 
 interface EnvioCliente {
   id: string; funcionario: string; ano: number; mes: number; situacao: SituacaoEnvio; motivo: string | null;
@@ -291,6 +292,9 @@ export default function EnviarPontoPage() {
             A contabilidade pediu uma nova foto. Veja o motivo na lista abaixo e use “Enviar de novo”.
           </Aviso>
         )}
+
+        {/* Resumo do mês fechado pela contabilidade, para o aceite (Sprint 17, frente C). Some quando não há. */}
+        {papel === 'cliente' && <AceiteResumo />}
 
         {papel === 'cliente' && !semBanco && (
           <div ref={formRef} className="scroll-mt-4">

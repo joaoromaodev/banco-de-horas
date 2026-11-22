@@ -55,6 +55,7 @@ para o cliente. **Sem migração nova** (a 0030 ficou livre).
 |---|---|---|---|---|
 | Folha de ponto devolvida | `ponto_envios` `devolvida` (0028), ainda não reenviada para o mesmo funcionário e mês, nos últimos 13 meses (o corte da tela); `quando` = `devolvido_em` | "Outubro/2026 · Motivo: …" (motivo cortado em 160) — **sem nome do funcionário** | `/enviar-ponto` | `cli\|folha\|<id>\|<devolvido_em>` (desfazer e devolver de novo → não lida de novo) |
 | Pedido de documento | `pendencias` `aberta`; `quando` = `criado_em` | "<título> · Prazo: dd/mm/aaaa" (ou "Sem prazo") | `/documentos` | `cli\|pedido\|<id>` |
+| Resumo do ponto para aceitar (Sprint 17 · C) | `ponto_meses_fechados` (0034) dos últimos 13 meses, sem resposta do cliente para a assinatura atual; `quando` = `fechado_em` | "Outubro/2026 · confira as horas do mês e responda à contabilidade." — **sem nome nem número** | `/enviar-ponto#aceite` | `cli\|aceite\|<ano>\|<mes>\|<fechado_em>` (reabrir e fechar de novo → não lida de novo) |
 | Demonstrativo pronto | `meses_confirmados` do ano (e do anterior, se a janela alcança); mês M liberado quando o último de 1..M é confirmado (`liberadoAte`) | "Abril/2026 · confirmado pela contabilidade." | `/caixa/demonstrativo?ano=&mes=` | `cli\|demo\|<ano>\|<mes>\|<quando>` |
 
 - Meses liberados no mesmo instante (confirmar janeiro depois de fevereiro e março) viram

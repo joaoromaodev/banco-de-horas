@@ -24,7 +24,7 @@ import {
   ErroEnvio, excluirEnvio, funcionariosParaEnvio, iniciarEnvio, lerEnvio, lerEnvioPelaIa, listarEnvios, processarFila,
   restaurarEnvio,
 } from '@/lib/envioPontoServidor';
-import { ErroBancoPendente } from '@/lib/pontoDb';
+import { ErroBancoPendente, ErroMesFechado } from '@/lib/pontoDb';
 import { ErroDoc } from '@/lib/documentosServidor';
 import { escritorioDaEmpresa, guardaEmpresa } from '../documentos/comum';
 import type { DiaFreq } from '@/lib/tipos';
@@ -40,6 +40,7 @@ function falha(e: unknown) {
   if (e instanceof ErroEnvio) return Response.json({ erro: e.message, ...(e.status === 503 ? { aguardandoBanco: true } : {}) }, { status: e.status });
   if (e instanceof ErroDoc) return Response.json({ erro: e.message }, { status: e.status });
   if (e instanceof ErroBancoPendente) return Response.json({ erro: e.message, aguardandoBanco: true }, { status: 503 });
+  if (e instanceof ErroMesFechado) return Response.json({ erro: e.message, mesFechado: true }, { status: 409 });
   // Erros de outra natureza (inclusive do banco, via pontoDb): sem a mensagem crua.
   console.error('[envio-ponto] erro inesperado:', e instanceof Error ? e.message.slice(0, 160) : e);
   return Response.json({ erro: 'Falha inesperada. Tente de novo.' }, { status: 500 });

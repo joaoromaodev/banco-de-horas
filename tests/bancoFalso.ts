@@ -65,7 +65,14 @@ class ConsultaFalsa implements PromiseLike<Resposta> {
   neq(c: string, v: unknown) { this.filtros.push((l) => l[c] !== v); return this; }
   in(c: string, vs: unknown[]) { this.filtros.push((l) => vs.includes(l[c])); return this; }
   is(c: string, v: null) { this.filtros.push((l) => (l[c] ?? null) === v); return this; }
-  not(c: string, _op: string, v: null) { this.filtros.push((l) => (l[c] ?? null) !== v); return this; }
+  not(c: string, op: string, v: null | string) {
+    // `.not('dia', 'in', '(1,2)')` (salvarFrequencia) e `.not('col', 'is', null)`.
+    if (op === 'in' && typeof v === 'string') {
+      const lista = v.replace(/^\(|\)$/g, '').split(',').map((x) => x.trim());
+      this.filtros.push((l) => !lista.includes(String(l[c])));
+    } else this.filtros.push((l) => (l[c] ?? null) !== v);
+    return this;
+  }
   lt(c: string, v: number) { this.filtros.push((l) => Number(l[c]) < v); return this; }
   lte(c: string, v: string | number) { this.filtros.push((l) => String(l[c]) <= String(v)); return this; }
   gte(c: string, v: string | number) { this.filtros.push((l) => String(l[c]) >= String(v)); return this; }

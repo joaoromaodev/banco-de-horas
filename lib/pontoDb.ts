@@ -11,6 +11,7 @@ import { getDb, lerTudo } from './db';
 import { DiaFreq, Frequencia, Funcionario, Marcador, MARCADORES } from './tipos';
 import { RESERVA_VALIDA_MIN, RITMO } from './cotaOcr';
 import { PREFIXO_LEITURA_CLIENTE } from './documentoLancamento';
+import { mensagemPontoFechado } from './mesFechado';
 
 export interface Feriado {
   data: string; // AAAA-MM-DD
@@ -33,7 +34,33 @@ export function ehTabelaInexistente(e: ErroPg | null | undefined): boolean {
 
 function falhar(e: ErroPg): never {
   if (ehTabelaInexistente(e)) throw new ErroBancoPendente();
+  // Gatilho da 0034 (defesa em profundidade): as funções já recusam antes.
+  if (/Mês fechado/.test(e.message)) throw new ErroMesFechado(e.message.replace(/^.*?(Mês fechado)/, '$1'));
   throw new Error(e.message);
+}
+
+// ---------------------------------------------------------------- Mês fechado (0034)
+/** Gravação em mês de ponto fechado pela contabilidade: as rotas respondem 409. */
+export class ErroMesFechado extends Error {}
+
+/**
+ * O mês de ponto da empresa está fechado? Sem a 0034 nenhum mês pode estar fechado
+ * (a tabela não existe): `false`. Qualquer outro erro do banco PROPAGA — na dúvida,
+ * não grava.
+ */
+export async function mesPontoFechado(escritorioId: string, empresaId: string, ano: number, mes: number): Promise<boolean> {
+  const { data, error } = await getDb().from('ponto_meses_fechados').select('mes')
+    .eq('escritorio_id', escritorioId).eq('empresa_id', empresaId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  if (error) {
+    if (ehTabelaInexistente(error)) return false;
+    throw new Error(error.message);
+  }
+  return Boolean(data);
+}
+
+/** Lança `ErroMesFechado` (409) se o mês estiver fechado. */
+export async function exigirMesPontoAberto(escritorioId: string, empresaId: string, ano: number, mes: number): Promise<void> {
+  if (await mesPontoFechado(escritorioId, empresaId, ano, mes)) throw new ErroMesFechado(mensagemPontoFechado(ano, mes));
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -216,6 +243,8 @@ export function diasParaGravar(dias: DiaFreq[]): DiaFreq[] {
  * se perde o mês. Retorna quantos dias foram gravados.
  */
 export async function salvarFrequencia(escritorioId: string, freq: Frequencia, autor: string | null): Promise<number> {
+  // Toda gravação de frequência passa por aqui (Timesheet, aplicar/desfazer envio): a trava do mês fechado também.
+  await exigirMesPontoAberto(escritorioId, freq.empresa, freq.ano, freq.mes);
   const db = getDb();
   const funcionario = String(freq.funcionario ?? '').trim();
   const dias = diasParaGravar(freq.dias);

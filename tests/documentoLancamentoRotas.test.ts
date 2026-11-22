@@ -90,6 +90,7 @@ vi.mock('@/lib/caixa', async (orig) => {
     historicosDaEmpresa: async () => [{ id: 'h-luz', texto: 'Pago conta de luz', natureza: 'despesa', contaId: 'c-luz', daEmpresa: true, escritorioId: null }],
     garantirExercicio: async () => ({ id: 'ex1', empresaId: 'emp-a1', ano: 2026, saldoInicial: 0 }),
     exigirCatalogoVisivel: async () => {},
+    exigirMesAberto: async () => {}, // mês fechado (Sprint 17): coberto em tests/mesFechadoRotas.test.ts
     vincularConta: async () => {},
     vincularHistorico: async () => {},
   };
