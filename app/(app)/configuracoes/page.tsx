@@ -48,6 +48,7 @@ function OQueEstaDesligado() {
     lerJson<{ itens: ItemAmbiente[] }>('/api/config/ambiente', { cache: 'no-store' })
       .then((d) => setItens(d.itens)).catch((e) => setFalha(mensagemDeCarga(e)));
   };
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga da API (zera a falha antes do fetch)
   useEffect(() => { carregar(); }, []);
   const desligados = (itens ?? []).filter((i) => i.situacao !== 'ligado').length;
 
@@ -118,7 +119,7 @@ export default function Configuracoes() {
     setFalhaCarga(null);
     Promise.all([carregarUsuarios(), carregarEscritorios()]).catch((e) => setFalhaCarga(mensagemDeCarga(e)));
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- só na montagem
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect -- carga da API, só na montagem
   useEffect(() => { carregarCfg(); carregarTudo(); }, []);
 
   async function addUsuario() {

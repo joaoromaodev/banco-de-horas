@@ -97,6 +97,7 @@ const SECOES: SecaoDoc[] = [
     titulo: 'Cookies',
     paragrafos: [
       'Usamos apenas cookies essenciais, como o cookie de sessão que mantém você conectado. Se passarmos a usar cookies de análise ou publicidade, pediremos o seu consentimento antes.',
+      'Para manter o sistema rápido e estável, registramos uma medição técnica de desempenho: qual tela ou função foi usada, quanto tempo levou e se houve erro. Essa medição não guarda nome, e-mail, documento, empresa nem conteúdo do que você lançou, não usa cookies e é apagada depois de 30 dias.',
     ],
   },
   {
