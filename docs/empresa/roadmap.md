@@ -172,7 +172,7 @@ Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal
 
 ## Sprint 17 — Planejada a partir dos concorrentes (`concorrentes.md`)
 
-Tudo sem serviço pago. Começa quando a Sprint 16 A for integrada (mexe nas mesmas telas).
+Tudo sem serviço pago. 🔄 Em andamento desde 22/11: A+B → `claude/documentos-mao-dupla` (0032), C → `claude/nota-sem-ia` (0033), E → `claude/mes-fechado` (0034). D (extrato OFX) depois da C; F espera o token da Cloudflare.
 
 | Frente | Por quê |
 |---|---|
