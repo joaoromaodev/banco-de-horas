@@ -94,7 +94,8 @@ function Flutuante({ ancora, onFechar, children }: {
   );
 }
 
-const OPCAO = 'flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left sm:py-1.5';
+// No celular cada opção tem 44 px de altura (alvo de toque); a partir de `sm`, densa.
+const OPCAO = 'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left sm:min-h-0 sm:py-1.5';
 
 // --------------------------------------------------------------- Selecao
 interface PropsSelecao {
@@ -105,6 +106,8 @@ interface PropsSelecao {
   placeholder?: string;
   rotulo?: React.ReactNode;
   dica?: React.ReactNode;
+  /** Mensagem de erro do campo: pinta a borda, liga por `aria-describedby` e é anunciada. */
+  erro?: React.ReactNode;
   classeCampo?: string;
   tamanho?: TamanhoCampo;
   /** Largura do gatilho; padrão `w-full`. */
@@ -122,7 +125,7 @@ interface PropsSelecao {
 }
 
 export function Selecao({
-  valor, onChange, opcoes, placeholder = 'Selecione…', rotulo, dica, classeCampo, tamanho = 'md',
+  valor, onChange, opcoes, placeholder = 'Selecione…', rotulo, dica, erro, classeCampo, tamanho = 'md',
   largura = 'w-full', disabled, busca, aparencia = 'campo', tom = 'neutro', id, ...resto
 }: PropsSelecao) {
   const auto = useId();
@@ -203,14 +206,15 @@ export function Selecao({
       ? cx(seloCls(tom), 'cursor-pointer gap-1.5 pr-2 transition-shadow hover:ring-2 disabled:opacity-50')
       : aparencia === 'celula'
         ? cx('flex h-8 items-center justify-between gap-2 rounded-md border border-borda bg-transparent px-2.5 text-left text-base text-tinta transition-colors hover:border-borda-forte disabled:opacity-50 sm:text-sm', largura)
-        : controleCls({ tamanho, largura, className: 'flex items-center justify-between gap-2 text-left' });
+        : controleCls({ tamanho, largura, invalido: !!erro, className: 'flex items-center justify-between gap-2 text-left' });
+  const descritoPor = cx(dica ? `${idBase}-dica` : '', erro ? `${idBase}-erro` : '') || undefined;
 
   const controle = (
     <>
       <button ref={gatilho} type="button" id={idBase} disabled={disabled}
         role="combobox" aria-haspopup="listbox" aria-expanded={aberto} aria-controls={aberto ? idLista : undefined}
         aria-activedescendant={comBusca ? undefined : idAtivo} aria-label={resto['aria-label']}
-        aria-describedby={dica ? `${idBase}-dica` : undefined}
+        aria-describedby={descritoPor} aria-invalid={erro ? true : undefined}
         onClick={() => (aberto ? fechar() : abrir())} onKeyDown={tecla}
         className={classeGatilho}>
         <span className={cx('min-w-0 truncate', !escolhida && aparencia !== 'selo' && 'text-tinta-fraca')}>
@@ -228,7 +232,7 @@ export function Selecao({
                 role="combobox" aria-expanded="true" aria-controls={idLista} aria-autocomplete="list"
                 aria-activedescendant={idAtivo} aria-label="Buscar na lista"
                 onChange={(e) => { setFiltro(e.target.value); setAtivo(0); }} onKeyDown={tecla}
-                className="h-9 w-full rounded-md bg-superficie-suave pl-8 pr-2 text-base text-tinta placeholder:text-tinta-fraca focus-visible:outline-none sm:h-8 sm:text-sm" />
+                className="h-11 w-full rounded-md bg-superficie-suave pl-8 pr-2 text-base text-tinta placeholder:text-tinta-fraca focus-visible:outline-none sm:h-8 sm:text-sm" />
             </div>
           )}
           <ul ref={lista} id={idLista} role="listbox" className="min-h-0 flex-1 overflow-y-auto p-1">
@@ -252,12 +256,13 @@ export function Selecao({
     </>
   );
 
-  if (!rotulo && !dica && !classeCampo) return controle;
+  if (!rotulo && !dica && !erro && !classeCampo) return controle;
   return (
     <div className={classeCampo}>
       {rotulo && <label htmlFor={idBase} className="mb-1.5 block text-[13px] font-medium text-tinta">{rotulo}</label>}
       {controle}
       {dica && <span id={`${idBase}-dica`} className="mt-1.5 block text-xs leading-relaxed text-tinta-suave">{dica}</span>}
+      {erro && <span id={`${idBase}-erro`} role="alert" className="mt-1.5 block text-xs font-medium text-perigo">{erro}</span>}
     </div>
   );
 }

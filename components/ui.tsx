@@ -56,9 +56,11 @@ const BOTAO_VARIANTE: Record<VarianteBotao, string> = {
   sucesso: 'bg-sucesso-suave text-sucesso ring-1 ring-inset ring-sucesso-borda hover:bg-sucesso-realce',
 };
 
+// Alvo de toque: no celular (abaixo de `sm`, 640 px) todo botão tem 44 px de altura,
+// o mínimo confortável para o dedo; a partir de `sm` volta à escala densa do app.
 const BOTAO_TAMANHO: Record<TamanhoBotao, string> = {
-  sm: 'h-8 gap-1.5 px-3 text-[13px]',
-  md: 'h-9 gap-2 px-3.5 text-sm',
+  sm: 'h-11 gap-1.5 px-3 text-[13px] sm:h-8',
+  md: 'h-11 gap-2 px-3.5 text-sm sm:h-9',
   lg: 'h-11 gap-2 px-5 text-[15px]',
 };
 
@@ -113,7 +115,8 @@ export function BotaoIcone({ rotulo, tom = 'neutro', tamanho = 'md', title, clas
     <button type={type} aria-label={rotulo} data-dica={title ?? rotulo}
       className={cx(
         'inline-flex shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        tamanho === 'sm' ? 'h-7 w-7' : 'h-8 w-8', ICONE_TOM[tom], className,
+        // 44 × 44 no celular (alvo de toque); compacto a partir de `sm`.
+        tamanho === 'sm' ? 'h-11 w-11 sm:h-7 sm:w-7' : 'h-11 w-11 sm:h-8 sm:w-8', ICONE_TOM[tom], className,
       )} {...resto}>
       {children}
     </button>
@@ -127,9 +130,10 @@ const CONTROLE_BASE =
   'rounded-lg border bg-superficie text-tinta transition-colors placeholder:text-tinta-fraca focus:border-foco disabled:cursor-not-allowed disabled:border-borda disabled:bg-superficie-suave disabled:text-tinta-fraca';
 
 // 16px no celular evita o zoom automático do iOS ao focar; a partir de `sm` volta à escala do app.
+// Altura de 44 px no celular (alvo de toque), como os botões.
 const CONTROLE_TAMANHO: Record<TamanhoCampo, string> = {
-  sm: 'h-8 px-2 text-base sm:text-[13px]',
-  md: 'h-9 px-3 text-base sm:text-sm',
+  sm: 'h-11 px-2 text-base sm:h-8 sm:text-[13px]',
+  md: 'h-11 px-3 text-base sm:h-9 sm:text-sm',
   lg: 'h-11 px-3.5 text-base sm:text-[15px]',
 };
 
@@ -235,7 +239,7 @@ export function Campo({ rotulo, dica, erro, className, children }: {
 /** Checkbox ou radio com o texto ao lado. */
 export function Marcacao({ children, className, type = 'checkbox', ...resto }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className={cx('inline-flex items-center gap-2 text-sm text-tinta', className)}>
+    <label className={cx('inline-flex min-h-11 items-center gap-2 text-sm text-tinta sm:min-h-0', className)}>
       <input type={type} {...resto} />
       <span>{children}</span>
     </label>
@@ -277,7 +281,7 @@ export function CampoArquivo({ rotulo, dica, accept, nome, onArquivo, texto = 'E
       <label
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); onArquivo(e.dataTransfer.files?.[0] ?? null); }}
-        className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg border border-dashed border-borda-forte bg-superficie px-3 text-base text-tinta transition-colors hover:border-primaria hover:bg-superficie-realce has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-foco sm:text-sm">
+        className="flex h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg border border-dashed sm:h-9 border-borda-forte bg-superficie px-3 text-base text-tinta transition-colors hover:border-primaria hover:bg-superficie-realce has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-foco sm:text-sm">
         <input id={id} type="file" accept={accept} className="sr-only"
           aria-describedby={dica ? `${id}-dica` : undefined}
           onChange={(e) => onArquivo(e.target.files?.[0] ?? null)} />
@@ -340,7 +344,7 @@ export function Abas({ itens, rotulo }: { itens: ItemAba[]; rotulo: string }) {
       {itens.map((i) => (
         <a key={i.href} href={i.href} aria-current={i.ativa ? 'page' : undefined}
           className={cx(
-            'whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:-outline-offset-2',
+            'whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:-outline-offset-2 sm:py-2.5',
             i.ativa
               ? 'border-primaria text-primaria'
               : 'border-transparent text-tinta-suave hover:border-borda-forte/60 hover:text-tinta',

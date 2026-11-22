@@ -326,3 +326,18 @@ export function resumoPendencias(lista: PendenciaResumo[], hoje: string): { aber
 export function deveReabrir(outrosEnviosVivos: number): boolean {
   return outrosEnviosVivos === 0;
 }
+
+/** Erros do formulário "Enviar documentos", por campo (vazio = pode enviar). */
+export type ErrosEnvioDocumentos = Partial<Record<'categoria' | 'arquivos', string>>;
+
+/**
+ * O que falta antes de enviar documentos — tudo de uma vez, para a tela marcar cada
+ * campo com a mensagem ligada a ele. `arquivosProntos` = arquivos da lista que ainda
+ * podem ir (não enviados e de tipo/tamanho aceitos).
+ */
+export function conferirEnvioDocumentos(a: { categoria: string; arquivosProntos: number }): ErrosEnvioDocumentos {
+  const erros: ErrosEnvioDocumentos = {};
+  if (!a.categoria) erros.categoria = 'Escolha o tipo de documento.';
+  if (a.arquivosProntos <= 0) erros.arquivos = 'Escolha ao menos um arquivo (ou tire uma foto do documento).';
+  return erros;
+}

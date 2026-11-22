@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { IconeExcluir, IconeMenu, IconePainel } from './icones';
 import { BRAND, VENDAS_ABERTAS } from '@/lib/brand';
@@ -54,6 +54,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [menuAberto, setMenuAberto] = useState(false);
   // Sino de notificações: contabilidade de um escritório e cliente (avisos da própria empresa; ver Sino.tsx).
   const [sinoAberto, setSinoAberto] = useState(false);
+  // Foco da gaveta: ao abrir vai para o "Fechar menu"; ao fechar volta ao "Abrir menu".
+  const abrirMenuRef = useRef<HTMLButtonElement>(null);
+  const fecharMenuRef = useRef<HTMLButtonElement>(null);
+  const gavetaJaAbriu = useRef(false);
 
   useEffect(() => {
     lerMe().then((d) => d?.autenticado && setMe(d)).catch(() => {});
@@ -65,7 +69,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const sino = useSino(temSino, me?.role === 'cliente' ? 'cliente' : 'contabilidade');
 
   useEffect(() => {
-    if (!menuAberto) return;
+    if (!menuAberto) {
+      if (gavetaJaAbriu.current) abrirMenuRef.current?.focus();
+      return;
+    }
+    gavetaJaAbriu.current = true;
+    fecharMenuRef.current?.focus();
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAberto(false); };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
@@ -136,7 +145,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Rótulos somem só na barra recolhida do desktop; na gaveta do celular ficam.
   const soExpandido = recolhido ? 'lg:hidden' : '';
-  const botaoEscuro = 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-petroleo-100 transition-colors hover:bg-white/10 hover:text-white';
+  // 44 × 44 no celular e na gaveta (alvo de toque); 36 px na barra fixa do desktop.
+  const botaoEscuro = 'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-petroleo-100 transition-colors hover:bg-white/10 hover:text-white lg:h-9 lg:w-9';
 
   return (
     <div className="min-h-screen lg:flex">
@@ -147,7 +157,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Barra de topo — só no celular/tablet, onde o menu vira gaveta. */}
       <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 bg-petroleo-900 px-3 text-white [--color-foco:var(--color-petroleo-300)] lg:hidden">
-        <button onClick={() => setMenuAberto(true)} aria-label="Abrir menu" aria-expanded={menuAberto} aria-controls="menu-lateral"
+        <button ref={abrirMenuRef} type="button" onClick={() => setMenuAberto(true)} aria-label="Abrir menu" aria-expanded={menuAberto} aria-controls="menu-lateral"
           className={botaoEscuro}>
           <IconeMenu />
         </button>
@@ -175,12 +185,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <span className="block truncate text-xs text-petroleo-200">{BRAND.subtitulo}</span>
             </span>
           </div>
-          <button onClick={alternarBarra} data-dica={recolhido ? 'Expandir menu' : 'Recolher menu'}
+          <button type="button" onClick={alternarBarra} data-dica={recolhido ? 'Expandir menu' : 'Recolher menu'}
             aria-label={recolhido ? 'Expandir menu' : 'Recolher menu'}
             className={`${botaoEscuro} max-lg:hidden`}>
             <IconePainel recolhido={recolhido} />
           </button>
-          <button onClick={() => setMenuAberto(false)} aria-label="Fechar menu" className={`${botaoEscuro} lg:hidden`}>
+          <button ref={fecharMenuRef} type="button" onClick={() => setMenuAberto(false)} aria-label="Fechar menu" className={`${botaoEscuro} lg:hidden`}>
             <IconeExcluir size={18} />
           </button>
         </div>
@@ -199,7 +209,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 return (
                   <a key={item.href} href={item.href} aria-current={ativo ? 'page' : undefined}
                     aria-label={item.label} data-dica={recolhido ? item.label : undefined}
-                    className={`relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors ${recolhido ? 'lg:justify-center lg:px-0' : ''} ${
+                    className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors lg:h-10 ${recolhido ? 'lg:justify-center lg:px-0' : ''} ${
                       ativo
                         ? 'bg-white/10 font-medium text-white before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-verde-500'
                         : 'text-petroleo-100 hover:bg-white/5 hover:text-white'
@@ -214,7 +224,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className={`m-3 rounded-xl bg-white/5 p-3 ring-1 ring-inset ring-white/10 ${recolhido ? 'lg:m-2 lg:p-2' : ''}`}>
-          <div className={`flex items-center gap-3 ${recolhido ? 'lg:flex-col lg:gap-2' : ''}`}>
+          <div className={`flex items-center gap-2 ${recolhido ? 'lg:flex-col lg:gap-2' : 'lg:gap-3'}`}>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-verde-700 text-sm font-semibold" aria-hidden="true">
               {iniciais}
             </div>
@@ -224,7 +234,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
             {temSino && <SinoBotao sino={sino} aberto={sinoAberto} onAlternar={() => setSinoAberto((v) => !v)} className={`${botaoEscuro} max-lg:hidden`} />}
             <BotaoTema className={botaoEscuro} />
-            <button onClick={sair} data-dica="Sair" aria-label="Sair" className={botaoEscuro}>
+            <button type="button" onClick={sair} data-dica="Sair" aria-label="Sair" className={botaoEscuro}>
               <Icon name="logout" />
             </button>
           </div>

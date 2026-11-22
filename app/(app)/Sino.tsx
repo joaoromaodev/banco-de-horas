@@ -7,8 +7,8 @@
 // app/api/notificacoes. Ver docs/notificacoes.md.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { quandoRelativo, rotuloSino, type Notificacao } from '@/lib/notificacoes';
-import { Botao, cx } from '@/components/ui';
-import { IconeSino } from './icones';
+import { Botao, BotaoIcone, cx } from '@/components/ui';
+import { IconeExcluir, IconeSino } from './icones';
 
 const REVERIFICAR_MS = 5 * 60_000;
 
@@ -109,15 +109,28 @@ export function SinoPainel({ sino, aberto, onFechar, recolhido }: {
   sino: SinoEstado; aberto: boolean; onFechar: () => void; recolhido: boolean;
 }) {
   const painel = useRef<HTMLDivElement>(null);
-  const { recarregar } = sino;
+  // `onFechar` e `recarregar` mudam de identidade a cada render do layout: em refs, o
+  // efeito abaixo roda só ao abrir/fechar (antes, cada resposta da API re-renderizava,
+  // refazia o efeito e pedia de novo — e o foco voltava ao painel a cada vez).
+  const fecharRef = useRef(onFechar);
+  const recarregarRef = useRef(sino.recarregar);
+  useEffect(() => { fecharRef.current = onFechar; recarregarRef.current = sino.recarregar; });
   useEffect(() => {
     if (!aberto) return;
-    recarregar();
-    painel.current?.focus();
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
+    // Quem abriu (o sino da barra do celular ou o da barra lateral) recebe o foco de volta ao fechar.
+    const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const caixa = painel.current;
+    recarregarRef.current();
+    caixa?.focus();
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fecharRef.current(); };
     window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [aberto, onFechar, recarregar]);
+    return () => {
+      window.removeEventListener('keydown', esc);
+      const foco = document.activeElement;
+      const perdido = !foco || foco === document.body || !foco.isConnected || !!caixa?.contains(foco);
+      if (perdido && anterior?.isConnected) anterior.focus();
+    };
+  }, [aberto]);
   if (!aberto) return null;
 
   return (
@@ -131,7 +144,11 @@ export function SinoPainel({ sino, aberto, onFechar, recolhido }: {
         )}>
         <div className="flex items-center justify-between gap-2 border-b border-borda px-4 py-3">
           <h2 className="text-sm font-semibold">Notificações</h2>
-          <Botao tamanho="sm" variante="fantasma" disabled={sino.naoLidas === 0} onClick={() => sino.marcar()}>Marcar todas como lidas</Botao>
+          <div className="flex items-center gap-1">
+            <Botao tamanho="sm" variante="fantasma" disabled={sino.naoLidas === 0} onClick={() => sino.marcar()}>Marcar todas como lidas</Botao>
+            {/* No celular não há Esc nem "clicar fora" óbvio: o fechar fica à vista. */}
+            <BotaoIcone rotulo="Fechar notificações" tom="apagado" onClick={onFechar}><IconeExcluir size={16} /></BotaoIcone>
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {sino.itens.length === 0 ? (

@@ -70,3 +70,23 @@ export function formatarDocumento(v: string | null): string {
   if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
   return v ?? '';
 }
+
+/** Campo do formulário de lançamento a que um erro se refere (para ligar a mensagem ao campo). */
+export type CampoLancamento = 'data' | 'titular' | 'analitica' | 'valor' | 'saida';
+
+/**
+ * Lê a mensagem de erro que a rota de lançamentos devolve (`validarLancamento` em
+ * lib/caixa.ts e o atalho de cheque) e diz de qual campo ela fala — para a tela
+ * pintar o campo, ligar a mensagem por `aria-describedby` e levar o foco até ele.
+ * Mensagem que não é de um campo (rede, permissão, banco) → null: fica só no aviso.
+ */
+export function campoDoErro(msg: string | null | undefined): CampoLancamento | null {
+  const m = (msg ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (!m) return null;
+  if (/cheque/.test(m)) return 'saida';
+  if (/\bdata\b/.test(m)) return 'data';
+  if (/analitica/.test(m)) return 'analitica';
+  if (/titular/.test(m)) return 'titular';
+  if (/\bvalor\b|negativo|entrada ou (a )?saida/.test(m)) return 'valor';
+  return null;
+}

@@ -33,12 +33,18 @@ interface Props {
   podeCriar?: boolean;
   onCriar?: (texto: string) => Promise<Historico | null>;
   compacto?: boolean;
+  /** id do gatilho (para um <label for> da tela). */
+  id?: string;
+  /** Campo com erro: contorno de perigo (a mensagem chega por `descritoPor`; botão não aceita `aria-invalid`). */
+  invalido?: boolean;
+  /** id da mensagem de erro/dica que descreve o campo (`aria-describedby`). */
+  descritoPor?: string;
 }
 
 /** Ignora acento e caixa: quem digita "atendimento" acha "Atendimento". */
 const chave = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export default function SeletorAnalitica({ historicos, valor, titularId, onEscolher, podeCriar, onCriar, compacto }: Props) {
+export default function SeletorAnalitica({ historicos, valor, titularId, onEscolher, podeCriar, onCriar, compacto, id, invalido, descritoPor }: Props) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
   const [criando, setCriando] = useState(false);
@@ -84,10 +90,14 @@ export default function SeletorAnalitica({ historicos, valor, titularId, onEscol
     <>
       <button
         type="button"
+        id={id}
         onClick={abrir}
+        // O nome diz o que é o campo e o que está escolhido (na tabela não há rótulo visível ao lado).
+        aria-label={`Conta analítica: ${valor || 'nenhuma escolhida'}`}
+        aria-describedby={descritoPor}
         data-dica={valor ?? 'Escolher conta analítica…'}
         aria-haspopup="dialog"
-        className={`w-full truncate rounded-md border px-2 text-left text-base transition-colors sm:text-[13px] ${compacto ? 'h-8' : 'h-9'} ${
+        className={`w-full truncate rounded-md border px-2 text-left text-base transition-colors sm:text-[13px] ${compacto ? 'h-8' : 'h-11 sm:h-9'} ${invalido ? 'ring-1 ring-perigo' : ''} ${
           valor
             ? 'border-borda-forte bg-superficie text-tinta hover:border-tinta-suave'
             : 'border-aviso-borda bg-aviso-suave text-aviso hover:border-aviso'
@@ -173,7 +183,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 function Item({ h, sel, onClick }: { h: Historico; sel: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-current={sel ? 'true' : undefined}
-      className={`flex w-full items-baseline gap-3 px-4 py-2 text-left transition-colors hover:bg-superficie-realce focus-visible:-outline-offset-2 ${sel ? 'bg-superficie-realce font-medium' : ''}`}>
+      className={`flex min-h-11 w-full items-baseline gap-3 px-4 py-3 text-left sm:min-h-0 sm:py-2 transition-colors hover:bg-superficie-realce focus-visible:-outline-offset-2 ${sel ? 'bg-superficie-realce font-medium' : ''}`}>
       <span className="min-w-0 flex-1 truncate text-tinta">{h.texto}</span>
       <span className={`shrink-0 text-xs ${h.natureza === 'receita' ? 'text-sucesso' : 'text-tinta-suave'}`}>
         {h.natureza === 'receita' ? 'receita' : 'despesa'}

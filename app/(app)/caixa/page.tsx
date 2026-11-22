@@ -9,8 +9,8 @@
 // todas as empresas, confere lançamento a lançamento e confirma o mês. Nada
 // disso trava a edição: lançamento é sempre editável e excluível, inclusive
 // retroativo — decisão dela.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS } from './formato';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { campoDoErro, diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS, type CampoLancamento } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import SeletorAnalitica, { Historico } from './SeletorAnalitica';
 import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
@@ -130,6 +130,8 @@ export default function Caixa() {
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Erro da rota que fala de um campo (data, conta, valor): pinta o campo e liga a mensagem a ele.
+  const [erroCampo, setErroCampo] = useState<(ErroCampo & { onde: 'novo' | 'edicao' }) | null>(null);
   // Falha do carregamento principal (empresas, exercício, mês): fica na tela com "Tentar de novo".
   const [falhaEmpresas, setFalhaEmpresas] = useState<string | null>(null);
   const [falhaCarga, setFalhaCarga] = useState<string | null>(null);
@@ -169,6 +171,7 @@ export default function Caixa() {
     setNovo(vazio(dataPadrao(novoAno, novoMes)));
     setCheque(false);
     setEditandoId(null);
+    setErroCampo(null);
     setRascunho(null);
     setDesfazerRascunho(null);
   }
@@ -332,8 +335,25 @@ export default function Caixa() {
     return d;
   }
 
+  /** Erro da gravação: no aviso do topo e, se for de um campo, ligado ao campo (que recebe o foco). */
+  function falhaAoGravar(e: unknown, onde: 'novo' | 'edicao') {
+    const mensagem = e instanceof Error ? e.message : String(e);
+    setErro(mensagem);
+    const campo = campoDoErro(mensagem);
+    setErroCampo(campo ? { campo, mensagem, onde } : null);
+    if (campo) {
+      // Depois de pintar: o leitor de tela lê o rótulo, "inválido" e a mensagem do campo.
+      requestAnimationFrame(() => {
+        const alvo = campo === 'valor' ? 'entrada' : campo;
+        const visivel = [...document.querySelectorAll<HTMLElement>(`[data-campo-lancamento="${onde}"] [id$="-${alvo}"]`)]
+          .find((el) => el.offsetParent !== null);
+        visivel?.focus();
+      });
+    }
+  }
+
   async function lancar() {
-    setSalvando(true); setErro(null); setMsg(null);
+    setSalvando(true); setErro(null); setMsg(null); setErroCampo(null);
     try {
       const d = await chamar('/api/caixa/lancamentos', {
         method: 'POST',
@@ -352,7 +372,7 @@ export default function Caixa() {
       await recarregar();
       await recarregarContas();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      falhaAoGravar(e, 'novo');
     } finally {
       setSalvando(false);
     }
@@ -360,7 +380,7 @@ export default function Caixa() {
 
   async function salvarEdicao() {
     if (!editandoId) return;
-    setSalvando(true); setErro(null); setMsg(null);
+    setSalvando(true); setErro(null); setMsg(null); setErroCampo(null);
     try {
       await chamar('/api/caixa/lancamentos', { method: 'PATCH', body: JSON.stringify({ id: editandoId, ...edicao }) });
       setEditandoId(null);
@@ -368,7 +388,7 @@ export default function Caixa() {
       await recarregar();
       await recarregarContas();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      falhaAoGravar(e, 'edicao');
     } finally {
       setSalvando(false);
     }
@@ -522,6 +542,16 @@ export default function Caixa() {
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
+  }
+
+  /** Digitar de novo no formulário tira a marca de erro do campo (o aviso do topo fica até fechar). */
+  function mudarNovo(c: Campos) {
+    setNovo(c);
+    if (erroCampo?.onde === 'novo') setErroCampo(null);
+  }
+  function mudarEdicao(c: Campos) {
+    setEdicao(c);
+    if (erroCampo?.onde === 'edicao') setErroCampo(null);
   }
 
   /** "Usar" a sugestão: preenche titular + analítica — só com o clique do usuário. */
@@ -707,7 +737,7 @@ export default function Caixa() {
             return (
               <button key={m} type="button" onClick={() => irPara(ano, m)} aria-current={m === mes ? 'true' : undefined}
                 aria-label={`${MESES_LONGOS[i]}${confirmado ? ' — confirmado' : ''}${temMovimento ? '' : ' — sem movimento'}`}
-                className={`relative flex h-9 items-center justify-center gap-1 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
+                className={`relative flex h-11 items-center justify-center gap-1 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors md:h-9 ${
                   m === mes ? 'bg-primaria text-sobre-primaria shadow-cartao'
                     : temMovimento ? 'text-tinta hover:bg-superficie-realce'
                     : 'font-medium text-tinta-fraca hover:bg-superficie-realce hover:text-tinta'
@@ -796,15 +826,16 @@ export default function Caixa() {
         <Cartao className="p-4 md:hidden">
           <h2 className="mb-3 text-[15px] font-semibold text-tinta">Novo lançamento</h2>
           {avisoRascunho && <div className="mb-3">{avisoRascunho}</div>}
-          <div className="grid grid-cols-2 gap-3">
-            <Celulas empilhado campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
-              podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
+          <div className="grid grid-cols-2 gap-3" data-campo-lancamento="novo">
+            <Celulas empilhado campos={novo} setCampos={mudarNovo} contas={contas} historicos={historicos}
+              podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador}
+              erro={erroCampo?.onde === 'novo' ? erroCampo : null} />
           </div>
           <div className="mt-3 empty:hidden">{faixaSugestao}</div>
           <Marcacao type="checkbox" className="mt-3" checked={cheque} onChange={(e) => setCheque(e.target.checked)}>
             Pagamento em cheque — gera também a retirada da conta corrente (dois lançamentos)
           </Marcacao>
-          <Botao variante="primaria" className="mt-4 w-full" onClick={lancar} carregando={salvando} disabled={!empresaSel}>
+          <Botao variante="primaria" tamanho="lg" className="mt-4 w-full" onClick={lancar} carregando={salvando} disabled={!empresaSel}>
             Lançar
           </Botao>
           <p className="mt-3 text-xs text-tinta-suave">
@@ -842,9 +873,10 @@ export default function Caixa() {
               </tr>
 
               {linhasVisiveis.map(({ l, saldo }) => editandoId === l.id ? (
-                <tr key={l.id} className="bg-primaria-suave">
-                  <Celulas campos={edicao} setCampos={setEdicao} contas={contas} historicos={historicos}
-                    podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
+                <tr key={l.id} className="bg-primaria-suave" data-campo-lancamento="edicao">
+                  <Celulas campos={edicao} setCampos={mudarEdicao} contas={contas} historicos={historicos}
+                    podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador}
+                    erro={erroCampo?.onde === 'edicao' ? erroCampo : null} />
                   <td className={`${tb.td} ${tb.num} text-tinta-fraca`}>—</td>
                   <td className="whitespace-nowrap px-2 py-1 text-right">
                     <Botao tamanho="sm" variante="primaria" onClick={salvarEdicao} carregando={salvando}>Salvar</Botao>
@@ -859,7 +891,7 @@ export default function Caixa() {
                     {l.documentoId && (
                       <a href={`/api/documentos/arquivo?id=${encodeURIComponent(l.documentoId)}`}
                         aria-label="Abrir o documento anexo" data-dica="Documento anexo"
-                        className="ml-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md align-middle text-primaria-texto transition-colors hover:bg-superficie-realce">
+                        className="ml-1.5 inline-flex h-11 w-11 items-center justify-center rounded-md align-middle text-primaria-texto transition-colors hover:bg-superficie-realce sm:h-6 sm:w-6">
                         <IconeDocumento size={14} />
                       </a>
                     )}
@@ -939,9 +971,10 @@ export default function Caixa() {
             </tbody>
 
             <tfoot>
-              <tr className="bg-superficie-suave max-md:hidden">
-                <Celulas campos={novo} setCampos={setNovo} contas={contas} historicos={historicos}
-                  podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador} />
+              <tr className="bg-superficie-suave max-md:hidden" data-campo-lancamento="novo">
+                <Celulas campos={novo} setCampos={mudarNovo} contas={contas} historicos={historicos}
+                  podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador}
+                  erro={erroCampo?.onde === 'novo' ? erroCampo : null} />
                 <td className={`${tb.td} ${tb.num} font-semibold ${(dados?.saldoFinal ?? 0) < 0 ? 'text-perigo' : 'text-tinta'}`}>{dinheiro(dados?.saldoFinal ?? 0)}</td>
                 <td className="px-2 py-1 text-right">
                   <Botao tamanho="sm" variante="primaria" onClick={lancar} carregando={salvando} disabled={!empresaSel}>
@@ -1067,21 +1100,37 @@ function SeloRevisao({ revisao }: { revisao: RevisaoLancamento | undefined }) {
   );
 }
 
+// Altura à parte: 32 px na linha da tabela, 44 px no formulário do celular (alvo de toque).
 const CAMPO_LINHA =
-  'h-8 rounded-md border bg-superficie px-2 text-base text-tinta transition-colors placeholder:text-tinta-fraca focus:border-foco sm:text-[13px]';
+  'rounded-md border bg-superficie px-2 text-base text-tinta transition-colors placeholder:text-tinta-fraca focus:border-foco sm:text-[13px]';
 const BORDA_CAMPO = 'border-borda-forte hover:border-tinta-suave';
+const BORDA_ERRO = 'border-perigo';
+
+/** Erro devolvido pela rota, já atribuído a um campo do formulário (ver `campoDoErro`). */
+interface ErroCampo { campo: CampoLancamento; mensagem: string }
 
 /**
  * Os campos editáveis do lançamento, iguais na linha nova e na linha em edição.
  * Por padrão saem como células (<td>) da tabela; com `empilhado`, como blocos
- * com rótulo visível — o formulário do celular.
+ * com rótulo visível (<label for>) — o formulário do celular.
+ * `erro` pinta o campo, marca `aria-invalid` e liga a mensagem por `aria-describedby`.
  */
-function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, onCriarAnalitica, identificaPagador, empilhado = false }: {
+function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, onCriarAnalitica, identificaPagador, empilhado = false, erro = null }: {
   campos: Campos; setCampos: (c: Campos) => void; contas: Conta[]; historicos: Historico[];
   podeCriar: boolean; onCriar: (nome: string, grupo: string) => Promise<Conta | null>;
   onCriarAnalitica: (texto: string, contaId: string | null) => Promise<Historico | null>;
-  identificaPagador: boolean; empilhado?: boolean;
+  identificaPagador: boolean; empilhado?: boolean; erro?: ErroCampo | null;
 }) {
+  const base = useId();
+  const idDe = (c: string) => `${base}-${c}`;
+  const idErro = `${base}-erro`;
+  // Entrada e saída dividem a mensagem "informe o valor"; o cheque fala só da saída.
+  const comErro = (c: CampoLancamento | 'entrada') =>
+    !!erro && (erro.campo === c || (c === 'entrada' && erro.campo === 'valor') || (c === 'saida' && erro.campo === 'valor'));
+  const aria = (c: CampoLancamento | 'entrada') =>
+    comErro(c) ? { 'aria-invalid': true as const, 'aria-describedby': idErro } : {};
+  const altura = empilhado ? 'h-11' : 'h-8';
+  const borda = (c: CampoLancamento | 'entrada') => (comErro(c) ? BORDA_ERRO : BORDA_CAMPO);
   // Aviso, não trava: documento com dígito verificador inválido fica em âmbar.
   const docInvalido = !!campos.pagadorDocumento && !documentoValido(campos.pagadorDocumento);
 
@@ -1100,61 +1149,79 @@ function Celulas({ campos, setCampos, contas, historicos, podeCriar, onCriar, on
     setCampos({ ...campos, historico: h.texto, historicoId: h.id, contaId: h.contaId ?? campos.contaId });
   }
 
-  /** Embrulha um campo: célula da tabela ou bloco com rótulo (celular). */
-  const envolver = (rotulo: string, conteudo: React.ReactNode, opcoes: { td?: string; largo?: boolean } = {}) =>
-    empilhado ? (
-      <div key={rotulo} className={opcoes.largo ? 'col-span-2' : undefined}>
-        <span className="mb-1 block text-xs font-medium text-tinta-suave">{rotulo}</span>
+  /**
+   * Embrulha um campo: célula da tabela ou bloco com rótulo (celular). No celular o
+   * rótulo é um <label for> de verdade — tocar nele leva ao campo. Na tabela o nome
+   * acessível vem do `aria-label` do próprio campo (o cabeçalho da coluna é o visual).
+   * A mensagem de erro, quando é deste campo, fica logo abaixo (celular) ou só para o
+   * leitor de tela (tabela, onde o aviso aparece no topo).
+   */
+  const envolver = (campo: string, rotulo: string, conteudo: React.ReactNode, opcoes: { td?: string; largo?: boolean; erro?: boolean } = {}) => {
+    const msg = opcoes.erro && erro ? (
+      <span id={idErro} className={empilhado ? 'mt-1 block text-xs font-medium text-perigo' : 'sr-only'}>{erro.mensagem}</span>
+    ) : null;
+    return empilhado ? (
+      <div key={campo} className={opcoes.largo ? 'col-span-2' : undefined}>
+        <label htmlFor={idDe(campo)} className="mb-1 block text-xs font-medium text-tinta-suave">{rotulo}</label>
         {conteudo}
+        {msg}
       </div>
     ) : (
-      <td key={rotulo} className={`px-1 py-1 align-middle ${opcoes.td ?? ''}`}>{conteudo}</td>
+      <td key={campo} className={`px-1 py-1 align-middle ${opcoes.td ?? ''}`}>{conteudo}{msg}</td>
     );
+  };
   // No celular todo campo ocupa a largura do bloco; na tabela cada um tem a sua.
   const larg = (naTabela: string) => (empilhado ? 'w-full' : naTabela);
+  // A mensagem de "informe o valor" mora uma vez só, embaixo da Entrada.
+  const erroEm = (c: CampoLancamento | 'entrada') =>
+    !!erro && (erro.campo === c || (c === 'entrada' && erro.campo === 'valor'));
 
   return (
     <>
-      {envolver('Data',
-        <input type="date" aria-label="Data" value={campos.data} onChange={(e) => setCampos({ ...campos, data: e.target.value })}
-          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-full min-w-[8.5rem]')}`} />)}
-      {envolver('Complemento',
-        <input aria-label="Complemento" value={campos.complemento} onChange={(e) => setCampos({ ...campos, complemento: e.target.value })}
-          placeholder="Complemento" className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-full min-w-32')}`} />)}
-      {identificaPagador && envolver('Cliente/Paciente',
-        <input aria-label="Cliente ou paciente" value={campos.pagadorNome} onChange={(e) => setCampos({ ...campos, pagadorNome: e.target.value })}
-          placeholder="Cliente/Paciente" className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-full min-w-36')}`} />)}
-      {identificaPagador && envolver('CPF/CNPJ',
-        <input aria-label={docInvalido ? 'CPF ou CNPJ — dígito inválido, confira' : 'CPF ou CNPJ'} value={campos.pagadorDocumento} onChange={(e) => setCampos({ ...campos, pagadorDocumento: e.target.value })}
-          inputMode="numeric" placeholder="CPF/CNPJ"
+      {envolver('data', 'Data',
+        <input id={idDe('data')} type="date" aria-label={empilhado ? undefined : 'Data'} value={campos.data}
+          onChange={(e) => setCampos({ ...campos, data: e.target.value })} {...aria('data')}
+          className={`${CAMPO_LINHA} ${altura} ${borda('data')} ${larg('w-full min-w-[8.5rem]')}`} />, { erro: erroEm('data') })}
+      {envolver('complemento', empilhado ? 'Complemento (o que foi)' : 'Complemento',
+        <input id={idDe('complemento')} aria-label={empilhado ? undefined : 'Complemento'} value={campos.complemento}
+          onChange={(e) => setCampos({ ...campos, complemento: e.target.value })}
+          placeholder={empilhado ? 'Ex.: conta de luz de março' : 'Complemento'} className={`${CAMPO_LINHA} ${altura} ${BORDA_CAMPO} ${larg('w-full min-w-32')}`} />)}
+      {identificaPagador && envolver('pagador', 'Cliente/Paciente',
+        <input id={idDe('pagador')} aria-label={empilhado ? undefined : 'Cliente ou paciente'} value={campos.pagadorNome}
+          onChange={(e) => setCampos({ ...campos, pagadorNome: e.target.value })} autoComplete="off"
+          placeholder="Cliente/Paciente" className={`${CAMPO_LINHA} ${altura} ${BORDA_CAMPO} ${larg('w-full min-w-36')}`} />)}
+      {identificaPagador && envolver('documento', 'CPF/CNPJ',
+        <input id={idDe('documento')} aria-label={docInvalido ? 'CPF ou CNPJ — dígito inválido, confira' : empilhado ? undefined : 'CPF ou CNPJ'}
+          value={campos.pagadorDocumento} onChange={(e) => setCampos({ ...campos, pagadorDocumento: e.target.value })}
+          inputMode="numeric" autoComplete="off" placeholder="CPF/CNPJ"
           data-dica={docInvalido ? 'CPF/CNPJ com dígito inválido — confira (não bloqueia)' : undefined}
-          className={`${CAMPO_LINHA} ${larg('w-full min-w-32')} ${docInvalido ? 'border-aviso bg-aviso-suave' : BORDA_CAMPO}`} />)}
-      {envolver('Conta Titular',
-        <SeletorConta contas={contas} valor={campos.contaId} compacto
-          onEscolher={escolherTitular}
-          podeCriar={podeCriar} onCriar={onCriar} />, { td: 'min-w-48', largo: true })}
-      {envolver('Conta Analítica',
-        <SeletorAnalitica historicos={historicos} valor={campos.historico || null} titularId={campos.contaId} compacto
-          onEscolher={escolherAnalitica}
-          podeCriar={podeCriar} onCriar={(texto) => onCriarAnalitica(texto, campos.contaId)} />, { td: 'min-w-44', largo: true })}
+          className={`${CAMPO_LINHA} ${altura} ${larg('w-full min-w-32')} ${docInvalido ? 'border-aviso bg-aviso-suave' : BORDA_CAMPO}`} />)}
+      {envolver('titular', 'Conta Titular',
+        <SeletorConta id={idDe('titular')} contas={contas} valor={campos.contaId} compacto={!empilhado}
+          onEscolher={escolherTitular} invalido={comErro('titular')} descritoPor={comErro('titular') ? idErro : undefined}
+          podeCriar={podeCriar} onCriar={onCriar} />, { td: 'min-w-48', largo: true, erro: erroEm('titular') })}
+      {envolver('analitica', 'Conta Analítica',
+        <SeletorAnalitica id={idDe('analitica')} historicos={historicos} valor={campos.historico || null} titularId={campos.contaId} compacto={!empilhado}
+          onEscolher={escolherAnalitica} invalido={comErro('analitica')} descritoPor={comErro('analitica') ? idErro : undefined}
+          podeCriar={podeCriar} onCriar={(texto) => onCriarAnalitica(texto, campos.contaId)} />, { td: 'min-w-44', largo: true, erro: erroEm('analitica') })}
       {/* entrada e saída se excluem: digitar numa apaga a outra */}
-      {envolver('Entrada',
-        <input inputMode="decimal" aria-label="Entrada" value={campos.entrada} placeholder="0,00"
-          onChange={(e) => setCampos({ ...campos, entrada: e.target.value, saida: e.target.value ? '' : campos.saida })}
-          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-24')} text-right`} />)}
-      {envolver('Saída',
-        <input inputMode="decimal" aria-label="Saída" value={campos.saida} placeholder="0,00"
-          onChange={(e) => setCampos({ ...campos, saida: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
-          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-24')} text-right`} />)}
+      {envolver('entrada', 'Entrada (recebi)',
+        <input id={idDe('entrada')} inputMode="decimal" autoComplete="off" aria-label={empilhado ? undefined : 'Entrada'} value={campos.entrada} placeholder="0,00"
+          onChange={(e) => setCampos({ ...campos, entrada: e.target.value, saida: e.target.value ? '' : campos.saida })} {...aria('entrada')}
+          className={`${CAMPO_LINHA} ${altura} ${borda('entrada')} ${larg('w-24')} text-right`} />, { erro: erroEm('entrada') })}
+      {envolver('saida', 'Saída (paguei)',
+        <input id={idDe('saida')} inputMode="decimal" autoComplete="off" aria-label={empilhado ? undefined : 'Saída'} value={campos.saida} placeholder="0,00"
+          onChange={(e) => setCampos({ ...campos, saida: e.target.value, entrada: e.target.value ? '' : campos.entrada })} {...aria('saida')}
+          className={`${CAMPO_LINHA} ${altura} ${borda('saida')} ${larg('w-24')} text-right`} />, { erro: erroEm('saida') })}
       {/* juros e multa são saídas adicionais: digitar num deles limpa a entrada */}
-      {envolver('Juros',
-        <input inputMode="decimal" aria-label="Juros" value={campos.juros} placeholder="0,00"
+      {envolver('juros', 'Juros',
+        <input id={idDe('juros')} inputMode="decimal" autoComplete="off" aria-label={empilhado ? undefined : 'Juros'} value={campos.juros} placeholder="0,00"
           onChange={(e) => setCampos({ ...campos, juros: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
-          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-20')} text-right`} />)}
-      {envolver('Multa',
-        <input inputMode="decimal" aria-label="Multa" value={campos.multa} placeholder="0,00"
+          className={`${CAMPO_LINHA} ${altura} ${BORDA_CAMPO} ${larg('w-20')} text-right`} />)}
+      {envolver('multa', 'Multa',
+        <input id={idDe('multa')} inputMode="decimal" autoComplete="off" aria-label={empilhado ? undefined : 'Multa'} value={campos.multa} placeholder="0,00"
           onChange={(e) => setCampos({ ...campos, multa: e.target.value, entrada: e.target.value ? '' : campos.entrada })}
-          className={`${CAMPO_LINHA} ${BORDA_CAMPO} ${larg('w-20')} text-right`} />)}
+          className={`${CAMPO_LINHA} ${altura} ${BORDA_CAMPO} ${larg('w-20')} text-right`} />)}
     </>
   );
 }

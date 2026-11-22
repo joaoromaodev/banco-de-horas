@@ -327,3 +327,18 @@ export function motivoValido(v: unknown): string | null {
   const s = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
   return s.length >= 3 ? s.slice(0, 500) : null;
 }
+
+/** Erros do formulário "Enviar folha", por campo (vazio = pode enviar). */
+export type ErrosEnvioFolha = Partial<Record<'funcionario' | 'fotos', string>>;
+
+/**
+ * O que falta antes de enviar a folha — tudo de uma vez, para a tela marcar cada
+ * campo (com a mensagem ligada por `aria-describedby`) em vez de um aviso solto.
+ * `fotosProntas` = fotos na lista que ainda podem ir (não enviadas, de tipo aceito).
+ */
+export function conferirEnvioFolha(a: { funcionario: string; fotosProntas: number }): ErrosEnvioFolha {
+  const erros: ErrosEnvioFolha = {};
+  if (!a.funcionario.trim()) erros.funcionario = 'Escolha de quem é a folha.';
+  if (a.fotosProntas <= 0) erros.fotos = 'Tire uma foto da folha ou escolha a imagem no celular.';
+  return erros;
+}

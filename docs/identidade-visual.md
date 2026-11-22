@@ -25,7 +25,14 @@ com cara de padrão do navegador.
 5. **Toda ação responde**: sucesso em toast (some em 5 s), erro em toast que fica.
    Aviso permanente da tela (saldo negativo, migração pendente) é `<Aviso>` em linha.
 6. **375 px funciona**: a barra lateral vira gaveta, tabela rola dentro da moldura
-   (`tb.moldura`), formulários empilham (`grid-cols-1` → `sm:`/`md:`).
+   (`tb.moldura`), formulários empilham (`grid-cols-1` → `sm:`/`md:`). Abaixo de `sm` as
+   primitivas já dão **alvo de toque de 44 px** (botão, botão-ícone, campo, opção da lista);
+   controle feito à mão segue o mesmo (`h-11 sm:h-9`).
+7. **Erro mora no campo**: validação de formulário usa `erro` da `Entrada`/`Selecao`
+   (borda, `aria-invalid`, `aria-describedby`, anunciado) e leva o foco ao campo. Não
+   apague o botão de enviar sem dizer por quê — deixe ativo e mostre o que falta.
+   Nome de botão repetido em lista leva o contexto (`Excluir nota.pdf`, com o texto
+   visível no começo). Varredura em `tests/acessibilidadeCliente.test.ts`.
 
 ## Tokens (`app/globals.css`, bloco `@theme`)
 
