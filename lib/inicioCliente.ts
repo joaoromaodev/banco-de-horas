@@ -4,7 +4,8 @@
 // Princípio: a tela só mostra o que pede ação do cliente. Cada fonte chega como
 // `Fonte<T>`; se uma falhar, só o bloco dela some (vira "indisponível") e o resto
 // segue. Nada aqui chama banco, relógio ou rede: `hoje` entra por parâmetro.
-import { competenciaPadrao } from './documentos';
+import { competenciaBR, competenciaPadrao, DIAS_LEMBRETE, diasAte, ROTULO_CATEGORIA, type Categoria } from './documentos';
+import { nomeEntrega, ordenarEntregas, type TipoEntrega } from './entregas';
 
 export type Fonte<T> = { ok: true; dados: T } | { ok: false };
 
@@ -19,6 +20,13 @@ export interface MesDoMovimento { ano: number; mes: number; lancamentos: number;
 export interface PendenciaAberta { id: string; titulo: string; prazo: string | null }
 export interface FolhaDevolvida { id: string; funcionario: string; ano: number; mes: number; motivo: string | null }
 export interface DemonstrativoDisponivel { ano: number; mes: number }
+/** Documento que a contabilidade publicou e o cliente ainda não abriu (0032). */
+export interface EntregaInicio {
+  id: string; tipo: TipoEntrega; titulo: string | null; competencia: string; vencimento: string | null;
+  publicadoEm: string; abertoEm: string | null;
+}
+/** Documento do cliente devolvido pela contabilidade e ainda não reenviado (0032). */
+export interface DevolvidoInicio { id: string; nome: string; categoria: Categoria; competencia: string; motivo: string | null }
 
 export interface EntradaInicio {
   hoje: string; // AAAA-MM-DD
@@ -28,11 +36,19 @@ export interface EntradaInicio {
   pendencias: Fonte<PendenciaAberta[]>;
   folhasDevolvidas: Fonte<FolhaDevolvida[]>;
   demonstrativo: Fonte<DemonstrativoDisponivel | null>;
+  /** Opcionais (0032): sem elas, os blocos simplesmente não aparecem. */
+  entregas?: Fonte<EntregaInicio[]>;
+  devolvidos?: Fonte<DevolvidoInicio[]>;
 }
 
-export interface ItemBloco { chave: string; texto: string; detalhe?: string; urgencia?: 'atrasada' | 'hoje' | 'proxima' }
+/** `logo` = vence em até `DIAS_LEMBRETE` dias (o lembrete antes do prazo). */
+export interface ItemBloco {
+  chave: string; texto: string; detalhe?: string; urgencia?: 'atrasada' | 'hoje' | 'logo' | 'proxima';
+  /** Link do próprio item (ex.: baixar o documento da contabilidade). */
+  href?: string;
+}
 export interface Bloco {
-  id: 'movimento' | 'pendencias' | 'folhas' | 'demonstrativo';
+  id: 'movimento' | 'pendencias' | 'devolvidos' | 'entregas' | 'folhas' | 'demonstrativo';
   titulo: string;
   itens: ItemBloco[];
   /** Quantos itens ficaram de fora do limite. */
@@ -63,20 +79,26 @@ export function urgenciaDoPrazo(prazo: string | null, hoje: string): ItemBloco['
   const p = prazo.slice(0, 10);
   if (p < hoje) return 'atrasada';
   if (p === hoje) return 'hoje';
-  return 'proxima';
+  const dias = diasAte(p, hoje);
+  return dias !== null && dias <= DIAS_LEMBRETE ? 'logo' : 'proxima';
 }
 
 const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-function textoPrazo(prazo: string | null, hoje: string): string | undefined {
+/** O lembrete antes do prazo mora aqui também: "Vence em 2 dias (24/11)". */
+function textoPrazo(prazo: string | null, hoje: string, verbo = 'Até'): string | undefined {
   if (!prazo) return undefined;
   const u = urgenciaDoPrazo(prazo, hoje);
   if (u === 'atrasada') return `Venceu em ${dataBR(prazo)}`;
   if (u === 'hoje') return 'Vence hoje';
-  return `Até ${dataBR(prazo)}`;
+  if (u === 'logo') {
+    const d = diasAte(prazo, hoje)!;
+    return `Vence em ${d} ${d === 1 ? 'dia' : 'dias'} (${dataBR(prazo)})`;
+  }
+  return `${verbo} ${dataBR(prazo)}`;
 }
 
-const ORDEM_URGENCIA = { atrasada: 0, hoje: 1, proxima: 2 } as const;
+const ORDEM_URGENCIA = { atrasada: 0, hoje: 1, logo: 2, proxima: 3 } as const;
 
 /** Mês anterior ao corrente. */
 export function mesAnterior(hoje: string): { ano: number; mes: number } {
@@ -123,8 +145,8 @@ export function montarInicioCliente(e: EntradaInicio): InicioCliente {
     const ordenadas = [...e.pendencias.dados].sort((a, b) => {
       const ua = urgenciaDoPrazo(a.prazo, e.hoje);
       const ub = urgenciaDoPrazo(b.prazo, e.hoje);
-      const oa = ua ? ORDEM_URGENCIA[ua] : 3;
-      const ob = ub ? ORDEM_URGENCIA[ub] : 3;
+      const oa = ua ? ORDEM_URGENCIA[ua] : 4;
+      const ob = ub ? ORDEM_URGENCIA[ub] : 4;
       return oa - ob || (a.prazo ?? '').localeCompare(b.prazo ?? '');
     });
     if (ordenadas.length) {
@@ -139,6 +161,47 @@ export function montarInicioCliente(e: EntradaInicio): InicioCliente {
       });
     }
   } else indisponiveis.push('pendencias');
+
+  if (e.devolvidos) {
+    if (e.devolvidos.ok) {
+      const lista = e.devolvidos.dados;
+      if (lista.length) {
+        const { itens, alem } = cortar(lista);
+        blocos.push({
+          id: 'devolvidos',
+          titulo: lista.length === 1 ? '1 documento voltou para você' : `${lista.length} documentos voltaram para você`,
+          itens: itens.map((d) => ({
+            chave: d.id, texto: d.nome,
+            detalhe: `${ROTULO_CATEGORIA[d.categoria] ?? 'Documento'} · ${competenciaBR(d.competencia)}${d.motivo ? ` · Motivo: ${d.motivo}` : ''}`,
+          })),
+          alemDoLimite: alem,
+          acao: { rotulo: 'Enviar de novo', href: '/documentos' },
+          pedeAcao: true,
+        });
+      }
+    } else indisponiveis.push('devolvidos');
+  }
+
+  if (e.entregas) {
+    if (e.entregas.ok) {
+      const lista = ordenarEntregas(e.entregas.dados.filter((x) => !x.abertoEm), e.hoje);
+      if (lista.length) {
+        const { itens, alem } = cortar(lista);
+        blocos.push({
+          id: 'entregas',
+          titulo: lista.length === 1 ? 'A contabilidade enviou 1 documento para você' : `A contabilidade enviou ${lista.length} documentos para você`,
+          itens: itens.map((x) => ({
+            chave: x.id, texto: `${nomeEntrega(x)} · ${competenciaBR(x.competencia)}`,
+            detalhe: textoPrazo(x.vencimento, e.hoje, 'Vence em'), urgencia: urgenciaDoPrazo(x.vencimento, e.hoje),
+            href: `/api/entregas/arquivo?id=${encodeURIComponent(x.id)}`,
+          })),
+          alemDoLimite: alem,
+          acao: { rotulo: 'Ver documentos', href: '/documentos' },
+          pedeAcao: true,
+        });
+      }
+    } else indisponiveis.push('entregas');
+  }
 
   if (e.folhasDevolvidas.ok) {
     const lista = e.folhasDevolvidas.dados;

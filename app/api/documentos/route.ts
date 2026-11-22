@@ -13,12 +13,12 @@
 import { NextRequest } from 'next/server';
 import { ehGestor, exigirSessao, respostaNegadaEmpresa } from '@/lib/acesso';
 import {
-  categoriaValida, competenciaValida, podeAtenderPendencia, podeConferir, podeExcluirDocumento, podeRestaurarDocumento,
-  podeVerRegistro, validarArquivo,
+  categoriaValida, competenciaValida, motivoDevolucao, podeAtenderPendencia, podeExcluirDocumento, podeMudarSituacao,
+  podeRestaurarDocumento, podeVerRegistro, validarArquivo,
 } from '@/lib/documentos';
 import {
-  confirmarEnvio, conferirDocumento, enviosRecentes, ErroDoc, excluirDocumento, iniciarEnvio, lerDocumento,
-  lerPendencia, listarDocumentos, publico, restaurarDocumento,
+  confirmarEnvio, enviosRecentes, ErroDoc, excluirDocumento, iniciarEnvio, lerDocumento,
+  lerPendencia, listarDocumentos, mudarSituacao, publico, restaurarDocumento,
 } from '@/lib/documentosServidor';
 import { escopoLeitura, escritorioDaEmpresa, falha, guardaEmpresa, naoEncontrado, negado, textoOpcional } from './comum';
 
@@ -75,7 +75,11 @@ export async function POST(req: NextRequest) {
   } catch (e) { return falha(e); }
 }
 
-/** `acao`: confirmar (fim do envio) · conferir · desconferir · restaurar (desfazer exclusão). */
+/**
+ * `acao`: confirmar (fim do envio) · conferir (aceitar) · devolver (com `motivo`) ·
+ * desconferir (volta a "recebido": desfaz o aceite ou a devolução) · restaurar
+ * (desfazer exclusão). A situação só muda pela contabilidade (podeMudarSituacao).
+ */
 export async function PATCH(req: NextRequest) {
   const g = await exigirSessao(req);
   if (!g.ok) return g.resposta;
@@ -93,9 +97,16 @@ export async function PATCH(req: NextRequest) {
         return Response.json({ documento: publico(await confirmarEnvio(d, s.email), ehGestor(s)) });
       }
       case 'conferir':
+      case 'devolver':
       case 'desconferir': {
-        if (d.excluidoEm || !podeConferir(s, d)) return negado();
-        return Response.json({ documento: publico(await conferirDocumento(d.id, s.email, body.acao === 'desconferir'), true) });
+        if (d.excluidoEm || !podeMudarSituacao(s, d, body.acao)) return negado();
+        let motivo: string | null = null;
+        if (body.acao === 'devolver') {
+          const m = motivoDevolucao(body.motivo);
+          if (!m.ok) throw new ErroDoc(m.erro);
+          motivo = m.motivo;
+        }
+        return Response.json({ documento: publico(await mudarSituacao(d, body.acao, s.email, motivo), true) });
       }
       case 'restaurar': {
         if (!d.excluidoEm) return Response.json({ ok: true });

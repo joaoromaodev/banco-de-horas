@@ -113,13 +113,20 @@ async function documentosNovos(escritorioId: string, ids: string[], desde: strin
 
 async function pendenciasAtendidas(escritorioId: string, ids: string[], desde: string) {
   const db = getDb();
-  const partes = await emLotes(ids, async (lote) => (await lerAteTeto<any>((de, ate) => db.from('pendencias')
-    .select('id, empresa_id, titulo, atendida_em, atendida_por').eq('escritorio_id', escritorioId).in('empresa_id', lote)
+  const ler = (cols: string) => emLotes(ids, async (lote) => (await lerAteTeto<any>((de, ate) => db.from('pendencias')
+    .select(cols).eq('escritorio_id', escritorioId).in('empresa_id', lote)
     .eq('status', 'atendida').is('excluido_em', null).gte('atendida_em', desde)
     .order('id').range(de, ate), TETO)).linhas);
+  const base = 'id, empresa_id, titulo, atendida_em, atendida_por';
+  // `sem_movimento_em` é da 0032 ("não tenho este mês"); sem ela, lê o de sempre.
+  const partes = await ler(`${base}, sem_movimento_em`).catch((e) => {
+    if (e?.code === '42703') return ler(base);
+    throw e;
+  });
   return partes.filter((l) => l.atendida_em).map((l) => ({
     id: String(l.id), empresaId: String(l.empresa_id), titulo: String(l.titulo),
     atendidaEm: new Date(l.atendida_em).toISOString(), atendidaPor: (l.atendida_por as string | null) ?? null,
+    semMovimento: Boolean(l.sem_movimento_em),
   }));
 }
 

@@ -8,11 +8,12 @@ import { exigirSessao, respostaNegadaEmpresa } from '@/lib/acesso';
 import { Sessao } from '@/lib/auth';
 import { hojeBelem } from '@/lib/contratos';
 import {
-  categoriaValida, competenciaValida, dataValida, podeGerirPendencia, podeVerRegistro, resumoPendencias,
+  categoriaValida, competenciaValida, dataValida, MAX_OBS_SEM_MOVIMENTO, podeDesfazerSemMovimento, podeGerirPendencia,
+  podeMarcarSemMovimento, podeVerRegistro, resumoPendencias,
 } from '@/lib/documentos';
 import {
-  CamposPendencia, criarPendencia, editarPendencia, ErroDoc, excluirPendencia, lerPendencia, listarPendencias,
-  mudarStatusPendencia, pendenciaPublica,
+  CamposPendencia, criarPendencia, desfazerSemMovimento, editarPendencia, ErroDoc, excluirPendencia, lerPendencia,
+  listarPendencias, marcarSemMovimento, mudarStatusPendencia, pendenciaPublica,
 } from '@/lib/documentosServidor';
 import {
   escopoLeitura, escritorioDaEmpresa, falha, guardaEmpresa, naoEncontrado, negado, textoOpcional,
@@ -62,17 +63,32 @@ export async function POST(req: NextRequest) {
   } catch (e) { return falha(e); }
 }
 
-/** `acao`: editar · fechar · reabrir · restaurar (desfazer exclusão). */
+/**
+ * `acao`: editar · fechar · reabrir · restaurar (desfazer exclusão) — só a contabilidade.
+ * `nao-tenho` (com `observacao` opcional) e `desfazer-nao-tenho` (0032): também o
+ * cliente da empresa, no pedido dele.
+ */
 export async function PATCH(req: NextRequest) {
   const g = await exigirSessao(req);
   if (!g.ok) return g.resposta;
   try {
     const body = await req.json().catch(() => ({}));
     const p = await lerPendencia(String(body.id ?? ''));
-    if (!p || !podeVerRegistro(g.sessao, p)) return naoEncontrado('Pendência');
-    if (!podeGerirPendencia(g.sessao, p)) return negado();
-    { const r = await respostaNegadaEmpresa(g.sessao, p.empresaId); if (r) return r; }
+    if (!p || (p.excluidoEm && body.acao !== 'restaurar') || !podeVerRegistro(g.sessao, p)) return naoEncontrado('Pendência');
     const s = g.sessao;
+    if (body.acao === 'nao-tenho' || body.acao === 'desfazer-nao-tenho') {
+      // Empresa primeiro (arquivada: contabilidade 409, cliente 403), depois o estado do pedido.
+      { const r = await respostaNegadaEmpresa(s, p.empresaId); if (r) return r; }
+      const pode = body.acao === 'nao-tenho' ? podeMarcarSemMovimento(s, p) : podeDesfazerSemMovimento(s, p);
+      // Quem vê o pedido, mas ele já não está no estado certo (outra aba, o arquivo chegou antes): 409.
+      if (!pode) return Response.json({ erro: 'Este pedido mudou enquanto você olhava. Recarregue a lista.' }, { status: 409 });
+      const pendencia = body.acao === 'nao-tenho'
+        ? await marcarSemMovimento(p.id, s.email, textoOpcional(body.observacao, MAX_OBS_SEM_MOVIMENTO))
+        : await desfazerSemMovimento(p.id);
+      return Response.json({ pendencia: pendenciaPublica(pendencia, ehGestor(s)) });
+    }
+    if (!podeGerirPendencia(s, p)) return negado();
+    { const r = await respostaNegadaEmpresa(s, p.empresaId); if (r) return r; }
     switch (body.acao) {
       case 'editar': return Response.json({ pendencia: await editarPendencia(p.id, campos(body)) });
       case 'fechar': return Response.json({ pendencia: await mudarStatusPendencia(p.id, 'atendida', s.email) });

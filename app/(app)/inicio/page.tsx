@@ -7,11 +7,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { saudacaoDaHora, type Bloco, type InicioCliente } from '@/lib/inicioCliente';
 import { Aviso, botaoCls, CabecalhoPagina, Carregando, Conteudo, EstadoVazio, FalhaCarregamento, Secao, Selo } from '@/components/ui';
 import { lerJson } from '@/lib/carga';
-import { IconeConfirmar } from '../icones';
+import { IconeBaixar, IconeConfirmar } from '../icones';
 
 const ROTULO_FONTE: Record<Bloco['id'], string> = {
   movimento: 'o movimento do caixa',
   pendencias: 'os pedidos da contabilidade',
+  devolvidos: 'os documentos devolvidos',
+  entregas: 'os documentos que a contabilidade enviou',
   folhas: 'as folhas de ponto',
   demonstrativo: 'o Demonstrativo de caixa',
 };
@@ -72,9 +74,18 @@ export default function InicioCliente() {
               <ul className="mb-4 divide-y divide-borda">
                 {b.itens.map((it) => (
                   <li key={it.chave} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 text-sm first:pt-0 last:pb-0">
-                    <span className="min-w-0 break-words font-medium text-tinta">{it.texto}</span>
+                    {it.href ? (
+                      // Documento da contabilidade: baixa direto daqui (e fica registrado que foi aberto).
+                      <a href={it.href} onClick={() => setTimeout(carregar, 1500)}
+                        className="inline-flex min-h-11 min-w-0 items-center gap-1.5 break-words font-medium text-primaria-texto hover:underline sm:min-h-0">
+                        <IconeBaixar size={14} className="shrink-0" />
+                        <span>Baixar {it.texto}</span>
+                      </a>
+                    ) : (
+                      <span className="min-w-0 break-words font-medium text-tinta">{it.texto}</span>
+                    )}
                     {it.detalhe && (
-                      <span className={it.urgencia === 'atrasada' ? 'text-perigo' : it.urgencia === 'hoje' ? 'text-aviso' : 'text-tinta-suave'}>
+                      <span className={it.urgencia === 'atrasada' ? 'text-perigo' : it.urgencia === 'hoje' || it.urgencia === 'logo' ? 'text-aviso' : 'text-tinta-suave'}>
                         {it.detalhe}
                       </span>
                     )}

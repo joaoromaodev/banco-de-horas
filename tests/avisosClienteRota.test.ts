@@ -43,10 +43,12 @@ vi.mock('@/lib/envioPontoServidor', () => ({
     return [{ id: 'f1', funcionario: 'MARIA DA SILVA', ano: 2026, mes: 10, situacao: 'devolvida', motivo: 'Foto cortada', devolvidoEm: new Date(Date.now() - 3_600_000).toISOString() }];
   },
 }));
+vi.mock('@/lib/entregasServidor', () => ({ listarEntregasOuNada: async () => [] }));
 vi.mock('@/lib/documentosServidor', () => ({
+  listarDocumentos: async () => [],
   listarPendencias: async (e: unknown) => {
     chamadas.pendencias.push(e);
-    return [{ id: 'p1', titulo: 'Extrato de outubro', prazo: '2026-12-10', status: 'aberta', criadoEm: new Date(Date.now() - 7_200_000).toISOString() }];
+    return [{ id: 'p1', titulo: 'Extrato de outubro', prazo: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10), status: 'aberta', criadoEm: new Date(Date.now() - 7_200_000).toISOString() }];
   },
 }));
 vi.mock('@/lib/notificacoesServidor', () => ({

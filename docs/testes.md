@@ -62,6 +62,14 @@ em todo push e pull request, no Node 20.
   falsos mesmo assim, por segurança, caso alguma rota passe a ler env no import.
   Nunca coloque credencial real no workflow.
 
+## Sprint 17 · Frente A — documentos de mão dupla
+
+| Teste | Garante |
+|---|---|
+| `documentosMaoDupla.test.ts` | Regras puras: transições da situação (recebido → aceito/devolvido, desfazer), motivo obrigatório, devolvido sem reenvio, "não tenho" (marcar/desfazer só o fechado por ele), entregas (campos, caminho só com uuids, ver/gerir por escritório e empresa, "aberto em" só do cliente e só a 1ª vez, situação perto do vencimento, ordem), lembrete de 0 a 3 dias, avisos sem título/nome de arquivo/motivo, blocos novos do `/inicio`. |
+| `documentosMaoDuplaRotas.test.ts` | Guardas reais + banco e Storage em memória: publicar → cliente vê → baixa → "aberto em" (a contadora e link de outro site não contam; 2º download não muda); bytes errados recusados; excluir/desfazer; devolver com motivo (pedido reabre, desfazer atende), aceitar; "não tenho" e desfazer, sem grudar; checklist de fechamento sem atraso falso; sino do cliente. Isolamento: outro escritório, outra empresa, cliente em ação da contabilidade, outra pessoa do escritório confirmando envio alheio, arquivada (contabilidade lê, grava 409; cliente 403), sem sessão — sempre conferindo que nada foi gravado. |
+| `documentosSem0032Rotas.test.ts` | Banco sem a 0032 (42703, PGRST204, 23514, 42P01): leituras de sempre seguem, aceitar/reabrir funcionam, devolver/"não tenho"/entregas dão 503 sem gravar, sino do cliente sem fonte indisponível. |
+
 ## O que está coberto
 
 | Arquivo de teste | Módulo | Destaques |

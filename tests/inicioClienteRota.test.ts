@@ -26,6 +26,8 @@ const io = {
   lerPendenciasAbertas: vi.fn(async () => [{ id: 'p1', titulo: 'Extrato', prazo: null }]),
   lerFolhasDevolvidas: vi.fn(async () => []),
   lerUltimoDemonstrativo: vi.fn(async () => ({ ano: 2026, mes: 10 })),
+  lerEntregasNaoAbertas: vi.fn(async () => []),
+  lerDocumentosDevolvidos: vi.fn(async () => []),
 };
 vi.mock('@/lib/inicioClienteServidor', () => io);
 

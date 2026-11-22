@@ -27,6 +27,8 @@ const SOMENTE_MASTER = ['/configuracoes', '/api/config'];
 /** Único caminho do papel `cliente`. Negar por padrão: o que não está aqui, ele não vê.
  *  `/api/empresas` entra porque devolve só a empresa da própria sessão (ver lib/acesso). */
 const CLIENTE_PODE = ['/inicio', '/api/inicio-cliente', '/caixa', '/api/caixa', '/api/me', '/api/logout', '/api/empresas', '/documentos', '/api/documentos', '/api/pendencias',
+  // Documentos que o escritório publica para a empresa (0032): a rota recorta por empresa e papel; publicar é só gestor.
+  '/api/entregas',
   // Folha de ponto enviada pelo cliente (0028): a rota da API recorta por empresa e papel.
   '/enviar-ponto', '/api/envio-ponto',
   // Sino com os avisos da própria empresa (Sprint 13): a rota recorta pela sessão (exigirClienteDaEmpresa).

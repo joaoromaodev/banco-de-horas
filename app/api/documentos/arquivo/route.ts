@@ -5,7 +5,7 @@
 // não fica em lugar nenhum da tela; cada clique gera outra.
 import { NextRequest } from 'next/server';
 import { exigirSessao, respostaNegadaEmpresa } from '@/lib/acesso';
-import { podeVerRegistro } from '@/lib/documentos';
+import { podeVerRegistro, STATUS_VISIVEIS } from '@/lib/documentos';
 import { lerDocumento, urlDownload } from '@/lib/documentosServidor';
 import { falha, naoEncontrado } from '../comum';
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!g.ok) return g.resposta;
   try {
     const d = await lerDocumento(req.nextUrl.searchParams.get('id') ?? '');
-    if (!d || d.excluidoEm || (d.status !== 'recebido' && d.status !== 'conferido') || !podeVerRegistro(g.sessao, d)) return naoEncontrado('Documento');
+    if (!d || d.excluidoEm || !(STATUS_VISIVEIS as string[]).includes(d.status) || !podeVerRegistro(g.sessao, d)) return naoEncontrado('Documento');
     // Mesma regra das outras rotas (lib/acesso.ts): a contabilidade baixa de empresa
     // arquivada (consulta); o cliente de empresa arquivada não (403).
     { const r = await respostaNegadaEmpresa(g.sessao, d.empresaId); if (r) return r; }

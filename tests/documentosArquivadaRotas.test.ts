@@ -55,11 +55,13 @@ beforeEach(() => {
     caminho: `${ESC_A}/${DOC_ARQ}.pdf`, nome: 'extrato.pdf', tamanho: 100, tipo: 'application/pdf', observacao: null,
     pendenciaId: null, status: 'recebido', enviadoPor: 'cli@arq.com', enviadoEm: '2026-05-10T00:00:00Z',
     conferidoPor: null, conferidoEm: null, excluidoEm: null, excluidoPorGestor: false,
+    devolvidoEm: null, devolvidoPor: null, motivoDevolucao: null,
   }]]);
   pends = new Map([[PEND_ARQ, {
     id: PEND_ARQ, empresaId: 'emp-arq', escritorioId: ESC_A, titulo: 'Extrato de maio', descricao: null,
     categoria: 'extrato', competencia: '2026-05', prazo: null, status: 'aberta', atendidaEm: null, atendidaPor: null,
     criadoPor: 'c@a.com', criadoEm: '2026-05-01T00:00:00Z', excluidoEm: null,
+    semMovimentoEm: null, semMovimentoPor: null, semMovimentoObs: null,
   }]]);
 });
 

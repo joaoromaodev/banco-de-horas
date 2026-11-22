@@ -6,10 +6,15 @@
 // (`exigirClienteDaEmpresa`): cada função recebe a empresa e o escritório já validados,
 // vindos da SESSÃO. Nada é publicado em `notificacoes`: a contabilidade não vê estes avisos.
 import { getDb } from './db';
-import { listarPendencias } from './documentosServidor';
+import { listarDocumentos, listarPendencias } from './documentosServidor';
+import { listarEntregasOuNada } from './entregasServidor';
 import { listarEnvios } from './envioPontoServidor';
 import { hojeBelem } from './agenda';
-import { avisosDemonstrativo, avisosFolhaDevolvida, avisosPedido, desdeTrezeMeses } from './avisosCliente';
+import { devolvidosSemReenvio } from './documentos';
+import {
+  avisosDemonstrativo, avisosDocumentoDevolvido, avisosEntrega, avisosFolhaDevolvida, avisosLembretePedido, avisosPedido,
+  desdeTrezeMeses,
+} from './avisosCliente';
 import { desdeDaJanela, montarNotificacoes, type ItemNotificacao, type Leitura } from './notificacoes';
 import { lerLeitura, type RespostaSino } from './notificacoesServidor';
 import { fechamentosParaCliente } from './fechamentoPontoServidor';
@@ -29,9 +34,27 @@ export async function folhasDevolvidas(escritorioId: string, empresaId: string, 
   })));
 }
 
-export async function pedidosNovos(escritorioId: string, empresaId: string): Promise<ItemNotificacao[]> {
-  const lista = await listarPendencias({ empresaId, escritorioId });
-  return avisosPedido(lista.map((p) => ({ id: p.id, titulo: p.titulo, prazo: p.prazo, status: p.status, criadoEm: p.criadoEm })));
+/** Pedidos novos e, dos abertos, o lembrete antes do prazo (0032) — uma leitura só. */
+export async function pedidosNovos(escritorioId: string, empresaId: string, agora: Date = new Date()): Promise<ItemNotificacao[]> {
+  const lista = (await listarPendencias({ empresaId, escritorioId }))
+    .map((p) => ({ id: p.id, titulo: p.titulo, prazo: p.prazo, status: p.status, criadoEm: p.criadoEm }));
+  return [...avisosPedido(lista), ...avisosLembretePedido(lista, hojeBelem(agora))];
+}
+
+/** Documentos que a contabilidade publicou e o cliente ainda não abriu (0032), com o lembrete do vencimento. */
+export async function entregasNovas(escritorioId: string, empresaId: string, agora: Date = new Date()): Promise<ItemNotificacao[]> {
+  const lista = await listarEntregasOuNada({ empresaId, escritorioId });
+  return avisosEntrega(lista.map((e) => ({
+    id: e.id, tipo: e.tipo, competencia: e.competencia, vencimento: e.vencimento, publicadoEm: e.publicadoEm, abertoEm: e.abertoEm,
+  })), hojeBelem(agora));
+}
+
+/** Documentos do cliente devolvidos pela contabilidade e ainda não reenviados (0032). */
+export async function documentosDevolvidos(escritorioId: string, empresaId: string): Promise<ItemNotificacao[]> {
+  const docs = await listarDocumentos({ empresaId, escritorioId });
+  return avisosDocumentoDevolvido(devolvidosSemReenvio(docs).map((d) => ({
+    id: d.id, categoria: d.categoria, competencia: d.competencia, devolvidoEm: d.devolvidoEm,
+  })));
 }
 
 /** Demonstrativos liberados nos anos que a janela alcança (o corrente e, em janeiro, o anterior). */
@@ -73,13 +96,17 @@ export async function lerAvisosCliente(e: EntradaAvisosCliente, agora: Date = ne
       return [];
     }
   };
-  const [{ leitura: lida, persistido }, folhas, pedidos, demos, aceites] = await Promise.all([
+  const [{ leitura: lida, persistido }, folhas, pedidos, demos, aceites, entregas, devolvidos] = await Promise.all([
     lerLeitura(e.escritorioId, usuarioLeituraCliente(e.empresaId, e.email)),
     isolada('folhas de ponto', () => folhasDevolvidas(e.escritorioId, e.empresaId, agora)),
-    isolada('pedidos de documento', () => pedidosNovos(e.escritorioId, e.empresaId)),
+    isolada('pedidos de documento', () => pedidosNovos(e.escritorioId, e.empresaId, agora)),
     isolada('demonstrativo', () => demonstrativosProntos(e.empresaId, agora)),
     isolada('resumo do ponto', () => aceitesPendentes(e.escritorioId, e.empresaId, agora)),
+    isolada('documentos da contabilidade', () => entregasNovas(e.escritorioId, e.empresaId, agora)),
+    isolada('documentos devolvidos', () => documentosDevolvidos(e.escritorioId, e.empresaId)),
   ]);
   const leitura: Leitura = persistido ? lida : { lidasAte: e.vistoNoNavegador ?? null, lidas: [] };
-  return { ...montarNotificacoes([...folhas, ...pedidos, ...demos, ...aceites], leitura, agora), persistido, indisponiveis };
+  return {
+    ...montarNotificacoes([...folhas, ...pedidos, ...demos, ...aceites, ...entregas, ...devolvidos], leitura, agora), persistido, indisponiveis,
+  };
 }

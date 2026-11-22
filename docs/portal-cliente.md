@@ -23,6 +23,15 @@ Contabilidade e master que abrem `/inicio` voltam ao `/painel`.
 4. **Demonstrativo de caixa pronto** (informativo) — último mês liberado (confirmado em sequência
    desde janeiro; no ano corrente e, se não houver, no anterior). Leva a
    `/caixa/demonstrativo?ano&mes`. Não tira o estado "tudo em dia".
+5. **Documentos que voltaram para você** (Sprint 17, 0032) — documentos devolvidos pela
+   contabilidade e ainda não reenviados, com o motivo. Leva a `/documentos`.
+6. **A contabilidade enviou N documentos para você** (Sprint 17, 0032) — entregas ainda não
+   baixadas, as mais urgentes primeiro; cada item é um link "Baixar …" (o download registra o
+   "aberto em"). Leva a `/documentos`.
+
+Pedidos que vencem em até 3 dias ganham "Vence em N dias (dd/mm)" em amarelo (lembrete antes do
+prazo). Os blocos 5 e 6 são opcionais na regra (`entregas`/`devolvidos` em `EntradaInicio`); sem a
+0032 simplesmente não aparecem. Ver [`documentos.md`](documentos.md), "Sprint 17 · Frente A".
 
 Sem nada pendente (e nenhuma fonte falhando): "Tudo em dia. Obrigado!". Cada fonte falha sozinha:
 vira `indisponiveis` na resposta e uma linha neutra na tela, e os outros blocos seguem. Tela de

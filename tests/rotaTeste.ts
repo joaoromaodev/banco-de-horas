@@ -23,6 +23,8 @@ export const empresasTeste = (): Record<string, EmpresaTeste> => ({
 export const SESSOES = {
   contadorA: { email: 'c@a.com', nome: 'Contadora A', role: 'usuario', escritorioId: ESC_A, modulos: ['caixa', 'ponto'] },
   contadorB: { email: 'c@b.com', nome: 'Contador B', role: 'usuario', escritorioId: ESC_B, modulos: ['caixa', 'ponto'] },
+  // Outra pessoa da contabilidade do MESMO escritório A (ex.: "só quem iniciou o envio confirma").
+  contador2A: { email: 'c2@a.com', nome: 'Contadora 2 A', role: 'usuario', escritorioId: ESC_A, modulos: ['caixa', 'ponto'] },
   clienteA1: { email: 'cli@a1.com', nome: 'Cliente A1', role: 'cliente', escritorioId: ESC_A, empresa: 'emp-a1', modulos: ['caixa'] },
   clienteA2: { email: 'cli@a2.com', nome: 'Cliente A2', role: 'cliente', escritorioId: ESC_A, empresa: 'emp-a2', modulos: ['caixa'] },
   clienteArq: { email: 'cli@arq.com', nome: 'Cliente Arq', role: 'cliente', escritorioId: ESC_A, empresa: 'emp-arq', modulos: ['caixa'] },
