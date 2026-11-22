@@ -10,7 +10,7 @@ import { normalizarRota } from './medicao';
 export const ROTAS_API: readonly string[] = [
   '/api/agenda', '/api/agenda/avisos', '/api/agenda/conclusoes', '/api/agenda/modelo', '/api/agenda/proposta',
   '/api/caixa/atividade', '/api/caixa/contas', '/api/caixa/de-para', '/api/caixa/demonstrativo',
-  '/api/caixa/demonstrativo/enviar', '/api/caixa/documento-ia', '/api/caixa/documento-leitura', '/api/caixa/exercicio', '/api/caixa/fiscal',
+  '/api/caixa/demonstrativo/enviar', '/api/caixa/documento-ia', '/api/caixa/documento-leitura', '/api/caixa/exercicio', '/api/caixa/extrato', '/api/caixa/extrato/lote', '/api/caixa/fiscal',
   '/api/caixa/historicos', '/api/caixa/lancamentos', '/api/caixa/limite', '/api/caixa/livro', '/api/caixa/meses',
   '/api/caixa/resumo', '/api/caixa/revisao', '/api/caixa/seed', '/api/caixa/sugestao',
   '/api/cobranca', '/api/cobranca/webhook', '/api/config', '/api/config/ambiente', '/api/config/medicao',
@@ -28,7 +28,7 @@ export const ROTAS_API: readonly string[] = [
 
 export const PAGINAS: readonly string[] = [
   '/', '/agenda', '/agenda/obrigacoes', '/assinatura', '/cadastros', '/caixa', '/caixa/cadastros',
-  '/caixa/demonstrativo', '/caixa/resumo', '/configuracoes', '/contratos', '/documentos', '/dp', '/enviar-ponto',
+  '/caixa/demonstrativo', '/caixa/extrato', '/caixa/resumo', '/configuracoes', '/contratos', '/documentos', '/dp', '/enviar-ponto',
   '/equipe', '/escritorio', '/fechamento', '/folhas', '/inicio', '/painel', '/ponto', '/ponto-cadastros',
   '/conheca', '/planos', '/privacidade', '/termos', '/criar-conta', '/login',
 ];
