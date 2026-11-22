@@ -192,11 +192,14 @@ describe('fluxo: cliente lança → contadora confere e confirma → resumo, Dem
     expect(tabelas.lancamentos.find((l) => l.id === ids.aluguel)).toMatchObject({ saida: 350, conferido_por: null, atualizado_por: 'cli@a1.com' });
   });
 
-  it('desconfirmar o mês esconde de novo o resumo do cliente', async () => {
+  it('reabrir o mês (com motivo) esconde de novo o resumo do cliente', async () => {
     await janeiroDoCliente();
     await confirmarMes('contadorA', 'emp-a1', 1);
     expect((await (await lerResumo('clienteA1', 'emp-a1')).json()).liberadoAte).toBe(1);
-    expect((await confirmarMes('contadorA', 'emp-a1', 1, 'DELETE')).status).toBe(200);
+    const r = await meses.DELETE(await pedido('contadorA', '/api/caixa/meses', {
+      method: 'DELETE', body: { empresa: 'emp-a1', ano: ANO, mes: 1, motivo: 'Venda lançada em duplicidade' },
+    }));
+    expect(r.status).toBe(200);
     expect((await (await lerResumo('clienteA1', 'emp-a1')).json()).liberadoAte).toBe(0);
   });
 

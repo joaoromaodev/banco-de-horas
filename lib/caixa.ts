@@ -3,6 +3,7 @@
 // Tudo aqui é de servidor (usa lib/db). A autorização não mora aqui: cada rota
 // chama a guarda de lib/acesso antes de encostar nestas funções.
 import { getDb, lerTudo } from './db';
+import { mensagemCaixaFechado, mensagemCaixaPosteriorFechado, ordenarHistorico, type EventoMes } from './mesFechado';
 import { lerEmpresa } from './cadastro';
 import { filtrarCatalogo, itemVisivel, proximoCodigo, type VisaoCatalogo } from './visibilidadeCatalogo';
 
@@ -516,16 +517,68 @@ export async function mesesConfirmados(exercicioId: string): Promise<number[]> {
   return (data ?? []).map((m) => m.mes as number).sort((a, b) => a - b);
 }
 
-/** De qual empresa é este lançamento — usado para autorizar edição e exclusão. */
-export async function empresaDoLancamento(id: string): Promise<{ empresaId: string; exercicioId: string; ano: number }> {
+/** De qual empresa (e de qual mês) é este lançamento — usado para autorizar edição e exclusão. */
+export async function empresaDoLancamento(id: string): Promise<{ empresaId: string; exercicioId: string; ano: number; mes: number }> {
   const db = getDb();
   const { data, error } = await db
-    .from('lancamentos').select('exercicio_id, exercicios!inner(empresa_id, ano)').eq('id', id).maybeSingle();
+    .from('lancamentos').select('exercicio_id, data, exercicios!inner(empresa_id, ano)').eq('id', id).maybeSingle();
   if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
   if (!data) throw new ErroCaixa('Lançamento não encontrado.', 404);
   // O join volta como objeto (inner, um-para-um) ou array, conforme a versão.
   const ex = (Array.isArray(data.exercicios) ? data.exercicios[0] : data.exercicios) as { empresa_id: string; ano: number };
-  return { empresaId: ex.empresa_id, exercicioId: data.exercicio_id, ano: ex.ano };
+  return { empresaId: ex.empresa_id, exercicioId: data.exercicio_id, ano: ex.ano, mes: Number(String(data.data).slice(5, 7)) };
+}
+
+// ------------------------------------------------------------------ mês fechado (0034)
+
+/**
+ * Trava do mês fechado: mês confirmado pela contabilidade não aceita lançamento novo,
+ * edição nem exclusão — de ninguém — até ser reaberto com motivo. Mês anterior a um
+ * fechado também trava: o saldo dele é o saldo transportado do fechado. Vale nas
+ * rotas (409 com a mensagem) e, com a 0034, também no banco (gatilho em `lancamentos`).
+ */
+export async function exigirMesAberto(exercicioId: string, ano: number, mes: number): Promise<void> {
+  const { data, error } = await getDb().from('meses_confirmados')
+    .select('mes').eq('exercicio_id', exercicioId).gte('mes', mes);
+  if (error) {
+    console.error('[caixa] meses_confirmados:', error.message.slice(0, 120));
+    throw new ErroCaixa('Não foi possível conferir se o mês está fechado. Tente de novo.', 502);
+  }
+  const fechados = (data ?? []).map((m) => Number(m.mes)).sort((a, b) => a - b);
+  if (fechados.includes(mes)) throw new ErroCaixa(mensagemCaixaFechado(ano, mes), 409);
+  if (fechados.length) throw new ErroCaixa(mensagemCaixaPosteriorFechado(ano, mes, fechados[0]), 409);
+}
+
+export interface FechamentoCaixa { mes: number; por: string; em: string }
+export interface EventoCaixa extends EventoMes { mes: number }
+
+/** Meses fechados, com quem fechou e quando. */
+export async function fechamentosDoExercicio(exercicioId: string): Promise<FechamentoCaixa[]> {
+  const { data, error } = await getDb().from('meses_confirmados')
+    .select('mes, confirmado_por, confirmado_em').eq('exercicio_id', exercicioId);
+  if (error) throw new ErroCaixa(`meses_confirmados: ${error.message}`, 502);
+  return (data ?? []).map((m) => ({ mes: Number(m.mes), por: String(m.confirmado_por), em: String(m.confirmado_em) }))
+    .sort((a, b) => a.mes - b.mes);
+}
+
+/** Tabela do histórico ainda não existe (falta a 0034). */
+export const semTabelaHistorico = (e: { code?: string; message?: string } | null | undefined): boolean =>
+  !!e && (e.code === 'PGRST205' || e.code === '42P01' || /caixa_meses_historico/.test(e.message ?? ''));
+
+export const ERRO_SEM_0034 = 'O histórico de fechamento ainda não está instalado (falta a migração 0034). Peça ao suporte para atualizar o banco.';
+
+/** Histórico de fechar/reabrir do exercício (mais recente primeiro). `null` = sem a 0034. */
+export async function historicoDoExercicio(exercicioId: string): Promise<EventoCaixa[] | null> {
+  const { data, error } = await getDb().from('caixa_meses_historico')
+    .select('mes, acao, por, em, motivo').eq('exercicio_id', exercicioId).order('em', { ascending: false }).limit(200);
+  if (error) {
+    if (semTabelaHistorico(error)) return null;
+    throw new ErroCaixa(`caixa_meses_historico: ${error.message}`, 502);
+  }
+  return ordenarHistorico((data ?? []).map((h) => ({
+    mes: Number(h.mes), acao: h.acao === 'reabriu' ? 'reabriu' as const : 'fechou' as const,
+    por: String(h.por), em: String(h.em), motivo: h.motivo ? String(h.motivo) : null,
+  })));
 }
 
 // ------------------------------------------------------------------ validação

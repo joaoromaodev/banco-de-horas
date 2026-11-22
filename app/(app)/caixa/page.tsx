@@ -6,16 +6,17 @@
 // DATA · HISTÓRICO · COMPLEMENTO · CONTA · ENTRADA · SAÍDA · SALDO.
 //
 // Quem lança é o administrativo da empresa (papel `cliente`); a contabilidade vê
-// todas as empresas, confere lançamento a lançamento e confirma o mês. Nada
-// disso trava a edição: lançamento é sempre editável e excluível, inclusive
-// retroativo — decisão dela.
+// todas as empresas, confere lançamento a lançamento e fecha o mês. Lançamento é
+// editável e excluível, inclusive retroativo — MENOS em mês fechado: aí nada muda
+// (de ninguém) até a contabilidade reabrir com motivo (Sprint 17, frente C). Quem
+// trava de verdade é a rota (409); a tela só esconde o que não vai funcionar.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { campoDoErro, diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS, type CampoLancamento } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import SeletorAnalitica, { Historico } from './SeletorAnalitica';
 import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
-import { IconeBaixar, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino, IconeSugestao } from '../icones';
-import { DialogoConfirmacao, DialogoValor } from '../Dialogo';
+import { IconeBaixar, IconeCadeado, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino, IconeSugestao } from '../icones';
+import { DialogoConfirmacao, DialogoTexto, DialogoValor } from '../Dialogo';
 import { AbasCaixa } from './AbasCaixa';
 import LimiteFaturamento from './LimiteFaturamento';
 import LerDocumento, { type DocumentoLido } from './LerDocumento';
@@ -51,6 +52,11 @@ interface RespostaMes {
 }
 interface ResumoMes { mes: number; entradas: number; saidas: number; saldoFinal: number; }
 interface Termo { numeroLivro: number | null; numeroOrdem: number | null; dataTermo: string | null; qtdFolhas: number | null; }
+interface EventoFechamento { mes: number; acao: 'fechou' | 'reabriu'; por: string; em: string; motivo: string | null }
+interface Fechamentos { fechados: { mes: number; por: string; em: string }[]; historico: EventoFechamento[]; historicoDisponivel: boolean }
+const quandoBR = (iso: string) => new Date(iso).toLocaleString('pt-BR', {
+  timeZone: 'America/Belem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
 interface Pendencia { empresaId: string; pendentes: number; meses: number[]; ultimo: { historico: string; criadoEm: string; criadoPor: string; mes: number }; }
 
 const PRIMEIRO_EXERCICIO = 2026; // a contadora começa o sistema em janeiro/2026
@@ -140,6 +146,10 @@ export default function Caixa() {
   const [aExcluir, setAExcluir] = useState<Lancamento | null>(null);
   const [desfazer, setDesfazer] = useState<Lancamento | null>(null); // último excluído, para desfazer
   const [editandoSaldo, setEditandoSaldo] = useState(false);
+  // Fechamento do mês (só a contabilidade): quem fechou, histórico e os diálogos.
+  const [fechamentos, setFechamentos] = useState<Fechamentos | null>(null);
+  const [fechando, setFechando] = useState(false);
+  const [reabrindo, setReabrindo] = useState(false);
 
   // Caixa inteligente (Sprint 5): sugestão de conta ao lançar e revisão antes da conferência.
   const [modelo, setModelo] = useState<{ exemplos: ExemploConferido[]; ia: boolean } | null>(null);
@@ -239,6 +249,11 @@ export default function Caixa() {
     setConfirmados(d.confirmados ?? []);
     setSaldoInicial(d.exercicio?.saldoInicial ?? 0);
     setTermo(d.termo ?? null);
+    // Quem fechou e o histórico: só a contabilidade (o cliente vê só "mês fechado").
+    if (d.termo) {
+      lerJson<Fechamentos>(`/api/caixa/meses?empresa=${encodeURIComponent(empresaSel)}&ano=${ano}`)
+        .then(setFechamentos).catch(() => setFechamentos(null));
+    } else setFechamentos(null);
   }, [empresaSel, ano]);
 
   const carregarMes = useCallback(async () => {
@@ -457,15 +472,24 @@ export default function Caixa() {
     }
   }
 
-  async function alternarConfirmacao() {
-    const confirmado = dados?.confirmado;
-    setErro(null); setMsg(null);
+  async function fecharMes() {
+    setFechando(false); setErro(null); setMsg(null);
     try {
-      await chamar('/api/caixa/meses', {
-        method: confirmado ? 'DELETE' : 'POST',
-        body: JSON.stringify({ empresa: empresaSel, ano, mes }),
-      });
-      setMsg(confirmado ? 'Confirmação do mês desfeita.' : 'Mês confirmado — o resumo fica visível ao cliente.');
+      await chamar('/api/caixa/meses', { method: 'POST', body: JSON.stringify({ empresa: empresaSel, ano, mes }) });
+      setEditandoId(null);
+      setMsg(`${MESES_LONGOS[mes - 1]} fechado — o resumo fica visível ao cliente e os lançamentos do mês ficam travados.`);
+      await recarregar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function reabrirMes(motivo: string) {
+    setReabrindo(false); setErro(null); setMsg(null);
+    try {
+      const d = await chamar('/api/caixa/meses', { method: 'DELETE', body: JSON.stringify({ empresa: empresaSel, ano, mes, motivo }) });
+      const reabertos: number[] = d.reabertos ?? [mes];
+      setMsg(`${reabertos.map((m) => MESES_LONGOS[m - 1]).join(', ')} ${reabertos.length > 1 ? 'reabertos' : 'reaberto'}. O motivo ficou no histórico.`);
       await recarregar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -625,7 +649,15 @@ export default function Caixa() {
   const identificaPagador = !!empresas.find((e) => e.id === empresaSel)?.identificaPagador;
   const nCols = identificaPagador ? 12 : 10; // colunas da tabela (com pagador, +2)
   const arquivada = !!empresas.find((e) => e.id === empresaSel)?.arquivadaEm;
-  const podeLerDoc = !!iaDoc?.disponivel && !arquivada && !!empresaSel;
+  // Mês fechado — ou anterior a um fechado, cujo saldo é o transportado dele: nada é
+  // lançado, editado nem excluído (a rota recusa com 409). Os meses fecham em ordem.
+  const posteriorFechado = confirmados.find((m) => m > mes) ?? null;
+  const fechado = !!dados?.confirmado || posteriorFechado !== null;
+  const anterioresAbertos = Array.from({ length: mes - 1 }, (_, i) => i + 1).filter((m) => !confirmados.includes(m));
+  const reabreJunto = confirmados.filter((m) => m > mes);
+  const podeLerDoc = !!iaDoc?.disponivel && !arquivada && !!empresaSel && !fechado;
+  const fechamentoDoMes = fechamentos?.fechados.find((f) => f.mes === mes);
+  const historicoDoMes = (fechamentos?.historico ?? []).filter((h) => h.mes === mes);
 
   // O rascunho lido de um documento, acima do formulário (tabela e celular).
   const avisoRascunho = rascunho && (
@@ -736,14 +768,14 @@ export default function Caixa() {
             const confirmado = confirmados.includes(m);
             return (
               <button key={m} type="button" onClick={() => irPara(ano, m)} aria-current={m === mes ? 'true' : undefined}
-                aria-label={`${MESES_LONGOS[i]}${confirmado ? ' — confirmado' : ''}${temMovimento ? '' : ' — sem movimento'}`}
+                aria-label={`${MESES_LONGOS[i]}${confirmado ? ' — fechado' : ''}${temMovimento ? '' : ' — sem movimento'}`}
                 className={`relative flex h-11 items-center justify-center gap-1 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors md:h-9 ${
                   m === mes ? 'bg-primaria text-sobre-primaria shadow-cartao'
                     : temMovimento ? 'text-tinta hover:bg-superficie-realce'
                     : 'font-medium text-tinta-fraca hover:bg-superficie-realce hover:text-tinta'
                 }`}>
                 {rotulo}
-                {confirmado && <IconeCheck size={12} className={m === mes ? 'text-sobre-primaria' : 'text-sucesso'} />}
+                {confirmado && <IconeCadeado size={12} className={m === mes ? 'text-sobre-primaria' : 'text-sucesso'} />}
               </button>
             );
           })}
@@ -765,26 +797,61 @@ export default function Caixa() {
           {mes === 1 && (
             <span className="inline-flex items-center gap-1">
               Saldo inicial do exercício: <strong className="font-semibold text-tinta">{dinheiro(saldoInicial)}</strong>
-              {ehGestor && (
+              {/* Com mês fechado o saldo inicial não muda (mudaria o saldo transportado dele). */}
+              {ehGestor && confirmados.length === 0 && (
                 <BotaoIcone rotulo="Editar saldo inicial" tom="primaria" tamanho="sm" onClick={() => setEditandoSaldo(true)}>
                   <IconeLapis size={14} />
                 </BotaoIcone>
               )}
             </span>
           )}
-          {dados?.confirmado && <Selo tom="sucesso"><IconeCheck size={12} /> Mês confirmado</Selo>}
+          {fechado && <Selo tom="sucesso"><IconeCadeado size={12} /> Mês fechado</Selo>}
           {ehGestor && aConferir > 0 && (
             <Selo tom="aviso"><IconeSino size={12} /> {aConferir} lançamento(s) a conferir neste mês</Selo>
           )}
-          {ehGestor && (
-            <Botao tamanho="sm" variante={dados?.confirmado ? 'secundaria' : 'sucesso'} onClick={alternarConfirmacao}
-              className="sm:ml-auto"
-              data-dica={dados?.confirmado ? 'Desfazer a confirmação deste mês' : 'Confirmar o mês — libera o resumo para o cliente'}
-              icone={dados?.confirmado ? <IconeDesfazerConfirmacao size={15} /> : <IconeConfirmar size={15} />}>
-              {dados?.confirmado ? 'Desfazer confirmação' : 'Confirmar o mês'}
-            </Botao>
+          {ehGestor && (dados?.confirmado || posteriorFechado === null) && (
+            <span className="sm:ml-auto" data-dica={!dados?.confirmado && anterioresAbertos.length
+              ? `Os meses fecham em ordem: feche antes ${anterioresAbertos.map((m) => MESES_LONGOS[m - 1]).join(', ')}`
+              : dados?.confirmado ? 'Reabrir o mês — o motivo fica registrado' : 'Fechar o mês — libera o resumo ao cliente e trava os lançamentos'}>
+              <Botao tamanho="sm" variante={dados?.confirmado ? 'secundaria' : 'sucesso'}
+                onClick={() => (dados?.confirmado ? setReabrindo(true) : setFechando(true))}
+                disabled={!dados || arquivada || (!dados.confirmado && anterioresAbertos.length > 0)}
+                icone={dados?.confirmado ? <IconeDesfazerConfirmacao size={15} /> : <IconeConfirmar size={15} />}>
+                {dados?.confirmado ? 'Reabrir o mês' : 'Fechar o mês'}
+              </Botao>
+            </span>
           )}
         </div>
+
+        {fechado && (
+          <Aviso tom="info" titulo={dados?.confirmado ? `${mesAberto} está fechado` : `${mesAberto} está travado`}>
+            <p>
+              {!dados?.confirmado && posteriorFechado !== null
+                ? <>{MESES_LONGOS[posteriorFechado - 1]}/{ano} já está fechado e o saldo dele vem deste mês. </>
+                : fechamentoDoMes ? <>Fechado por {fechamentoDoMes.por} em {quandoBR(fechamentoDoMes.em)}. </> : null}
+              Nenhum lançamento deste mês pode ser criado, alterado ou excluído.{' '}
+              {ehGestor
+                ? `Para corrigir, use “Reabrir o mês”${!dados?.confirmado && posteriorFechado !== null ? ` em ${MESES_LONGOS[posteriorFechado - 1]}` : ''} e informe o motivo — ele fica registrado no histórico.`
+                : 'Se algo precisa mudar, fale com a contabilidade: só ela reabre o mês.'}
+            </p>
+          </Aviso>
+        )}
+        {ehGestor && historicoDoMes.length > 0 && (
+          <details className="rounded-xl border border-borda bg-superficie px-4 py-3 text-[13px]">
+            <summary className="cursor-pointer font-medium text-tinta">Histórico de fechamento de {mesAberto} ({historicoDoMes.length})</summary>
+            <ul className="mt-2 space-y-1.5 text-tinta-suave">
+              {historicoDoMes.map((h, i) => (
+                <li key={`${h.em}-${i}`}>
+                  <Selo tom={h.acao === 'fechou' ? 'sucesso' : 'aviso'}>{h.acao === 'fechou' ? 'fechou' : 'reabriu'}</Selo>{' '}
+                  {h.por} em {quandoBR(h.em)}{h.motivo ? <> — <span className="text-tinta">“{h.motivo}”</span></> : null}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {ehGestor && fechamentos && !fechamentos.historicoDisponivel && fechado && (
+          <p className="text-xs text-tinta-suave">O histórico de fechar e reabrir depende de uma atualização do banco (migração 0034).</p>
+        )}
 
         {negativo && (
           <Aviso tom="aviso">
@@ -822,8 +889,8 @@ export default function Caixa() {
           </div>
         )}
 
-        {/* Novo lançamento — no celular o formulário vem empilhado, fora da tabela. */}
-        <Cartao className="p-4 md:hidden">
+        {/* Novo lançamento — no celular o formulário vem empilhado, fora da tabela. Mês fechado: sem formulário. */}
+        {!fechado && <Cartao className="p-4 md:hidden">
           <h2 className="mb-3 text-[15px] font-semibold text-tinta">Novo lançamento</h2>
           {avisoRascunho && <div className="mb-3">{avisoRascunho}</div>}
           <div className="grid grid-cols-2 gap-3" data-campo-lancamento="novo">
@@ -841,7 +908,7 @@ export default function Caixa() {
           <p className="mt-3 text-xs text-tinta-suave">
             Depósito em banco é <strong>saída</strong> do caixa; retirada é <strong>entrada</strong>.
           </p>
-        </Cartao>
+        </Cartao>}
 
         {avisoRascunho && <div className="max-md:hidden">{avisoRascunho}</div>}
 
@@ -926,7 +993,7 @@ export default function Caixa() {
                         <IconeCheck size={15} />
                       </BotaoIcone>
                     )}
-                    <BotaoIcone tamanho="sm" tom="primaria" rotulo="Editar lançamento" title="Editar" onClick={() => {
+                    {!fechado && <BotaoIcone tamanho="sm" tom="primaria" rotulo="Editar lançamento" title="Editar" onClick={() => {
                       setEditandoId(l.id);
                       const hMatch = historicos.find((h) => h.texto === l.historico && h.contaId === l.contaId)
                         ?? historicos.find((h) => h.texto === l.historico);
@@ -941,10 +1008,12 @@ export default function Caixa() {
                       });
                     }}>
                       <IconeLapis size={15} />
-                    </BotaoIcone>
-                    <BotaoIcone tamanho="sm" tom="perigo" rotulo="Excluir lançamento" title="Excluir" onClick={() => setAExcluir(l)}>
-                      <IconeExcluir size={15} />
-                    </BotaoIcone>
+                    </BotaoIcone>}
+                    {!fechado && (
+                      <BotaoIcone tamanho="sm" tom="perigo" rotulo="Excluir lançamento" title="Excluir" onClick={() => setAExcluir(l)}>
+                        <IconeExcluir size={15} />
+                      </BotaoIcone>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -965,12 +1034,19 @@ export default function Caixa() {
               {!carregando && linhas.length === 0 && (
                 <tr><td colSpan={nCols}>
                   <EstadoVazio moldura={false} titulo={`Nenhum lançamento em ${mesAberto}`}
-                    descricao="Comece pelo formulário de novo lançamento." />
+                    descricao={fechado ? 'O mês está fechado.' : 'Comece pelo formulário de novo lançamento.'} />
                 </td></tr>
               )}
             </tbody>
 
             <tfoot>
+              {fechado ? (
+                <tr className="bg-superficie-suave max-md:hidden">
+                  <td className={`${tb.td} font-medium text-tinta-suave`} colSpan={nCols - 2}>Saldo do mês</td>
+                  <td className={`${tb.td} ${tb.num} font-semibold ${(dados?.saldoFinal ?? 0) < 0 ? 'text-perigo' : 'text-tinta'}`}>{dinheiro(dados?.saldoFinal ?? 0)}</td>
+                  <td></td>
+                </tr>
+              ) : <>
               <tr className="bg-superficie-suave max-md:hidden" data-campo-lancamento="novo">
                 <Celulas campos={novo} setCampos={mudarNovo} contas={contas} historicos={historicos}
                   podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador}
@@ -999,6 +1075,7 @@ export default function Caixa() {
                   </div>
                 </td>
               </tr>
+              </>}
               {/* No celular a linha de lançamento sai da tabela; o saldo final fica. */}
               <tr className="bg-superficie-suave md:hidden">
                 <td className={`${tb.td} font-medium text-tinta-suave`} colSpan={nCols - 2}>Saldo do mês</td>
@@ -1028,6 +1105,23 @@ export default function Caixa() {
       {lendoDoc && (
         <LerDocumento empresaId={empresaSel} ano={ano} mes={mes}
           onLido={aplicarProposta} onFechar={() => setLendoDoc(false)} />
+      )}
+
+      {fechando && (
+        <DialogoConfirmacao perigo={false} titulo={`Fechar ${mesAberto}?`} textoConfirmar="Fechar o mês"
+          mensagem={<>O resumo e o Demonstrativo do mês ficam visíveis ao cliente e os lançamentos de {mesAberto}{' '}
+            <strong>ficam travados</strong>: ninguém cria, altera ou exclui — nem a contabilidade — até o mês ser reaberto com motivo.
+            {aConferir > 0 ? <> Atenção: {aConferir} lançamento(s) ainda sem conferência.</> : null}</>}
+          onConfirmar={fecharMes} onCancelar={() => setFechando(false)} />
+      )}
+      {reabrindo && (
+        <DialogoTexto titulo={`Reabrir ${mesAberto}?`} textoConfirmar="Reabrir o mês" perigo
+          descricao={<>Os lançamentos voltam a poder ser alterados e o resumo deixa de ficar visível ao cliente até o mês ser fechado de novo.
+            {reabreJunto.length > 0 && <> Como o saldo deles vem deste mês, <strong>{reabreJunto.map((m) => MESES_LONGOS[m - 1]).join(', ')}</strong> também {reabreJunto.length > 1 ? 'reabrem' : 'reabre'}.</>}
+            {' '}O motivo fica registrado no histórico, com o seu nome e a hora.</>}
+          rotulo="Motivo da reabertura" placeholder="Ex.: o cliente lançou a venda do dia 30 em duplicidade."
+          erroCurto="Escreva o motivo (pelo menos 5 letras)."
+          onConfirmar={reabrirMes} onCancelar={() => setReabrindo(false)} />
       )}
 
       {editandoSaldo && (

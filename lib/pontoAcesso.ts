@@ -9,7 +9,7 @@ import { exigirGestor, motivoNegado, podeAcessarEmpresa } from './acesso';
 import type { Sessao } from './auth';
 import { lerEmpresa } from './cadastro';
 import type { Empresa } from './tipos';
-import { ErroBancoPendente } from './pontoDb';
+import { ErroBancoPendente, ErroMesFechado } from './pontoDb';
 
 export type GuardaPonto =
   | { ok: true; sessao: Sessao; empresa: Empresa; escritorioId: string }
@@ -51,6 +51,8 @@ export function respostaErroPonto(e: unknown, padrao: string): Response {
   if (e instanceof ErroBancoPendente) {
     return Response.json({ erro: e.message, aguardandoBanco: true }, { status: 503 });
   }
+  // Mês fechado (0034): a mensagem é para quem usa, não detalhe do banco.
+  if (e instanceof ErroMesFechado) return Response.json({ erro: e.message, mesFechado: true }, { status: 409 });
   console.error(`[ponto] ${padrao}`, e);
   return Response.json({ erro: padrao }, { status: 502 });
 }

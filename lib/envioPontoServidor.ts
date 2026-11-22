@@ -17,8 +17,9 @@ import { avaliarCota, competenciaBelem, excedeuRitmo, RESERVA_VALIDA_MIN } from 
 import { lerEscritorio } from './escritorios';
 import {
   cancelarLeituraOcr, confirmarLeituraOcr, contarLeiturasOcr, contarTentativasRecentes, diasParaGravar, falharLeituraOcr,
-  lerFrequenciasDoMes, reservarLeituraOcr, salvarFrequencia,
+  lerFrequenciasDoMes, mesPontoFechado, reservarLeituraOcr, salvarFrequencia,
 } from './pontoDb';
+import { mensagemPontoFechado } from './mesFechado';
 import { situacaoDoEscritorio } from './cobrancaServidor';
 import {
   caminhoFoto, chaveNome, DESFAZER_APLICACAO_H, fotoValida, LEITURA_PRESA_MIN, limiteLeiturasAutomaticas,
@@ -209,6 +210,10 @@ export interface NovoEnvio {
  * pelo limite de corpo da função).
  */
 export async function iniciarEnvio(n: NovoEnvio): Promise<{ id: string; url: string; mime: string }> {
+  // Mês de ponto fechado (0034): a foto não teria onde ser aplicada.
+  if (await mesPontoFechado(n.escritorioId, n.empresaId, n.ano, n.mes)) {
+    throw new ErroEnvio(`O ponto deste mês já foi fechado pela contabilidade. Se algo precisa mudar, fale com ela — só ela reabre o mês.`, 409);
+  }
   const id = randomUUID();
   const caminho = caminhoFoto(n.escritorioId, id, n.tipo.ext);
   const db = getDb();
@@ -439,6 +444,8 @@ export async function processarFila(escritorioId: string, empresaId: string, lim
  * "desfazer" volta para eles; se gravar a frequência falhar, devolve o envio.
  */
 export async function aplicarEnvio(e: Envio, funcionario: string, dias: DiaFreq[], autor: string): Promise<{ dias: number; anteriores: number }> {
+  // Antes de reivindicar o envio: mês fechado não recebe folha (salvarFrequencia também recusaria).
+  await exigirAberto(e);
   const db = getDb();
   const atual = (await lerFrequenciasDoMes(e.escritorioId, e.empresaId, e.ano, e.mes))
     .find((f) => f.funcionario === funcionario);
@@ -466,9 +473,14 @@ export async function aplicarEnvio(e: Envio, funcionario: string, dias: DiaFreq[
   }
 }
 
+async function exigirAberto(e: Envio): Promise<void> {
+  if (await mesPontoFechado(e.escritorioId, e.empresaId, e.ano, e.mes)) throw new ErroEnvio(mensagemPontoFechado(e.ano, e.mes), 409);
+}
+
 /** Desfaz a aplicação: a frequência volta aos dias de antes e o envio volta à conferência. */
 export async function desfazerAplicacao(e: Envio): Promise<void> {
   if (e.situacao !== 'aplicada') throw new ErroEnvio('Esta folha não está aplicada.', 409);
+  await exigirAberto(e);
   const limite = Date.now() - DESFAZER_APLICACAO_H * 3_600_000;
   if (!e.aplicadoEm || Date.parse(e.aplicadoEm) < limite) {
     throw new ErroEnvio('Já passou o prazo para desfazer. Abra a folha salva e corrija os dias.', 409);

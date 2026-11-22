@@ -12,6 +12,8 @@ import { hojeBelem } from './agenda';
 import { avisosDemonstrativo, avisosFolhaDevolvida, avisosPedido, desdeTrezeMeses } from './avisosCliente';
 import { desdeDaJanela, montarNotificacoes, type ItemNotificacao, type Leitura } from './notificacoes';
 import { lerLeitura, type RespostaSino } from './notificacoesServidor';
+import { fechamentosParaCliente } from './fechamentoPontoServidor';
+import { avisosAceitePonto } from './mesFechado';
 
 /**
  * Chave da leitura do cliente em `notificacoes_leitura.usuario`. Leva a empresa: se o
@@ -47,6 +49,12 @@ export async function demonstrativosProntos(empresaId: string, agora: Date): Pro
   return itens;
 }
 
+/** Resumos do ponto fechados à espera do aceite do cliente (0034; sem a tabela, nada). */
+export async function aceitesPendentes(escritorioId: string, empresaId: string, agora: Date = new Date()): Promise<ItemNotificacao[]> {
+  const meses = await fechamentosParaCliente(escritorioId, empresaId, desdeTrezeMeses(hojeBelem(agora)));
+  return avisosAceitePonto(meses.map((m) => ({ ano: m.ano, mes: m.mes, fechadoEm: m.fechadoEm, situacao: m.situacao })));
+}
+
 export interface EntradaAvisosCliente {
   escritorioId: string;
   empresaId: string;
@@ -65,12 +73,13 @@ export async function lerAvisosCliente(e: EntradaAvisosCliente, agora: Date = ne
       return [];
     }
   };
-  const [{ leitura: lida, persistido }, folhas, pedidos, demos] = await Promise.all([
+  const [{ leitura: lida, persistido }, folhas, pedidos, demos, aceites] = await Promise.all([
     lerLeitura(e.escritorioId, usuarioLeituraCliente(e.empresaId, e.email)),
     isolada('folhas de ponto', () => folhasDevolvidas(e.escritorioId, e.empresaId, agora)),
     isolada('pedidos de documento', () => pedidosNovos(e.escritorioId, e.empresaId)),
     isolada('demonstrativo', () => demonstrativosProntos(e.empresaId, agora)),
+    isolada('resumo do ponto', () => aceitesPendentes(e.escritorioId, e.empresaId, agora)),
   ]);
   const leitura: Leitura = persistido ? lida : { lidasAte: e.vistoNoNavegador ?? null, lidas: [] };
-  return { ...montarNotificacoes([...folhas, ...pedidos, ...demos], leitura, agora), persistido, indisponiveis };
+  return { ...montarNotificacoes([...folhas, ...pedidos, ...demos, ...aceites], leitura, agora), persistido, indisponiveis };
 }

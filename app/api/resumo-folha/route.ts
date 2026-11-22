@@ -10,11 +10,9 @@
 // (proxy.ts, ROTAS_PONTO). Não altera nenhuma folha.
 import { NextRequest } from 'next/server';
 import { exigirEmpresaPonto, respostaErroPonto } from '@/lib/pontoAcesso';
-import { ErroBancoPendente, lerFeriados, lerFrequenciasParaRevisao, lerFuncionarios } from '@/lib/pontoDb';
-import { lerJornadaEmpresa } from '@/lib/cadastro';
-import { listarEmpregados } from '@/lib/dpServidor';
-import { temBancoDeHoras } from '@/lib/dp';
-import { regrasDoEmpregado, resumirMes, resumoParaCsv, textoAssinatura, tituloPeriodo, type ResumoFolhaMes } from '@/lib/resumoFolha';
+import { ErroBancoPendente } from '@/lib/pontoDb';
+import { resumoParaCsv, textoAssinatura, tituloPeriodo } from '@/lib/resumoFolha';
+import { calcularResumo as calcular } from '@/lib/resumoFolhaServidor';
 import { gerarPlanilhaResumo } from '@/lib/planilha';
 import { assinar, lerConferencia, removerConferencia, salvarConferencia } from '@/lib/resumoFolhaDb';
 import { MESES } from '@/lib/calendario';
@@ -27,41 +25,6 @@ function periodo(ano: number, mes: number): boolean {
 }
 
 const slug = (s: string) => s.normalize('NFD').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-
-/** Percentual vindo da tela: número entre 0 e 300, senão o padrão. */
-function pct(v: string | null): number | undefined {
-  if (v === null || v.trim() === '') return undefined;
-  const n = Number(v.replace(',', '.'));
-  return Number.isFinite(n) && n >= 0 && n <= 300 ? n : undefined;
-}
-
-async function calcular(g: { escritorioId: string; empresa: { id: string } }, ano: number, mes: number, p: URLSearchParams): Promise<ResumoFolhaMes> {
-  const [freqs, feriadosArr, funcs, jornadaEmpresa, empregados] = await Promise.all([
-    lerFrequenciasParaRevisao(g.escritorioId, g.empresa.id, ano, mes),
-    lerFeriados(g.escritorioId),
-    lerFuncionarios(g.escritorioId, g.empresa.id),
-    lerJornadaEmpresa(g.empresa.id),
-    // Cadastro do DP (0021): acordo de banco de horas. Sem a tabela, segue sem ele.
-    listarEmpregados(g.escritorioId, [g.empresa.id]).catch(() => []),
-  ]);
-  const fimDoMes = `${ano}-${String(mes).padStart(2, '0')}-28`;
-  const empregadoPorNome = new Map(empregados.map((e) => [e.nome, e]));
-  const feriados = new Set(feriadosArr.map((f) => f.data));
-  const porNome = new Map(funcs.map((f) => [f.nome, f]));
-  const banco = new Set(p.getAll('banco'));
-  const ordem = (nome: string) => { const i = funcs.findIndex((f) => f.nome === nome); return i < 0 ? Number.MAX_SAFE_INTEGER : i; };
-  const doMes = [...freqs.doMes].sort((a, b) => ordem(a.funcionario) - ordem(b.funcionario) || a.funcionario.localeCompare(b.funcionario));
-  return resumirMes(doMes.map((f) => ({
-    funcionario: f.funcionario,
-    dias: f.dias,
-    anteriores: freqs.anteriores.get(f.funcionario),
-    regras: regrasDoEmpregado(porNome.get(f.funcionario), jornadaEmpresa, f.funcionario, banco,
-      temBancoDeHoras(empregadoPorNome.get(f.funcionario), fimDoMes)),
-  })), {
-    ano, mes, feriados,
-    percentuais: { extraUtil: pct(p.get('extra')), extraDomFeriado: pct(p.get('dom')), adicionalNoturno: pct(p.get('noturno')) },
-  });
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

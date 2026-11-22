@@ -626,3 +626,85 @@ Situações (`ponto_envios.situacao`): `enviando → recebida → lendo → lida
   `ponto_envios` com `situacao in (recebida, lida, falhou)`).
 - Foto com mais de uma página (frente e verso): hoje cada foto é um envio e um rascunho; a contadora aplica a
   principal e devolve/exclui a outra. Juntar duas fotos numa leitura fica para depois.
+
+
+## Mês fechado e aceite do cliente (Sprint 17 · Frente C)
+
+> A contadora **fecha** o mês de ponto de uma empresa depois do "Resumo para a folha"; fechado,
+> as frequências do mês não mudam sem **reabrir com motivo**. A empresa-cliente dá o **aceite**
+> do resumo (ou registra uma dúvida) numa seção de `/enviar-ponto`. Migração **0034** (não
+> aplicada). Ideia 5 de [`empresa/concorrentes.md`](empresa/concorrentes.md). Branch `claude/mes-fechado`.
+
+### O fluxo
+
+1. Timesheet → "Resumo para a folha" → **Fechar o mês** (só sem pendência impeditiva). O servidor
+   recalcula o resumo com os ajustes da tela (banco marcado, percentuais) e guarda a **foto**
+   (`ponto_meses_fechados.resumo`: por funcionário, dias, normais, extras 50%, → banco, extras
+   100%, noturno computado, atrasos, faltas, DSR perdidos, atestado e férias em dias — **nunca R$,
+   nunca o detalhe por dia**) com a assinatura (hash) da foto.
+2. Fechado, **nenhuma frequência do mês muda**: `salvarFrequencia` (lib/pontoDb.ts) recusa com
+   `ErroMesFechado` → 409 "O ponto de Outubro/2026 está fechado…" — vale para salvar na Timesheet,
+   aplicar/desfazer folha enviada (lib/envioPontoServidor.ts, antes de reivindicar o envio) e para
+   o cliente enviar foto nova daquele mês (`iniciarEnvio`). Gatilho na 0034 como defesa no banco.
+3. O cliente recebe aviso no sino ("Resumo do ponto para o seu aceite" · "Outubro/2026 · confira as
+   horas do mês…" — **sem nome de funcionário**) e vê em `/enviar-ponto#aceite` a tabela de horas
+   por funcionário, com **Aceito** ou **Tenho uma dúvida** (texto de 3 a 1.000 letras). O "Aceito"
+   traz a declaração `DECLARACAO_ACEITE` (lib/mesFechado.ts), guardada pela versão.
+4. A contadora vê na seção do fechamento: quem fechou, a situação do aceite (aguardando / aceito /
+   dúvida, com quem e quando, e o texto da dúvida) e o histórico (fechou, reabriu + motivo, respostas).
+   Se o cálculo da tela divergir da foto (feriado, jornada, percentual ou banco mudou depois), aparece
+   um aviso: a folha e o aceite usam a foto.
+5. **Reabrir** (só a contabilidade): motivo obrigatório (5 a 500 letras), gravado no histórico antes de
+   reabrir. Fechar de novo com outros números → o aceite antigo não vale (outra assinatura) e o cliente
+   precisa aceitar de novo.
+
+### Decisões (com pareceres do `contador` e do `escudo`, 21/11/2026)
+
+| Tema | Decisão |
+|---|---|
+| Valor do aceite | **Não é espelho de ponto assinado** (esse é do empregado — art. 74 CLT, Portaria MTP 671/2021; Súm. 338 TST). É a confirmação **da empresa ao escritório** de que conferiu o que vai para a folha (assinatura eletrônica simples, Lei 14.063/2020). Não divulgar como "espelho assinado". A prova da jornada continua sendo a folha original. |
+| O que fica registrado | login (e-mail), data e hora, assinatura dos números e versão da declaração. Só acrescenta (nunca editado). "Aceito" é definitivo para aquela assinatura; depois de uma dúvida, ainda pode aceitar. Teto de 30 respostas por mês (429). |
+| Atestado na foto | Só a **contagem de dias** (sem CID nem motivo); a empresa já recebe o atestado. LGPD: pode ser lido como dado de saúde — **jurídico confirma** (ver Pendências). |
+| Feriados e jornada | **Não** travam (são do escritório/cadastro e valem para todas as empresas); a foto protege o que foi para a folha e a tela avisa a divergência. |
+| Sem a 0034 | Nada pode estar fechado (`mesPontoFechado` → `false`); a folha salva normalmente; fechar e o aceite respondem 503 "aguardando o banco"; a seção do cliente não aparece. Qualquer outro erro do banco ao checar a trava → não grava. |
+
+### Arquivos
+
+`lib/mesFechado.ts` (regras puras, compartilhadas com o caixa) · `lib/fechamentoPontoServidor.ts` ·
+`lib/resumoFolhaServidor.ts` (cálculo do resumo, saiu da rota para o fechamento usar a mesma conta) ·
+`lib/pontoDb.ts` (`ErroMesFechado`, `mesPontoFechado`, `exigirMesPontoAberto`) ·
+`app/api/resumo-folha/fechamento/route.ts` (contabilidade, `exigirEmpresaPonto`) ·
+`app/api/envio-ponto/aceite/route.ts` (cliente, `exigirClienteDaEmpresa`; empresa e escritório **só da
+sessão**; já sob `/api/envio-ponto` em `CLIENTE_PODE`) · `app/(app)/ponto/ResumoFolha.tsx` ·
+`app/(app)/enviar-ponto/AceiteResumo.tsx` · `lib/avisosClienteServidor.ts` (`aceitesPendentes`).
+
+### Para o integrador (Sprint 17 · C, ponto)
+
+- **Migração 0034** (aditiva, idempotente): `ponto_meses_fechados`, `ponto_meses_historico`,
+  `ponto_aceites` (RLS sem policy, FK composta empresa+escritório) e o gatilho
+  `ponto_frequencias_trava_mes_fechado` (UPDATE que só muda `empregado_id`/empresa/escritório passa —
+  ligação do DP, 0021; `pg_trigger_depth() > 1` só para DELETE). Aplicar **antes ou junto** do código
+  (por causa do caixa, ver docs/livro-caixa.md). `migration list` antes de `db push`.
+- Rotas novas em `lib/medicaoRotas.ts`: `/api/resumo-folha/fechamento`, `/api/envio-ponto/aceite`.
+  `proxy.ts` **não** mudou. Tipo novo de aviso no sino: `aceite_ponto` (`lib/notificacoes.ts`,
+  rótulo "Folha de ponto" em `Sino.tsx` — duas linhas).
+- O que testar (conta e empresa de teste; nunca nas da Edilse): salvar uma folha → Fechar o mês →
+  salvar de novo dá o aviso de mês fechado; aplicar uma folha enviada daquele mês → recusa; como
+  cliente, o sino mostra o aviso, `/enviar-ponto` mostra a tabela; "Tenho uma dúvida" sem texto →
+  erro no campo; com texto → contadora vê; "Aceito" → contadora vê quem e quando; reabrir sem motivo
+  → erro; com motivo → histórico; mudar uma folha e fechar de novo → o cliente aceita de novo.
+  Outro escritório: `GET /api/resumo-folha/fechamento?empresa=<id>…` → 403.
+- **Gatilhos sem teste automático**: conferir numa base de homologação (INSERT/UPDATE/DELETE em mês
+  fechado = erro; ligação de `empregado_id` pelo DP = passa).
+- **Não verificado no navegador** (sem banco local com a 0034): typecheck, lint, testes e build verdes.
+
+### Pendências (Sprint 17 · C)
+
+- **Jurídico:** `atestadoDias` na foto exposta ao cliente (LGPD art. 11?) — cobrir no termo/política
+  ou tirar a coluna; **retenção** da foto e dos aceites (sugestão: o mesmo prazo do ponto, 5 anos);
+  contrato de serviço prevendo aceite eletrônico e prazo de resposta.
+- **Contadora:** prazo de aceite ("sem resposta até o dia X, a folha segue com estes números" —
+  aviso registrado, não "aceite tácito" sem contrato); quem guarda a folha manuscrita original.
+- Depois: registrar também o carimbo "conferido" (0022) ao fechar; avisar atestado > 15 dias
+  seguidos (INSS); id do usuário/IP/navegador no aceite (o login da empresa é compartilhado) —
+  decidir com o jurídico.

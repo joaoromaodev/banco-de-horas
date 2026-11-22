@@ -4,8 +4,8 @@
 > este arquivo antes de mexer no módulo do caixa**: ele guarda as decisões, o que
 > já está pronto e o que falta. Mantenha-o atualizado ao fim de cada etapa.
 
-Última atualização: **21/11/2026** (Sprint 12, Frente A — documento → lançamento
-sugerido por IA, desligado atrás de duas travas, migração 0029)
+Última atualização: **21/11/2026** (Sprint 17, Frente C — mês fechado que trava,
+migração 0034; ver "Sprint 17 · Frente C" em Etapas)
 
 ## Por que este módulo existe
 
@@ -30,10 +30,10 @@ abas: `Ajuda`, `Plano de Contas`, `EXEMPLO`, `Termo de abertura`, os 12 meses,
 | Comprovantes | **Não** anexa e **não** tem OCR — o administrativo digita, o papel fica na empresa. *(21/11/2026: o dono decidiu construir a leitura de documento por IA, **desligada** por padrão e opcional por empresa — ver "Documento → lançamento sugerido por IA"; só vale para quem ligar, depois do aceite dela.)* |
 | Nº do documento | **Não** quis o campo |
 | Históricos | **Padronizados**, lista pronta para escolher |
-| Edição | **Sempre** editável e excluível, inclusive retroativo |
+| Edição | Editável e excluível, inclusive retroativo — **exceto em mês fechado** (Sprint 17 · C, ver abaixo) |
 | Saldo negativo | Só **avisa**, não bloqueia |
 | Saldo de janeiro | Vem do **encerramento do ano anterior** (2026 é o 1º ano: digitado) |
-| Confirmar o mês | **Não trava a edição** — libera o balanço para o cliente ver |
+| Confirmar o mês | ~~Não trava a edição~~ → desde a Sprint 17 · C é **"Fechar o mês"**: libera o balanço ao cliente **e trava** o mês até reabrir com motivo |
 | Balanço | **Mês a mês** e anual, mas **simples**: entradas, saídas e saldo transportado. Ela **dispensou** o balanço detalhado em débitos × créditos (ver "O de-para" abaixo) |
 | Despesa fixa/variável | **Não** vira campo — é só linguagem dela ao explicar pro cliente |
 | Login do cliente | **Um por empresa, compartilhado** por várias pessoas do administrativo |
@@ -1036,6 +1036,45 @@ ano vai em janeiro e no primeiro rótulo visível. Teste em `tests/graficosResum
   `cliente-documento:`); (c) `/caixa/demonstrativo` a 375 px nos dois temas — eixo e
   meses legíveis, meses alternados, o mês do demonstrativo em negrito.
 - **Não verificado no navegador** (sem banco local). typecheck, lint, testes e build verdes.
+
+### ✅ Sprint 17 · Frente C — Mês fechado que trava (migração 0034)
+
+**Mudança de decisão.** "Confirmar o mês" deixou de ser só a liberação do resumo: virou
+**Fechar o mês**, que libera o resumo/Demonstrativo ao cliente **e trava** o mês. É a
+ideia 5 de [`empresa/concorrentes.md`](empresa/concorrentes.md) ("o número que foi para o
+cliente não muda depois"). As linhas "Edição sempre liberada" e "Confirmar não trava" da
+tabela de decisões acima ficam **substituídas** por esta seção.
+
+| Regra | Onde |
+|---|---|
+| Mês fechado (linha em `meses_confirmados`): nenhum lançamento é criado, alterado ou excluído — **nem pelo cliente, nem pela contabilidade**. 409 com a mensagem "Março/2026 está fechado pela contabilidade… a contabilidade reabre o mês informando o motivo." | `lib/caixa.ts` → `exigirMesAberto`, chamado em POST/PATCH/DELETE de `app/api/caixa/lancamentos` (no PATCH, o mês de origem **e** o de destino) |
+| **Mês anterior a um fechado também trava**: o saldo dele é o saldo transportado do fechado (pareceres do `contador` e do `escudo`). Mensagem: "Abril/2026 está fechado e o saldo dele vem de Março/2026…" | `exigirMesAberto` olha `mes >= M` |
+| Os meses **fecham em ordem** (janeiro primeiro): "Feche antes Janeiro/2026…" | POST `/api/caixa/meses` |
+| **Reabrir** só a contabilidade, com **motivo** (5 a 500 letras). Reabrir um mês **reabre os fechados depois dele**, com o mesmo motivo registrado em cada um | DELETE `/api/caixa/meses` `{ empresa, ano, mes, motivo }` |
+| Histórico: quem fechou, quem reabriu, quando e por quê — na tela (contabilidade), recolhido em "Histórico de fechamento" | `caixa_meses_historico` (0034); GET `/api/caixa/meses?empresa=&ano=` |
+| Conferir/desmarcar lançamento **continua livre** no mês fechado (não muda o livro) | PATCH `{ id, conferido }` |
+| Saldo inicial não muda com qualquer mês do ano fechado (muda o saldo transportado de todos) | PATCH `/api/caixa/exercicio` |
+| Defesa no banco: gatilho `lancamentos_trava_mes_fechado` com a mesma regra (só `conferido_*` pode mudar; `pg_trigger_depth() > 1` só para DELETE em cascata) | 0034 |
+| Tela: selo/cadeado no mês, aviso "está fechado" (cliente: "fale com a contabilidade"; contabilidade: "Reabrir o mês"), sem formulário, editar, excluir nem "Ler documento"; "Fechar o mês" desabilitado com mês anterior aberto; diálogo de reabrir com o motivo (`DialogoTexto` em `app/(app)/Dialogo.tsx`) | `app/(app)/caixa/page.tsx` |
+
+O cliente vê só "mês fechado" — **não** vê quem fechou nem o motivo (GET de `/api/caixa/meses`
+é `exigirGestor`). Reabrir esconde de novo o resumo/Demonstrativo do cliente (o fechamento é a
+liberação). Testes: `tests/mesFechadoRotas.test.ts` (guardas reais) e `tests/mesFechado.test.ts`.
+
+#### Para o integrador (Sprint 17 · C, caixa)
+
+- **Aplicar a 0034 ANTES (ou junto) do código.** A trava vale assim que o código sobe (lê
+  `meses_confirmados`, que já existe); sem a 0034, **reabrir responde 503** (o motivo não pode
+  se perder) — todo mês hoje confirmado ficaria travado sem como reabrir. Fechar funciona sem
+  ela (o histórico só não registra). `npx supabase migration list` antes de `db push`.
+- **Atenção ao estado atual:** os meses já confirmados em produção (havia 3 em 21/11) passam a
+  travar, **e os anteriores a eles também**. Avise a Edilse: para corrigir, "Reabrir o mês".
+- Testar (conta e empresa de teste): fechar fevereiro com janeiro aberto → recusa; fechar
+  janeiro → cliente e contadora não lançam/editam/excluem em janeiro (409), conferir funciona;
+  fechar fevereiro → reabrir janeiro pede motivo e reabre os dois, histórico mostra os
+  registros; saldo inicial bloqueado com mês fechado.
+- **Gatilhos sem teste automático** (o banco falso não roda plpgsql): numa base de homologação,
+  conferir à mão INSERT/UPDATE/DELETE em mês fechado (erro), UPDATE só de `conferido_*` (passa).
 
 ## Estado do banco
 

@@ -101,7 +101,7 @@ export function SinoBotao({ sino, aberto, onAlternar, className }: {
 
 const ROTULO_TIPO: Record<Notificacao['tipo'], string> = {
   documento: 'Documento', pendencia: 'Pedido', caixa: 'Livro Caixa', conferencia: 'Conferência', evento: 'Aviso',
-  folha_devolvida: 'Folha de ponto', pedido: 'Documentos', demonstrativo: 'Livro Caixa',
+  folha_devolvida: 'Folha de ponto', pedido: 'Documentos', demonstrativo: 'Livro Caixa', aceite_ponto: 'Folha de ponto',
 };
 
 /** Painel de notificações; `recolhido` ajusta a posição ao lado da barra lateral (desktop). */

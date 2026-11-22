@@ -4,7 +4,7 @@
 // arredondado. Substituem os `confirm()`/`prompt()` nativos, que destoavam do
 // resto. `Modal` é a moldura única — os seletores de conta também a usam.
 import { useEffect, useId, useRef, useState } from 'react';
-import { Botao, Entrada } from '@/components/ui';
+import { AreaTexto, Botao, Entrada } from '@/components/ui';
 
 const FOCAVEIS =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -120,6 +120,45 @@ export function DialogoValor({
         <div className={RODAPE}>
           <Botao onClick={onCancelar}>Cancelar</Botao>
           <Botao type="submit" variante="primaria">Salvar</Botao>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Texto obrigatório antes de uma ação (o motivo de reabrir um mês fechado, a dúvida
+ * do cliente). Valida o tamanho mínimo na hora e mostra o erro embaixo do campo.
+ */
+export function DialogoTexto({
+  titulo, descricao, rotulo, textoConfirmar, perigo = false, minimo = 5, maximo = 500, placeholder, erroCurto,
+  onConfirmar, onCancelar,
+}: {
+  titulo: string; descricao?: React.ReactNode; rotulo: string; textoConfirmar: string; perigo?: boolean;
+  minimo?: number; maximo?: number; placeholder?: string; erroCurto: string;
+  onConfirmar: (texto: string) => void; onCancelar: () => void;
+}) {
+  const id = useId();
+  const [texto, setTexto] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  return (
+    <Modal onFechar={onCancelar} rotuladoPor={id}>
+      <form onSubmit={(e) => {
+        e.preventDefault();
+        const t = texto.replace(/\s+/g, ' ').trim();
+        if (t.length < minimo) { setErro(erroCurto); return; }
+        onConfirmar(t);
+      }}>
+        <div className="p-5">
+          <h2 id={id} className="text-base font-semibold text-tinta">{titulo}</h2>
+          {descricao && <div className="mt-2 text-sm leading-relaxed text-tinta-suave">{descricao}</div>}
+          <AreaTexto classeCampo="mt-4" rotulo={rotulo} rows={3} maxLength={maximo} value={texto} data-foco-inicial
+            erro={erro ?? undefined} placeholder={placeholder}
+            onChange={(e) => { setTexto(e.target.value); setErro(null); }} />
+        </div>
+        <div className={RODAPE}>
+          <Botao onClick={onCancelar}>Cancelar</Botao>
+          <Botao type="submit" variante={perigo ? 'perigo' : 'primaria'}>{textoConfirmar}</Botao>
         </div>
       </form>
     </Modal>

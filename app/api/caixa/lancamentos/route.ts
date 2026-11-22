@@ -1,13 +1,15 @@
 // /api/caixa/lancamentos — o movimento do caixa: ler o mês, lançar, editar,
 // conferir e excluir.
 //
-// Lançamento é **sempre editável e excluível**, inclusive retroativo e inclusive
-// depois do mês confirmado — decisão da contadora. Por isso não há nenhuma
-// checagem de "mês fechado" aqui.
+// Lançamento é editável e excluível, inclusive retroativo — MENOS em mês fechado
+// (confirmado) pela contabilidade: aí nada é criado, alterado ou excluído, de
+// ninguém, até a contabilidade reabrir com motivo (Sprint 17, frente C; 409 com a
+// mensagem de lib/mesFechado.ts). Marcar/desmarcar a conferência continua livre:
+// não muda o livro.
 import { NextRequest } from 'next/server';
 import { ehGestor, exigirEmpresa, exigirSessao, motivoNegado } from '@/lib/acesso';
 import {
-  empresaDoLancamento, ErroCaixa, exigirCatalogoVisivel, garantirExercicio, HISTORICO_RETIRADA_CHEQUE,
+  empresaDoLancamento, ErroCaixa, exigirCatalogoVisivel, exigirMesAberto, garantirExercicio, HISTORICO_RETIRADA_CHEQUE,
   lancamentosDoMes, mesesConfirmados, saldoTransportado, semColunaDocumento, validarLancamento,
   vincularConta, vincularHistorico,
 } from '@/lib/caixa';
@@ -87,6 +89,8 @@ export async function POST(req: NextRequest) {
     const ano = anoDe(body.ano);
     const ex = await garantirExercicio(empresa, ano);
     const l = validarLancamento(body, ano);
+    // Mês fechado: nada entra (vale para o cheque também — as duas pernas têm a mesma data).
+    await exigirMesAberto(ex.id, ano, Number(l.data.slice(5, 7)));
     // A conta e a analítica têm que ser do catálogo base ou do escritório de quem lança.
     await exigirCatalogoVisivel(visaoDoCatalogo(g.sessao), l.contaId, l.historicoId);
     const autor = g.sessao.email;
@@ -143,7 +147,7 @@ export async function POST(req: NextRequest) {
     if (error && documentoId && semColunaDocumento(error)) {
       throw new ErroCaixa('O vínculo com o documento ainda não está instalado (falta a migração 0029). Lance sem o anexo.', 503);
     }
-    if (error) throw new ErroCaixa(traduzir(error.message), 400);
+    if (error) throw new ErroCaixa(traduzir(error.message), mesFechadoNoBanco(error.message) ? 409 : 400);
 
     // A sugestão de conta que estava na tela (se havia): registra se foi aceita.
     // Nunca derruba o lançamento (ver lib/caixaInteligente).
@@ -199,7 +203,11 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ ok: true });
     }
 
+    // Nem tirar de um mês fechado, nem levar para um.
+    await exigirMesAberto(dono.exercicioId, dono.ano, dono.mes);
     const l = validarLancamento(body, dono.ano);
+    const novoMes = Number(l.data.slice(5, 7));
+    if (novoMes !== dono.mes) await exigirMesAberto(dono.exercicioId, dono.ano, novoMes);
     await exigirCatalogoVisivel(visaoDoCatalogo(g.sessao), l.contaId, l.historicoId);
     const { error } = await db.from('lancamentos').update({
       data: l.data, historico: l.historico, complemento: l.complemento, conta_id: l.contaId,
@@ -209,7 +217,7 @@ export async function PATCH(req: NextRequest) {
       // O que ela conferiu mudou: a conferência cai e o lançamento volta para a fila.
       conferido_por: null, conferido_em: null,
     }).eq('id', id);
-    if (error) throw new ErroCaixa(traduzir(error.message), 400);
+    if (error) throw new ErroCaixa(traduzir(error.message), mesFechadoNoBanco(error.message) ? 409 : 400);
 
     await Promise.all([
       l.contaId ? vincularConta(dono.empresaId, l.contaId) : null,
@@ -232,18 +240,23 @@ export async function DELETE(req: NextRequest) {
 
     const dono = await empresaDoLancamento(id);
     { const n = await motivoNegado(g.sessao, dono.empresaId); if (n) throw new ErroCaixa(n.erro, n.status); }
+    await exigirMesAberto(dono.exercicioId, dono.ano, dono.mes);
 
     const { error } = await getDb().from('lancamentos').delete().eq('id', id);
-    if (error) throw new ErroCaixa(`lancamentos: ${error.message}`, 502);
+    if (error) throw new ErroCaixa(traduzir(error.message), mesFechadoNoBanco(error.message) ? 409 : 502);
     return Response.json({ ok: true });
   } catch (e) {
     return falha(e);
   }
 }
 
+/** Gatilho da 0034 (defesa em profundidade): a rota já teria recusado antes. */
+const mesFechadoNoBanco = (msg: string) => msg.includes('Mês fechado');
+
 /** As travas do banco falam em SQL; quem lança, não. */
 function traduzir(msg: string): string {
   if (msg.includes('entrada_xor_saida')) return 'O lançamento é entrada ou saída, não os dois.';
   if (msg.includes('fora do exercício')) return msg.replace(/^.*?(Lançamento de)/, '$1');
+  if (mesFechadoNoBanco(msg)) return msg.replace(/^.*?(Mês fechado)/, '$1');
   return msg;
 }
