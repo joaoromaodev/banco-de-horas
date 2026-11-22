@@ -30,7 +30,7 @@ export const usuarioLeituraCliente = (empresaId: string, email: string) => `clie
 export async function folhasDevolvidas(escritorioId: string, empresaId: string, agora: Date = new Date()): Promise<ItemNotificacao[]> {
   const envios = await listarEnvios(escritorioId, empresaId, { desde: desdeTrezeMeses(hojeBelem(agora)) });
   return avisosFolhaDevolvida(envios.map((e) => ({
-    id: e.id, funcionario: e.funcionario, ano: e.ano, mes: e.mes, situacao: e.situacao, motivo: e.motivo, devolvidoEm: e.devolvidoEm,
+    id: e.id, funcionario: e.funcionario, ano: e.ano, mes: e.mes, situacao: e.situacao, devolvidoEm: e.devolvidoEm,
   })));
 }
 

@@ -795,10 +795,9 @@ Decisões:
 
 ### Pendências (frente F)
 
-- **A cota da plataforma é uma só** (~45 folhas/dia no modelo padrão, somando todos os
-  escritórios): um escritório pode esgotar o dia de todos. Próximo passo: teto diário por
-  escritório dentro da cota, ou o plano pago da Workers AI como reserva (US$ 0,011 por
-  1.000 neurônios ≈ US$ 0,002 por folha).
+- ~~**A cota da plataforma é uma só**: um escritório pode esgotar o dia de todos~~ — **teto
+  por escritório na Sprint 18 · A** (ver abaixo). Continua valendo pensar no plano pago da
+  Workers AI como reserva (US$ 0,011 por 1.000 neurônios ≈ US$ 0,002 por folha).
 - **Jurídico:** contrato de tratamento de dados com a Cloudflare (cláusulas-padrão da ANPD,
   Res. CD/ANPD nº 19/2024), região de processamento, lista de suboperadores e o termo com
   os escritórios citando a Cloudflare.
@@ -806,3 +805,59 @@ Decisões:
   retenção zero só sem log/cache do Gateway.
 - Comparativo com **folhas reais** (com autorização) antes de qualquer afrouxamento da
   revisão — o sintético mede o mínimo. A tela de revisão continua obrigatória.
+
+## Sprint 18 · Frente A — teto de IA por escritório, aceite no sino e dica de foto
+
+### Teto diário de IA por escritório
+
+A cota gratuita da Cloudflare (10.000 neurônios/dia, ~45 folhas) é **uma só para a plataforma**.
+Agora ela é repartida: cada escritório gasta no máximo **`IA_COTA_ESCRITORIO_PCT`% do dia**
+(padrão **40%** ≈ 4.000 neurônios ≈ 18 folhas; aceita de 1 a 100, `100` desliga o teto).
+
+- Cada chamada grava o escritório em `ia_uso.escritorio_id` (migração **0037**). Antes de chamar a
+  IA, `lerComIa` confere (1) o limite do dia da plataforma, como antes, e (2) quanto **aquele**
+  escritório já gastou hoje (`usoHojeEscritorio`: soma só as linhas dele, do dia UTC, na Cloudflare).
+  No teto → `ErroIa('cota_escritorio')`, 429, **sem ir à rede**, com mensagem humana: "O seu
+  escritório já usou a parte dele da IA hoje (cada escritório pode usar até 40% do limite diário, que é
+  dividido entre os escritórios da plataforma). As leituras voltam amanhã (a cota renova às 21h,
+  horário de Brasília); enquanto isso, dá para preencher à mão."
+- O escritório vem do servidor: na Timesheet, da guarda (`exigirEmpresaPonto`); no envio do cliente, do
+  envio gravado; no documento do caixa e na sugestão de conta, do cadastro da empresa. Nunca do navegador.
+- Aviso de 80% da parte do escritório na Timesheet (`iaDia` = o pior entre o limite do dia e a parte do
+  escritório — `avisoIaDoDia`). O master vê o teto configurado em `/configuracoes` → "Leitura por IA".
+- Envio do cliente no teto do escritório: a foto volta à fila (`sem_ia`) sem gastar tentativa, como no
+  limite do dia. Leitura recusada não conta na cota mensal do plano.
+- **Sem a 0037**: grava sem o escritório (tenta com a coluna, `42703`/`PGRST204` → regrava sem ela e
+  lembra por 5 min) e o teto por escritório fica desligado; só o limite do dia vale. Nada quebra.
+- Arquivos: `lib/ia/config.ts` (`percentualCotaEscritorio`, `tetoDiarioEscritorio`), `lib/ia/cota.ts`
+  (`avaliarCotaEscritorio`, `avisoIaDoDia`, `usoHojeEscritorio`, `registrarUso` com escritório,
+  `situacaoIa(env, escritorioId)`), `lib/ia/index.ts`, `lib/ia/erros.ts` (`cota_escritorio`),
+  `lib/ocr.ts`, `lib/envioPontoServidor.ts`, `lib/documentoLancamentoServidor.ts`, rotas `/api/extrair`,
+  `/api/caixa/documento-ia`, `/api/caixa/sugestao`, `/api/config` (só a tela) e `configuracoes/page.tsx`.
+- Testes: `tests/ia.test.ts` (configuração, mensagens, recusa antes da rede, outro escritório segue,
+  100% desliga, sem a 0037 segue, gasto gravado com o escritório) e `tests/iaCotaEscritorio.test.ts`
+  (banco em memória: soma só o escritório pedido, do dia e da Cloudflare; sem a 0037; `situacaoIa` não
+  mostra a parte de outro escritório).
+
+### Aceite e dúvida no sino da contadora
+
+Ver [`notificacoes.md`](notificacoes.md) → "Sprint 18 · Frente A". O sino da folha devolvida do cliente
+deixou de mostrar o motivo.
+
+### Dica de foto
+
+"Fotografe a folha reta, inteira e com luz" à vista em `/enviar-ponto` e na Timesheet
+(`app/(app)/DicaFotoFolha.tsx`) — a IA gratuita erra mais em foto torta.
+
+### Para o integrador (Sprint 18 · A, IA)
+
+1. **Migração 0037** (`supabase/migrations/0037_ia_uso_escritorio.sql`) — **não aplicada**. Aditiva e
+   idempotente: `ia_uso.escritorio_id uuid` (nullable, FK `escritorios` com `on delete set null`) e um
+   índice parcial. Depende da 0010 e da 0036. Ordem publicar/aplicar indiferente (sem ela, só o limite
+   do dia vale). `migration list` antes de `db push`. Reversão no cabeçalho do arquivo.
+2. Variável opcional **`IA_COTA_ESCRITORIO_PCT`** (padrão 40). Com um escritório só no beta, pode
+   deixar `100` até entrar o segundo — decisão do dono.
+3. Testar num preview: `IA_COTA_DIARIA=300` e `IA_COTA_ESCRITORIO_PCT=50` → depois de ~150 neurônios de
+   um escritório de teste, "Ler folha (OCR)" responde a mensagem do escritório e a Timesheet mostra o
+   aviso; outro escritório de teste continua lendo até o limite do dia.
+   `select dia, escritorio_id, sum(neuronios) from ia_uso group by 1, 2 order by 1 desc;`

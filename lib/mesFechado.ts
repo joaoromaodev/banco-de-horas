@@ -208,3 +208,23 @@ export function avisosAceitePonto(fechados: FechamentoParaAviso[]): ItemNotifica
       };
     });
 }
+
+/** O que vai para o sino da CONTABILIDADE quando o cliente responde ao resumo (Sprint 18 · A). */
+export interface AvisoRespostaAceite { tipo: string; titulo: string; texto: string; href: string; chave: string }
+
+/**
+ * Aviso à contabilidade: o cliente aceitou o resumo ou registrou uma dúvida. Só a empresa
+ * (o sino põe o nome) e o mês — **sem nome de funcionário e sem o texto da dúvida** (texto
+ * livre do cliente, pode citar pessoa ou saúde; ele fica na seção do fechamento, na
+ * Timesheet). A chave leva o instante da resposta: cada resposta é um aviso.
+ */
+export function avisoRespostaAceite(n: {
+  empresaId: string; ano: number; mes: number; resposta: RespostaAceite; em: string;
+}): AvisoRespostaAceite {
+  const q = new URLSearchParams({ empresa: n.empresaId, ano: String(n.ano), mes: String(n.mes) });
+  const base = { tipo: 'aceite_ponto_cliente', href: `/ponto?${q}`, chave: `aceite-ponto|${n.empresaId}|${n.ano}|${n.mes}|${n.em}` };
+  const periodo = mesAno(n.ano, n.mes);
+  return n.resposta === 'aceito'
+    ? { ...base, titulo: 'O cliente aceitou o resumo do ponto', texto: `${periodo} · confirmado pela empresa.` }
+    : { ...base, titulo: 'O cliente tem uma dúvida no resumo do ponto', texto: `${periodo} · leia a dúvida no fechamento do mês, na Timesheet.` };
+}

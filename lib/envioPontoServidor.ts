@@ -392,7 +392,7 @@ export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: s
     const base64 = Buffer.from(await blob.arrayBuffer()).toString('base64');
     const r = await extrairFolha({
       imagemBase64: base64, mimeType: e.tipo, ano: e.ano, mes: e.mes,
-      empresa: e.empresaId, funcionario: e.funcionario,
+      empresa: e.empresaId, funcionario: e.funcionario, escritorioId: e.escritorioId,
     });
     const rascunho = normalizarRascunho({ dias: r.frequencia.dias, incertos: r.incertos, funcionarioLido: r.frequencia.funcionario || null });
     const { error: eUp } = await db.from('ponto_envios').update({
@@ -404,7 +404,7 @@ export async function lerEnvioPelaIa(envioId: string, origem: Origem, usuario: s
     return 'lida';
   } catch (err) {
     await falharLeituraOcr(reserva).catch(() => {});
-    if (err instanceof ErroIa && (err.tipo === 'cota_diaria' || err.tipo === 'ocupada')) {
+    if (err instanceof ErroIa && (err.tipo === 'cota_diaria' || err.tipo === 'cota_escritorio' || err.tipo === 'ocupada')) {
       // Limite diário (ou fila cheia) da IA: a foto volta à fila e espera — não é falha
       // da foto, e a tentativa não deveria ser gasta. Lê de novo quando a cota renovar.
       await db.from('ponto_envios').update({ tentativas: e.tentativas }).eq('id', e.id);

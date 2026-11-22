@@ -1,7 +1,7 @@
 // Regras puras do mês fechado (lib/mesFechado.ts) — Sprint 17, frente C.
 import { describe, expect, it } from 'vitest';
 import {
-  avisosAceitePonto, fotoDoResumo, impedimentoParaFechar, mensagemCaixaFechado, mensagemPontoFechado,
+  avisoRespostaAceite, avisosAceitePonto, fotoDoResumo, impedimentoParaFechar, mensagemCaixaFechado, mensagemPontoFechado,
   mensagemCaixaPosteriorFechado, mensagemFecharEmOrdem, mensagemSaldoInicialFechado, mesmaFoto, motivoReabertura, situacaoAceite, textoDuvida, type AceiteRegistro,
 } from '@/lib/mesFechado';
 import { resumirMes } from '@/lib/resumoFolha';
@@ -59,6 +59,24 @@ describe('aviso no sino do cliente', () => {
     expect(itens[0].texto).toBe('Outubro/2026 · confira as horas do mês e responda à contabilidade.');
     const de2 = avisosAceitePonto([{ ano: 2026, mes: 10, fechadoEm: '2026-11-06T12:00:00Z', situacao: 'pendente' }]);
     expect(de2[0].chave).not.toBe(itens[0].chave);
+  });
+});
+
+describe('aviso no sino da contabilidade (Sprint 18 · A)', () => {
+  const n = { empresaId: 'emp-1', ano: 2026, mes: 10, em: '2026-11-05T12:00:00.000Z' };
+  it('aceite e dúvida: só o mês e o link do fechamento; uma chave por resposta', () => {
+    const ok = avisoRespostaAceite({ ...n, resposta: 'aceito' });
+    expect(ok).toMatchObject({ titulo: 'O cliente aceitou o resumo do ponto', texto: 'Outubro/2026 · confirmado pela empresa.' });
+    expect(ok.href).toBe('/ponto?empresa=emp-1&ano=2026&mes=10');
+    const duv = avisoRespostaAceite({ ...n, resposta: 'duvida' });
+    expect(duv.titulo).toBe('O cliente tem uma dúvida no resumo do ponto');
+    expect(duv.texto).toMatch(/^Outubro\/2026 · leia a dúvida no fechamento/);
+    expect(avisoRespostaAceite({ ...n, resposta: 'duvida', em: '2026-11-06T12:00:00.000Z' }).chave).not.toBe(duv.chave);
+  });
+  it('não recebe nem repassa o texto da dúvida', () => {
+    // A assinatura da função não tem campo para o texto: nada do que o cliente escreveu chega ao aviso.
+    const duv = avisoRespostaAceite({ ...n, resposta: 'duvida', duvida: 'Maria estava de atestado' } as never);
+    expect(JSON.stringify(duv)).not.toMatch(/Maria|atestado/);
   });
 });
 

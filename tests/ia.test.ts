@@ -5,10 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 // O contador (lib/ia/cota) com o banco simulado: uso do dia e gravações.
-const uso = { hoje: 0 as number | null, gravados: [] as Record<string, unknown>[] };
+const uso = {
+  hoje: 0 as number | null, gravados: [] as Record<string, unknown>[],
+  /** Gasto de hoje por escritório (Sprint 18 · A); ausente = 0; `null` = sem a 0037. */
+  porEscritorio: {} as Record<string, number | null>, perguntados: [] as string[],
+};
 vi.mock('@/lib/ia/cota', async (orig) => ({
   ...(await orig<typeof import('@/lib/ia/cota')>()),
   usoHoje: vi.fn(async () => uso.hoje),
+  usoHojeEscritorio: vi.fn(async (esc: string) => {
+    uso.perguntados.push(esc);
+    return esc in uso.porEscritorio ? uso.porEscritorio[esc] : 0;
+  }),
   registrarUso: vi.fn(async (u: Record<string, unknown>) => { uso.gravados.push(u); }),
 }));
 
@@ -16,7 +24,7 @@ const { extrairJson, paraGemini, paraJsonSchema } = await import('@/lib/ia/esque
 const config = await import('@/lib/ia/config');
 const { chamarCloudflare, estimarNeuronios } = await import('@/lib/ia/cloudflare');
 const { ErroIa, lerComIa } = await import('@/lib/ia');
-const { avaliarCotaDiaria, diaUtc } = await import('@/lib/ia/cota');
+const { avaliarCotaDiaria, avaliarCotaEscritorio, avisoIaDoDia, diaUtc } = await import('@/lib/ia/cota');
 const { lerDocumentoPelaIa, minimizarTextoPdf } = await import('@/lib/documentoLancamentoServidor');
 
 const ENV_CF = { CLOUDFLARE_ACCOUNT_ID: 'conta-teste', CLOUDFLARE_AI_TOKEN: 'token-secreto' } as unknown as NodeJS.ProcessEnv;
@@ -41,7 +49,7 @@ function fetchFalso(resposta: { status?: number; corpo?: unknown; cabecalhos?: R
 }
 const ok = (response: unknown, usage?: Record<string, number>) => ({ success: true, errors: [], result: { response, usage } });
 
-beforeEach(() => { uso.hoje = 0; uso.gravados = []; });
+beforeEach(() => { uso.hoje = 0; uso.gravados = []; uso.porEscritorio = {}; uso.perguntados = []; });
 
 describe('esquema', () => {
   it('traduz para o Gemini (maiúsculas, nullable) e para JSON Schema (tipo com null)', () => {
@@ -195,6 +203,78 @@ describe('cota diária', () => {
     expect(fim).toMatchObject({ nivel: 'esgotada', percentual: 100 });
     expect(fim.mensagem).toMatch(/limite diário da IA foi atingido/);
     expect(diaUtc(new Date('2026-11-21T23:30:00-03:00'))).toBe('2026-11-22');
+  });
+});
+
+describe('teto por escritório (Sprint 18 · A)', () => {
+  const env = (v: Record<string, string>) => ({ ...ENV_CF, ...v }) as unknown as NodeJS.ProcessEnv;
+  it('percentual configurável (padrão 40%, de 1 a 100) e teto em neurônios', () => {
+    expect(config.percentualCotaEscritorio(ENV_CF)).toBe(40);
+    expect(config.tetoDiarioEscritorio(ENV_CF)).toBe(4000);
+    expect(config.percentualCotaEscritorio(env({ IA_COTA_ESCRITORIO_PCT: '25' }))).toBe(25);
+    expect(config.percentualCotaEscritorio(env({ IA_COTA_ESCRITORIO_PCT: '25%' }))).toBe(25);
+    expect(config.percentualCotaEscritorio(env({ IA_COTA_ESCRITORIO_PCT: '150' }))).toBe(100);
+    for (const v of ['0', '-5', 'abc', '']) expect(config.percentualCotaEscritorio(env({ IA_COTA_ESCRITORIO_PCT: v }))).toBe(40);
+    expect(config.tetoDiarioEscritorio(env({ IA_COTA_DIARIA: '5000', IA_COTA_ESCRITORIO_PCT: '30' }))).toBe(1500);
+  });
+
+  it('mensagem humana: explica que o limite é repartido e quando volta', () => {
+    expect(avaliarCotaEscritorio(1000, 4000, 40)).toMatchObject({ nivel: 'ok', mensagem: '' });
+    expect(avaliarCotaEscritorio(3300, 4000, 40).mensagem).toMatch(/^O seu escritório já usou 83% da parte dele da IA hoje/);
+    const fim = avaliarCotaEscritorio(4000, 4000, 40);
+    expect(fim.nivel).toBe('esgotada');
+    expect(fim.mensagem).toMatch(/até 40% do limite diário, que é dividido entre os escritórios/);
+    expect(fim.mensagem).toMatch(/21h, horário de Brasília.*preencher à mão/);
+  });
+
+  it('aviso da tela: o pior entre a plataforma e o escritório', () => {
+    const ok = avaliarCotaDiaria(100, 10_000);
+    const avisoDia = avaliarCotaDiaria(8500, 10_000);
+    const esgEsc = avaliarCotaEscritorio(4000, 4000, 40);
+    expect(avisoIaDoDia(ok, null)).toBeNull();
+    expect(avisoIaDoDia(ok, avaliarCotaEscritorio(10, 4000, 40))).toBeNull();
+    expect(avisoIaDoDia(avisoDia, esgEsc)).toMatchObject({ nivel: 'esgotada', mensagem: esgEsc.mensagem });
+    expect(avisoIaDoDia(avisoDia, null)).toMatchObject({ nivel: 'aviso' });
+    expect(avisoIaDoDia(avaliarCotaDiaria(10_000, 10_000), esgEsc)?.mensagem).toMatch(/limite diário da IA foi atingido/);
+  });
+
+  it('escritório no teto: recusa ANTES de chamar a API; os outros escritórios seguem lendo', async () => {
+    uso.hoje = 5000;
+    uso.porEscritorio = { 'esc-a': 4000, 'esc-b': 1000 };
+    const { f, chamadas } = fetchFalso({ corpo: ok({ indice: 0, confianca: 1 }), cabecalhos: { 'cf-ai-neurons': '3' } });
+    const e = await lerComIa({ finalidade: 'ponto', prompt: 'p', esquema: ESQ, env: ENV_CF, fetch: f, escritorioId: 'esc-a' }).catch((x) => x);
+    expect(e).toBeInstanceOf(ErroIa);
+    expect(e).toMatchObject({ tipo: 'cota_escritorio', status: 429 });
+    expect(e.mensagem).toMatch(/O seu escritório já usou a parte dele da IA hoje \(cada escritório pode usar até 40%/);
+    expect(chamadas).toHaveLength(0);
+    expect(uso.gravados).toHaveLength(0);
+
+    // Outro escritório, no mesmo dia: lê, e o gasto vai gravado COM o escritório dele.
+    await lerComIa({ finalidade: 'ponto', prompt: 'p', esquema: ESQ, env: ENV_CF, fetch: f, escritorioId: 'esc-b' });
+    expect(chamadas).toHaveLength(1);
+    expect(uso.gravados).toEqual([expect.objectContaining({ escritorioId: 'esc-b', neuronios: 3, ok: true })]);
+    expect(uso.perguntados).toEqual(['esc-a', 'esc-b']); // cada um só olha o próprio gasto
+  });
+
+  it('IA_COTA_ESCRITORIO_PCT=100 desliga o teto; sem a 0037 (null) ou sem escritório, só o limite do dia vale', async () => {
+    uso.porEscritorio = { 'esc-a': 9000, 'esc-sem': null };
+    const { f, chamadas } = fetchFalso({ corpo: ok({ indice: 0, confianca: 1 }) });
+    await lerComIa({ finalidade: 'sugestao', prompt: 'p', esquema: ESQ, env: env({ IA_COTA_ESCRITORIO_PCT: '100' }), fetch: f, escritorioId: 'esc-a' });
+    expect(uso.perguntados).toEqual([]); // com 100% nem consulta
+    await lerComIa({ finalidade: 'sugestao', prompt: 'p', esquema: ESQ, env: ENV_CF, fetch: f, escritorioId: 'esc-sem' });
+    await lerComIa({ finalidade: 'sugestao', prompt: 'p', esquema: ESQ, env: ENV_CF, fetch: f });
+    expect(chamadas).toHaveLength(3);
+    // O limite do dia da plataforma vem antes do teto do escritório.
+    uso.hoje = 10_000;
+    const e = await lerComIa({ finalidade: 'ponto', prompt: 'p', esquema: ESQ, env: ENV_CF, fetch: f, escritorioId: 'esc-b' }).catch((x) => x);
+    expect(e.tipo).toBe('cota_diaria');
+  });
+
+  it('a Cloudflare recusou por cota: o que faltava vai gravado com o escritório', async () => {
+    uso.hoje = 9_900;
+    const { f } = fetchFalso({ status: 429, corpo: { success: false, errors: [{ code: 4006, message: 'daily free allocation' }] } });
+    await lerComIa({ finalidade: 'ponto', prompt: 'p', esquema: ESQ, env: ENV_CF, fetch: f, escritorioId: 'esc-b' }).catch(() => null);
+    expect(uso.gravados[0]).toMatchObject({ neuronios: 100, ok: false, escritorioId: 'esc-b' });
   });
 });
 

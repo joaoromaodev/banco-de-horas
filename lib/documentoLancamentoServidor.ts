@@ -96,6 +96,8 @@ export function minimizarTextoPdf(texto: string): string {
  */
 export async function lerDocumentoPelaIa(p: {
   bytes: Uint8Array; mime: string; prompt: string; env?: NodeJS.ProcessEnv; fetch?: typeof fetch;
+  /** Escritório dono da empresa (teto diário por escritório da IA — Sprint 18 · A). */
+  escritorioId?: string | null;
 }): Promise<string> {
   if (p.mime === 'application/pdf' && !provedorLePdf(p.env)) {
     let texto: string;
@@ -110,10 +112,10 @@ export async function lerDocumentoPelaIa(p: {
         'Este PDF é uma imagem escaneada, e a IA desta plataforma não lê PDF assim. Envie uma foto do documento (JPG) ou lance à mão.');
     }
     const prompt = `${p.prompt}\n\nO documento é um PDF; segue o TEXTO extraído dele (dados pessoais mascarados):\n<<<\n${texto}\n>>>`;
-    return (await lerComIa({ finalidade: 'documento', prompt, esquema: SCHEMA_DOCUMENTO, env: p.env, fetch: p.fetch })).texto;
+    return (await lerComIa({ finalidade: 'documento', prompt, esquema: SCHEMA_DOCUMENTO, escritorioId: p.escritorioId, env: p.env, fetch: p.fetch })).texto;
   }
   return (await lerComIa({
     finalidade: 'documento', prompt: p.prompt, esquema: SCHEMA_DOCUMENTO,
-    arquivo: { bytes: p.bytes, mime: p.mime }, env: p.env, fetch: p.fetch,
+    arquivo: { bytes: p.bytes, mime: p.mime }, escritorioId: p.escritorioId, env: p.env, fetch: p.fetch,
   })).texto;
 }

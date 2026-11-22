@@ -19,6 +19,7 @@ import { Alternador, Aviso, Botao, CabecalhoPagina, CampoArquivo, Cartao, Conteu
 import { lerJson, mensagemDeCarga } from '@/lib/carga';
 import { EntradaSugestoes, Selecao } from '@/components/selecao';
 import { Toast, Toasts } from '@/components/retorno';
+import { DicaFotoFolha } from '../DicaFotoFolha';
 
 type Campo = 'entradaManha' | 'saidaAlmoco' | 'retornoAlmoco' | 'saidaTarde';
 const CAMPOS: Campo[] = ['entradaManha', 'saidaAlmoco', 'retornoAlmoco', 'saidaTarde'];
@@ -528,6 +529,7 @@ export default function Home() {
             <Entrada rotulo="Ano" type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} />
             <CampoArquivo rotulo="Foto da folha" classeCampo="md:col-span-2" accept="image/*" texto="Escolher ou soltar a foto aqui"
               nome={arquivo?.name} onArquivo={escolherArquivo} />
+            <DicaFotoFolha className="md:col-span-4" />
             <Entrada rotulo="Feriados extras (opcional)" classeCampo="md:col-span-4" value={feriadosTxt}
               onChange={(e) => setFeriadosTxt(e.target.value)}
               placeholder={feriadosCad.length ? `${feriadosCad.length} do cadastro + extras aqui` : 'AAAA-MM-DD, ex.: 2026-06-19'} />

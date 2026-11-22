@@ -64,6 +64,16 @@ em todo push e pull request, no Node 20.
   falsos mesmo assim, por segurança, caso alguma rota passe a ler env no import.
   Nunca coloque credencial real no workflow.
 
+## Sprint 18 · Frente A — acabamentos
+
+| Teste | Garante |
+|---|---|
+| `iaCotaEscritorio.test.ts` (novo) | Teto de IA por escritório com o banco em memória: soma só o escritório pedido, só hoje (UTC) e só a Cloudflare; gravação leva o escritório; sem a 0037 grava sem ele e o teto fica desligado (lembra por 5 min); `situacaoIa` não mostra a parte de outro escritório. |
+| `ia.test.ts` (casos novos) | `IA_COTA_ESCRITORIO_PCT` (padrão 40, 1–100), mensagem humana, aviso = o pior entre dia e escritório; no teto recusa **antes** da rede e outro escritório segue; 100% desliga; o gasto (e o 4006) vai gravado com o escritório. |
+| `mesFechado.test.ts`, `mesFechadoRotas.test.ts` (casos novos) | Aceite e dúvida do cliente avisam o sino da contadora no escritório e empresa certos, sem nome de funcionário nem o texto da dúvida; resposta recusada e tentativas de isolamento não avisam. |
+| `avisosCliente.test.ts`, `avisosClienteRota.test.ts` | Folha devolvida no sino do cliente sem o motivo. |
+| `acabamentos18.test.ts` (novo) | Guarda estática das telas: dica de foto em `/enviar-ponto` e na Timesheet, cartões dos documentos do cliente abaixo de `sm`, edição do caixa num diálogo no celular com um só `PATCH`. |
+
 ## Sprint 17 · Frente A — documentos de mão dupla
 
 | Teste | Garante |

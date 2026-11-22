@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     let texto: string | null = null;
     try {
-      texto = (await lerComIa({ finalidade: 'sugestao', prompt: montarPromptIa({ complemento, direcao, valor }, opcoes), esquema: SCHEMA_IA, timeoutMs: 25_000 })).texto;
+      texto = (await lerComIa({ finalidade: 'sugestao', prompt: montarPromptIa({ complemento, direcao, valor }, opcoes), esquema: SCHEMA_IA, timeoutMs: 25_000, escritorioId: dono })).texto;
     } catch (e) {
       // Limite diário da IA, tempo, fila: mensagem para gente (a sugestão pelo histórico segue).
       if (e instanceof ErroIa && e.tipo !== 'resposta') throw new ErroCaixa(e.mensagem, e.status);

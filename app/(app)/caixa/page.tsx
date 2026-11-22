@@ -10,13 +10,13 @@
 // editável e excluível, inclusive retroativo — MENOS em mês fechado: aí nada muda
 // (de ninguém) até a contabilidade reabrir com motivo (Sprint 17, frente C). Quem
 // trava de verdade é a rota (409); a tela só esconde o que não vai funcionar.
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { campoDoErro, diaMes, dinheiro, documentoValido, formatarDocumento, MESES, MESES_LONGOS, type CampoLancamento } from './formato';
 import SeletorConta, { Conta, rotuloConta } from './SeletorConta';
 import SeletorAnalitica, { Historico } from './SeletorAnalitica';
 import { comArquivadaDaUrl, FaixaArquivada } from '../FaixaArquivada';
 import { IconeBaixar, IconeCadeado, IconeCheck, IconeConfirmar, IconeDesfazer, IconeDesfazerConfirmacao, IconeDocumento, IconeExcluir, IconeLapis, IconeSino, IconeSugestao } from '../icones';
-import { DialogoConfirmacao, DialogoTexto, DialogoValor } from '../Dialogo';
+import { DialogoConfirmacao, DialogoTexto, DialogoValor, Modal } from '../Dialogo';
 import { AbasCaixa } from './AbasCaixa';
 import LimiteFaturamento from './LimiteFaturamento';
 import LerDocumento, { type DocumentoLido } from './LerDocumento';
@@ -73,6 +73,18 @@ const vazio = (data: string): Campos =>
   ({ data, historico: '', historicoId: null, complemento: '', contaId: null, entrada: '', saida: '', juros: '', multa: '', pagadorNome: '', pagadorDocumento: '' });
 
 /** Data que o formulário sugere: hoje, se hoje cair no mês aberto; senão o dia 1º. */
+// Celular (abaixo de `md`, o mesmo corte do formulário "Novo lançamento"): editar abre o
+// formulário empilhado num diálogo, em vez dos campos pequenos dentro da linha da tabela.
+// No servidor (e antes de hidratar) vale "não é celular": a linha da tabela, como antes.
+const CONSULTA_CELULAR = '(max-width: 767.98px)';
+function assinarCelular(aviso: () => void) {
+  const m = matchMedia(CONSULTA_CELULAR);
+  m.addEventListener('change', aviso);
+  return () => m.removeEventListener('change', aviso);
+}
+const ehCelular = () => matchMedia(CONSULTA_CELULAR).matches;
+const naoCelularNoServidor = () => false;
+
 function dataPadrao(ano: number, mes: number): string {
   const h = new Date();
   const dia = h.getFullYear() === ano && h.getMonth() + 1 === mes ? h.getDate() : 1;
@@ -141,6 +153,8 @@ export default function Caixa() {
   const [novo, setNovo] = useState<Campos>(() => vazio(dataPadrao(ano, mes)));
   const [cheque, setCheque] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const celular = useSyncExternalStore(assinarCelular, ehCelular, naoCelularNoServidor);
+  const idTituloEdicao = useId();
   const [edicao, setEdicao] = useState<Campos>(() => vazio(''));
 
   const [carregando, setCarregando] = useState(false);
@@ -1002,7 +1016,7 @@ export default function Caixa() {
                 <td></td>
               </tr>
 
-              {linhasVisiveis.map(({ l, saldo }) => editandoId === l.id ? (
+              {linhasVisiveis.map(({ l, saldo }) => editandoId === l.id && !celular ? (
                 <tr key={l.id} className="bg-primaria-suave" data-campo-lancamento="edicao">
                   <Celulas campos={edicao} setCampos={mudarEdicao} contas={contas} historicos={historicos}
                     podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador}
@@ -1058,6 +1072,7 @@ export default function Caixa() {
                     )}
                     {!fechado && <BotaoIcone tamanho="sm" tom="primaria" rotulo="Editar lançamento" title="Editar" onClick={() => {
                       setEditandoId(l.id);
+                      setErro(null); setErroCampo(null); // o diálogo do celular mostra só o erro desta edição
                       const hMatch = historicos.find((h) => h.texto === l.historico && h.contaId === l.contaId)
                         ?? historicos.find((h) => h.texto === l.historico);
                       setEdicao({
@@ -1200,6 +1215,26 @@ export default function Caixa() {
           rotulo="Motivo da reabertura" placeholder="Ex.: o cliente lançou a venda do dia 30 em duplicidade."
           erroCurto="Escreva o motivo (pelo menos 5 letras)."
           onConfirmar={reabrirMes} onCancelar={() => setReabrindo(false)} />
+      )}
+
+      {/* Editar no celular: o mesmo formulário empilhado do "Novo lançamento", num diálogo.
+          Mesma rota (PATCH), mesmas regras; mês fechado não chega aqui (sem botão de editar). */}
+      {celular && editandoId && !fechado && (
+        <Modal onFechar={() => setEditandoId(null)} rotuladoPor={idTituloEdicao} largura="max-w-lg">
+          <div className="p-4">
+            <h2 id={idTituloEdicao} className="mb-3 text-[15px] font-semibold text-tinta">Editar lançamento</h2>
+            <div className="grid grid-cols-2 gap-3" data-campo-lancamento="edicao">
+              <Celulas empilhado campos={edicao} setCampos={mudarEdicao} contas={contas} historicos={historicos}
+                podeCriar={ehGestor} onCriar={criarConta} onCriarAnalitica={criarAnalitica} identificaPagador={identificaPagador}
+                erro={erroCampo?.onde === 'edicao' ? erroCampo : null} />
+            </div>
+            {erro && erroCampo?.onde !== 'edicao' && <p className="mt-3 text-[13px] text-perigo" role="alert">{erro}</p>}
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-borda bg-superficie-suave px-4 py-3">
+            <Botao variante="fantasma" tamanho="lg" className="w-full" onClick={() => setEditandoId(null)}>Cancelar</Botao>
+            <Botao variante="primaria" tamanho="lg" className="w-full" onClick={salvarEdicao} carregando={salvando}>Salvar alteração</Botao>
+          </div>
+        </Modal>
       )}
 
       {editandoSaldo && (

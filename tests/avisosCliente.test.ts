@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { avisosDemonstrativo, avisosFolhaDevolvida, avisosPedido, MAX_MOTIVO } from '@/lib/avisosCliente';
+import { avisosDemonstrativo, avisosFolhaDevolvida, avisosPedido } from '@/lib/avisosCliente';
 import { montarNotificacoes } from '@/lib/notificacoes';
 
 describe('avisos ao cliente — folha devolvida', () => {
   const base = { ano: 2026, mes: 10, motivo: 'Foto cortada, faltam os dias 20 a 31', devolvidoEm: '2026-11-20T12:00:00.000Z' };
-  it('um aviso por envio devolvido, com o motivo e SEM o nome do funcionário', () => {
-    const r = avisosFolhaDevolvida([{ ...base, id: 'f1', funcionario: 'MARIA DA SILVA', situacao: 'devolvida' }]);
+  it('um aviso por envio devolvido, SEM o motivo e SEM o nome do funcionário (Sprint 18 · A)', () => {
+    const r = avisosFolhaDevolvida([{ ...base, id: 'f1', funcionario: 'MARIA DA SILVA', situacao: 'devolvida', motivo: 'A folha da Maria está cortada' } as never]);
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ tipo: 'folha_devolvida', href: '/enviar-ponto', quando: base.devolvidoEm });
-    expect(r[0].texto).toBe('Outubro/2026 · Motivo: Foto cortada, faltam os dias 20 a 31');
-    expect(JSON.stringify(r)).not.toMatch(/MARIA/i);
+    expect(r[0].texto).toBe('Outubro/2026 · Veja o motivo em Folha de ponto e envie uma nova foto.');
+    expect(JSON.stringify(r)).not.toMatch(/MARIA|cortada/i);
   });
   it('já reenviada para o mesmo funcionário e mês: some; outra situação não avisa', () => {
     const r = avisosFolhaDevolvida([
@@ -20,11 +20,10 @@ describe('avisos ao cliente — folha devolvida', () => {
     ]);
     expect(r).toEqual([]);
   });
-  it('motivo longo é cortado; sem motivo, texto padrão; chave muda se devolver de novo', () => {
-    const [a] = avisosFolhaDevolvida([{ ...base, id: 'f1', funcionario: 'X', situacao: 'devolvida', motivo: 'x'.repeat(400) }]);
-    expect(a.texto!.length).toBeLessThan(MAX_MOTIVO + 30);
-    const [b] = avisosFolhaDevolvida([{ ...base, id: 'f1', funcionario: 'X', situacao: 'devolvida', motivo: null, devolvidoEm: '2026-11-21T08:00:00.000Z' }]);
-    expect(b.texto).toBe('Outubro/2026 · A contabilidade pediu uma nova foto.');
+  it('chave muda se devolver de novo', () => {
+    const [a] = avisosFolhaDevolvida([{ ...base, id: 'f1', funcionario: 'X', situacao: 'devolvida' }]);
+    const [b] = avisosFolhaDevolvida([{ ...base, id: 'f1', funcionario: 'X', situacao: 'devolvida', devolvidoEm: '2026-11-21T08:00:00.000Z' }]);
+    expect(b.texto).toBe(a.texto);
     expect(b.chave).not.toBe(a.chave);
   });
 });
