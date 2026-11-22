@@ -109,3 +109,6 @@ Novidades das Sprints 11 a 15, ainda não vistas por ela:
 | K1 Contratos: PDF ou Word | | |
 | A1 ISS Belém, DMED, EFD-Reinf | | |
 | Pedidos 1–6 (combinado e prazo) | | |
+
+
+> Acrescentado em 22/11: o cliente pode ver nomes mais simples que "Conta Titular" e "Conta Analítica" na tela dele? (fonte: `docs/qa-visual.md`, Sprint 16)

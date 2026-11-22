@@ -163,11 +163,11 @@ Sprint 15 (prevista): medição própria de desempenho e erros, sem dado pessoal
 | A. Medição própria: tempo de páginas e rotas e erros, sem dado pessoal, resumo para o master | `claude/medicao` | ✅ publicada; 0031 aplicada (tabela nova `medicoes`, 30 dias). Amostra de 25% + todos os erros; tempo das rotas é o sentido no navegador (inclui rede); rotas normalizadas, sem dado pessoal (Escudo: pode publicar). Seção "Como o app está respondendo" em `/configuracoes`; privacidade cita a medição técnica. Lint: 0 avisos |
 | B. Arrumar a casa: avisos do lint (45 → 0 onde der), consulta de envios em empresa arquivada | `claude/arrumar-casa` | ✅ publicada em 21/11. Lint 45 → 2 avisos (os 2 em `/configuracoes`, da frente A). **Corrigido:** cliente de empresa arquivada baixava documentos por `/api/documentos/arquivo` (sem guarda de empresa). O 403 de envios em arquivada era só do cadastro falso dos testes |
 
-## Sprint 16 — Cliente no celular e implantação guiada (🔄 em andamento)
+## Sprint 16 — Cliente no celular (✅ concluída e publicada em 22/11/2026)
 
 | Frente | Branch | Status |
 |---|---|---|
-| A. Acessibilidade e celular nas telas do cliente (`/inicio`, `/caixa`, `/documentos`, `/enviar-ponto`) | `claude/acessibilidade-cliente` | 🔄 subagente |
+| A. Acessibilidade e celular nas telas do cliente (`/inicio`, `/caixa`, `/documentos`, `/enviar-ponto`) | `claude/acessibilidade-cliente` | ✅ publicada, sem migração. Toque de 44 px no celular, erro no próprio campo, rótulos simples, foco do menu e do sino; corrigido: sino pedia notificações sem parar com o painel aberto. Teste estático de nome acessível e contraste. Pendente: editar lançamento e lista de documentos no celular em cartões |
 | ~~B. Implantação guiada~~ | — | ❌ cancelada em 22/11: o João pediu foco em produto, sem implantação/venda (ver `decisoes.md`) |
 
 ## Sprint 17 — Planejada a partir dos concorrentes (`concorrentes.md`)
