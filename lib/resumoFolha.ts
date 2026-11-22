@@ -393,7 +393,10 @@ export function resumirFolha(folha: FolhaResumo, op: OpcoesResumo): ResumoFolhaF
 
 // ------------------------------------------------------------ O mês inteiro
 export function resumirMes(folhas: FolhaResumo[], op: OpcoesResumo): ResumoFolhaMes {
-  const percentuais = { ...PERCENTUAIS_PADRAO, ...(op.percentuais ?? {}) };
+  // Percentual ausente (undefined) não pode apagar o padrão — fechamento sem os
+  // parâmetros gravava `{}` e o cliente via "EXTRAS %" sem número.
+  const informados = Object.fromEntries(Object.entries(op.percentuais ?? {}).filter(([, v]) => typeof v === 'number' && Number.isFinite(v)));
+  const percentuais = { ...PERCENTUAIS_PADRAO, ...informados };
   const funcionarios = folhas.map((f) => resumirFolha(f, { ...op, percentuais }));
   const avisos: string[] = [];
   if (folhas.length && ![...op.feriados].some((f) => f.startsWith(`${op.ano}-`))) {

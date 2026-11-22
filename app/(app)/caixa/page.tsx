@@ -713,7 +713,7 @@ export default function Caixa() {
     </Aviso>
   ) : (
     <Aviso tom={duplicados.length ? 'aviso' : 'info'}
-      titulo={duplicados.length ? `${rascunho.titulo ?? 'Este documento'} já foi lançado — confira antes de lançar de novo` : `Rascunho de ${rascunho.titulo ?? 'documento'} — confira antes de lançar`}
+      titulo={duplicados.length ? `${rascunho.titulo ?? 'Este documento'}: já existe lançamento com ele — confira antes de lançar de novo` : `Rascunho de ${rascunho.titulo ?? 'documento'} — confira antes de lançar`}
       acao={<Botao tamanho="sm" variante="fantasma" onClick={descartarRascunho}>Descartar</Botao>}>
       {duplicados.length > 0 && (
         <ul className="mb-1 list-disc space-y-0.5 pl-5 font-medium">

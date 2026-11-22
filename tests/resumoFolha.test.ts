@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiaFreq, Marcador } from '@/lib/tipos';
 import {
   computarNoturno, intervalosDoDia, minutosNoturnos, resumirFolha, resumirMes, resumoParaCsv, regrasDoEmpregado,
-  textoAssinatura, type FolhaResumo,
+  textoAssinatura, PERCENTUAIS_PADRAO, type FolhaResumo,
 } from '@/lib/resumoFolha';
 import { JORNADA_PADRAO } from '@/lib/calendario';
 
@@ -214,5 +214,15 @@ describe('regrasDoEmpregado com o cadastro do DP', () => {
   it('sem acordo no cadastro, vale a marcação da tela', () => {
     expect(regrasDoEmpregado(undefined, empresa, 'ANA', new Set(['ANA']), false).temBanco).toBe(true);
     expect(regrasDoEmpregado(undefined, empresa, 'ANA', new Set(), false).temBanco).toBe(false);
+  });
+});
+
+describe('percentuais ausentes não apagam o padrão (achado do teste logado da Sprint 17)', () => {
+  it('undefined em extraUtil/extraDomFeriado/adicionalNoturno cai no padrão', () => {
+    const r = resumirMes([], {
+      ano: 2026, mes: 10, feriados: new Set<string>(),
+      percentuais: { extraUtil: undefined, extraDomFeriado: undefined, adicionalNoturno: undefined },
+    });
+    expect(r.percentuais).toEqual(PERCENTUAIS_PADRAO);
   });
 });

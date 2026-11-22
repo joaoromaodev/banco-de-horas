@@ -183,6 +183,8 @@ Tudo sem serviço pago. 🔄 Em andamento desde 22/11: A+B → `claude/documento
 | E. Mês fechado que trava + aceite do cliente no resumo do ponto | o número que foi para a folha não muda depois |
 | F. Troca do Gemini gratuito pela Cloudflare Workers AI (comparativo em folhas antes) | `ia-gratuita.md`; depende de o João criar a conta gratuita da Cloudflare |
 
+Teste logado em produção da Sprint 17 (22/11): tudo passou (29 tentativas de isolamento barradas; gatilhos do banco conferidos à mão); contagens iguais. Corrigidos: percentuais vazios no fechamento do ponto, "Pendência não encontrado", "já foi lançado". Backlog: aviso no sino da contadora quando o cliente aceita/duvida do resumo do ponto. Atenção: `next dev` contra produção grava em `medicoes` — apagar no fim do teste.
+
 Achado: desde a IN RFB 2.240/2024 o recibo de saúde sai no Receita Saúde e vai direto ao
 Carnê-Leão Web — a frente Carnê-Leão deve **conferir** esses recibos contra o caixa, não emitir.
 

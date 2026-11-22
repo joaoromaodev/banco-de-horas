@@ -7,7 +7,7 @@ import { lerEmpresa } from '@/lib/cadastro';
 import { ErroDoc } from '@/lib/documentosServidor';
 
 export const negado = () => Response.json({ erro: 'Acesso restrito.' }, { status: 403 });
-export const naoEncontrado = (o = 'Registro') => Response.json({ erro: `${o} não encontrado.` }, { status: 404 });
+export const naoEncontrado = (o = 'Registro') => Response.json({ erro: `${o} não encontrad${/^(Pendência|Entrega)/.test(o) ? 'a' : 'o'}.` }, { status: 404 });
 
 export function falha(e: unknown) {
   if (e instanceof ErroDoc) return Response.json({ erro: e.message }, { status: e.status });

@@ -192,7 +192,7 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
 
 ### Limpeza de conta de teste (aprendido na Sprint 13)
 Cadastrar funcionário pelo `/api/funcionarios` também cria linha em `dp_empregados`;
-apagar essa tabela junto. Conferir também os buckets `ponto` e `documentos`.
+apagar essa tabela junto. Conferir também os buckets `ponto` e `documentos`, e apagar as linhas de `medicoes` gravadas pelo `next dev` (desde a Sprint 15).
 
 ### Próximas ideias (depois da Sprint 13)
 Carnê-Leão e documento → lançamento (dependem da Edilse); rescisão com convenção
