@@ -178,7 +178,7 @@ Worktrees de subagentes ficam em `.claude/worktrees/agent-*` (remover depois).
 7. Atualizar `roadmap.md`, arquivar sessões, limpar worktrees e `integracao/*`.
 
 ### Produção agora
-- Migrações **0000–0036** aplicadas (0024–0026 não usadas). Próximo livre: **0037**.
+- Migrações **0000–0037** aplicadas (0024–0026 não usadas). Próximo livre: **0038**.
 - Funções da Vercel em `gru1` (São Paulo), junto do Supabase (`sa-east-1`).
 - 1162 testes, lint sem avisos; CI verde no último push. Sprints 11–15 concluídas e publicadas; nenhuma frente em andamento. O João pediu para não parar (22/11): Sprint 16 aberta; a medição segue juntando dados para a Sprint 17. IA de documentos do caixa e e-mail de avisos ao cliente publicados desligados.
 

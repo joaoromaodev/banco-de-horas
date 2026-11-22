@@ -188,6 +188,14 @@ Teste logado em produção da Sprint 17 (22/11): tudo passou (29 tentativas de i
 Achado: desde a IN RFB 2.240/2024 o recibo de saúde sai no Receita Saúde e vai direto ao
 Carnê-Leão Web — a frente Carnê-Leão deve **conferir** esses recibos contra o caixa, não emitir.
 
+## Sprint 18 — Acabamentos (✅ concluída e publicada em 22/11/2026)
+
+| Frente | Branch | Status |
+|---|---|---|
+| A. Sino da contadora no aceite/dúvida do ponto; motivo da folha devolvida fora do sino; teto de IA por escritório (`IA_COTA_ESCRITORIO_PCT`, hoje 100 — um escritório só no beta); documentos em cartões e edição de lançamento em diálogo no celular; dica de foto; criar conta analítica no extrato; Timesheet e "Gerar em lote" abrem no mês atual | `claude/acabamentos-18` | ✅ publicada; 0037 aplicada |
+
+Teste logado da IA na Cloudflare e do extrato (22/11): passou. Folhas sintéticas: 100% (limpa), 92,5% (inclinada), 95,2% (foto torta), ~45–50 s por folha.
+
 ## Próximas frentes (backlog priorizado)
 
 | Frente | Modelo | Depende de |
