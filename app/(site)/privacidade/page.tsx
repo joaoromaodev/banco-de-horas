@@ -27,7 +27,7 @@ function paragrafosIa(): string[] {
 }
 
 function provedorIaNome(): string {
-  return descricaoProvedor().provedor === 'cloudflare' ? 'a Cloudflare (leitura por IA, empresa dos Estados Unidos)' : 'o Google (leitura por IA, empresa dos Estados Unidos)';
+  return descricaoProvedor().provedor === 'cloudflare' ? 'a Cloudflare, empresa dos Estados Unidos que faz a leitura por IA' : 'o Google, empresa dos Estados Unidos que faz a leitura por IA';
 }
 
 // RASCUNHO. Campos entre [colchetes] dependem de dados da empresa. Prazos de retenção são propostas.
