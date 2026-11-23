@@ -4,7 +4,7 @@
 > (arquivos diferentes) que rodam em paralelo, uma sessão por frente. Ao terminar uma
 > frente, marque aqui e anote a branch.
 
-Última atualização: **21/11/2026**
+Última atualização: **23/11/2026**
 
 ## Sprint 1 — Fundação SaaS (✅ concluída e publicada em 21/11/2026)
 
@@ -199,6 +199,14 @@ Teste logado da IA na Cloudflare e do extrato (22/11): passou. Folhas sintética
 ## ⏸ Pausa (22/11/2026) — retomar no próximo fim de semana
 
 O João pediu para pausar depois da Sprint 18. Relatório: `docs/empresa/relatorio-sprints-11-18.pdf`.
+
+**Revisão semanal automática (23/11/2026):** pausa respeitada — Sprint 19 **não** foi
+aberta. Nenhuma branch com commit fora da `main` no GitHub; migrações 0000–0037 iguais
+no remoto (próximo livre **0038**); CI e Vercel verdes em `dcf672e`. Produção: `/` → `/conheca`,
+páginas públicas 200, telas internas → login, APIs 401 sem sessão. Restam neste
+notebook 7 worktrees antigas da Sprint 1–2 (`.claude/worktrees/*`); as locais
+`cobranca-118569` e `ponto-postgres-8196ff` têm 1 commit cada já substituído pelas
+versões `*-notebook-*` integradas — limpar na retomada.
 
 ## Sprint 19 — Planejada (começa na retomada)
 
